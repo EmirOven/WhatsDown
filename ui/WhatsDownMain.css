@@ -355,5 +355,113 @@
   min-height: 24px;
 }
 
+/* Reply preview bar over message input */
+.reply-preview-bar {
+  background-color: @card_bg_color;
+  border-top: 1px solid alpha(currentColor, 0.08);
+  border-left: 4px solid #3584e4;
+  border-radius: 8px 8px 0 0;
+  padding: 6px 12px;
+  margin-left: 12px;
+  margin-right: 12px;
+  margin-bottom: -4px;
+}
+
+.reply-preview-sender {
+  font-size: 8.5pt;
+  font-weight: 700;
+  color: #3584e4;
+}
+
+.reply-preview-text {
+  font-size: 8.5pt;
+  opacity: 0.75;
+}
+
+.reply-cancel-btn {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 2px;
+  opacity: 0.7;
+}
+
+.reply-cancel-btn:hover {
+  opacity: 1;
+}
+
+/* Hover reply button next to message bubble */
+.message-row-box {
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
+.message-reply-btn {
+  opacity: 0;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 9999px;
+  background-color: alpha(currentColor, 0.08);
+  transition: opacity 150ms ease-in-out, background-color 150ms ease-in-out;
+}
+
+.message-reply-btn:hover {
+  background-color: alpha(currentColor, 0.18);
+}
+
+.message-row:hover .message-reply-btn {
+  opacity: 1;
+}
+
+/* Quoted message block inside chat bubble */
+.chat-bubble-quote {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background-color: alpha(currentColor, 0.08);
+  border-left: 3.5px solid #3584e4;
+  margin-bottom: 4px;
+}
+
+.chat-bubble-quote:hover {
+  background-color: alpha(currentColor, 0.14);
+}
+
+.chat-bubble-quote-sender {
+  font-size: 8pt;
+  font-weight: 700;
+}
+
+.chat-bubble-quote-text {
+  font-size: 8pt;
+  opacity: 0.8;
+}
+
+.chat-bubble-quote-thumb {
+  border-radius: 4px;
+}
+
+.chat-bubble-outgoing .chat-bubble-quote {
+  border-left-color: rgba(255, 255, 255, 0.85);
+  background-color: rgba(0, 0, 0, 0.12);
+}
+
+.chat-bubble-outgoing .chat-bubble-quote:hover {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.chat-bubble-outgoing .chat-bubble-quote-sender {
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.chat-bubble-outgoing .chat-bubble-quote-text {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Flash highlight when jumping to a message */
+.message-highlight .chat-bubble {
+  background-color: alpha(#3584e4, 0.4) !important;
+  transition: background-color 0.8s ease-out;
+}
+
 
 

@@ -453,6 +453,38 @@ Adw.ApplicationWindow main_window {
                   }
                 }
 
+                Gtk.Box reply_preview_bar {
+                  visible: false;
+                  orientation: horizontal;
+                  spacing: 8;
+                  styles ["reply-preview-bar"]
+
+                  Gtk.Box {
+                    orientation: vertical;
+                    spacing: 2;
+                    hexpand: true;
+
+                    Gtk.Label reply_preview_sender {
+                      xalign: 0;
+                      styles ["reply-preview-sender"]
+                    }
+
+                    Gtk.Label reply_preview_text {
+                      xalign: 0;
+                      ellipsize: end;
+                      max-width-chars: 60;
+                      styles ["reply-preview-text"]
+                    }
+                  }
+
+                  Gtk.Button cancel_reply_btn {
+                    icon-name: "window-close-symbolic";
+                    tooltip-text: _("Cancel reply");
+                    valign: center;
+                    styles ["flat", "circular", "reply-cancel-btn"]
+                  }
+                }
+
                 Gtk.Box {
                   spacing: 8;
                   styles ["chat-input-bar"]

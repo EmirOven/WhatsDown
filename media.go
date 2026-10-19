@@ -48,32 +48,118 @@ func parseE2EMessage(raw []byte) *waE2E.Message {
 	return &msg
 }
 
-// extractMentionedJIDs returns any JIDs explicitly mentioned in a message's context.
-func extractMentionedJIDs(raw []byte) []string {
-	waMsg := parseE2EMessage(raw)
+// extractContextInfo returns the waE2E.ContextInfo for a raw protobuf message if present.
+func extractContextInfo(raw []byte) *waE2E.ContextInfo {
+	return extractContextInfoFromProto(parseE2EMessage(raw))
+}
+
+// extractContextInfoFromProto returns the waE2E.ContextInfo for a waE2E.Message if present.
+func extractContextInfoFromProto(waMsg *waE2E.Message) *waE2E.ContextInfo {
 	if waMsg == nil {
 		return nil
 	}
-	var ctxInfo *waE2E.ContextInfo
 	switch {
 	case waMsg.GetExtendedTextMessage() != nil:
-		ctxInfo = waMsg.GetExtendedTextMessage().GetContextInfo()
+		return waMsg.GetExtendedTextMessage().GetContextInfo()
 	case waMsg.GetImageMessage() != nil:
-		ctxInfo = waMsg.GetImageMessage().GetContextInfo()
+		return waMsg.GetImageMessage().GetContextInfo()
 	case waMsg.GetVideoMessage() != nil:
-		ctxInfo = waMsg.GetVideoMessage().GetContextInfo()
+		return waMsg.GetVideoMessage().GetContextInfo()
 	case waMsg.GetAudioMessage() != nil:
-		ctxInfo = waMsg.GetAudioMessage().GetContextInfo()
+		return waMsg.GetAudioMessage().GetContextInfo()
 	case waMsg.GetDocumentMessage() != nil:
-		ctxInfo = waMsg.GetDocumentMessage().GetContextInfo()
+		return waMsg.GetDocumentMessage().GetContextInfo()
 	case waMsg.GetStickerMessage() != nil:
-		ctxInfo = waMsg.GetStickerMessage().GetContextInfo()
+		return waMsg.GetStickerMessage().GetContextInfo()
+	case waMsg.GetLocationMessage() != nil:
+		return waMsg.GetLocationMessage().GetContextInfo()
+	case waMsg.GetLiveLocationMessage() != nil:
+		return waMsg.GetLiveLocationMessage().GetContextInfo()
+	case waMsg.GetContactMessage() != nil:
+		return waMsg.GetContactMessage().GetContextInfo()
+	case waMsg.GetPollCreationMessage() != nil:
+		return waMsg.GetPollCreationMessage().GetContextInfo()
+	case waMsg.GetPollCreationMessageV2() != nil:
+		return waMsg.GetPollCreationMessageV2().GetContextInfo()
+	case waMsg.GetPollCreationMessageV3() != nil:
+		return waMsg.GetPollCreationMessageV3().GetContextInfo()
+	case waMsg.GetTemplateMessage() != nil:
+		return waMsg.GetTemplateMessage().GetContextInfo()
+	case waMsg.GetInteractiveMessage() != nil:
+		return waMsg.GetInteractiveMessage().GetContextInfo()
+	case waMsg.GetButtonsMessage() != nil:
+		return waMsg.GetButtonsMessage().GetContextInfo()
+	case waMsg.GetListMessage() != nil:
+		return waMsg.GetListMessage().GetContextInfo()
+	case waMsg.GetOrderMessage() != nil:
+		return waMsg.GetOrderMessage().GetContextInfo()
 	}
+	return nil
+}
+
+// summarizeProtoMessage extracts a representative text snippet and message kind from a protobuf message.
+func summarizeProtoMessage(waMsg *waE2E.Message) (string, string) {
+	if waMsg == nil {
+		return "Message", messageKindText
+	}
+	if text := waMsg.GetConversation(); text != "" {
+		return text, messageKindText
+	}
+	if ext := waMsg.GetExtendedTextMessage(); ext != nil {
+		return ext.GetText(), messageKindText
+	}
+	if img := waMsg.GetImageMessage(); img != nil {
+		if cap := img.GetCaption(); cap != "" {
+			return "📷 " + cap, messageKindImage
+		}
+		return "📷 Photo", messageKindImage
+	}
+	if vid := waMsg.GetVideoMessage(); vid != nil {
+		if cap := vid.GetCaption(); cap != "" {
+			return "🎥 " + cap, messageKindVideo
+		}
+		return "🎥 Video", messageKindVideo
+	}
+	if aud := waMsg.GetAudioMessage(); aud != nil {
+		if aud.GetPTT() {
+			return "🎤 Voice message", messageKindVoice
+		}
+		return "🎵 Audio", messageKindAudio
+	}
+	if doc := waMsg.GetDocumentMessage(); doc != nil {
+		if fn := doc.GetFileName(); fn != "" {
+			return "📄 " + fn, messageKindDocument
+		}
+		return "📄 Document", messageKindDocument
+	}
+	if waMsg.GetLocationMessage() != nil || waMsg.GetLiveLocationMessage() != nil {
+		return "📍 Location", messageKindLocation
+	}
+	if waMsg.GetPollCreationMessage() != nil || waMsg.GetPollCreationMessageV2() != nil || waMsg.GetPollCreationMessageV3() != nil {
+		q, _, _ := extractPollDetailsFromMsg(waMsg)
+		if q != "" {
+			return "📊 " + q, messageKindPoll
+		}
+		return "📊 Poll", messageKindPoll
+	}
+	if waMsg.GetStickerMessage() != nil {
+		return "🏷️ Sticker", messageKindSticker
+	}
+	if waMsg.GetContactMessage() != nil || waMsg.GetContactsArrayMessage() != nil {
+		return "👤 Contact", messageKindText
+	}
+	return "Message", messageKindText
+}
+
+// extractMentionedJIDs returns any JIDs explicitly mentioned in a message's context.
+func extractMentionedJIDs(raw []byte) []string {
+	ctxInfo := extractContextInfo(raw)
 	if ctxInfo != nil {
 		return ctxInfo.GetMentionedJID()
 	}
 	return nil
 }
+
 
 // getThumbCachePath computes the local file path for caching a media thumbnail.
 func getThumbCachePath(msg StoredMessage) string {

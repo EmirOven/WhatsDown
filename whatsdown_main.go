@@ -62,6 +62,14 @@ type whatsDownMainController struct {
 	attachDocBtn           *gtk.Button
 	attachPollBtn          *gtk.Button
 
+	// Reply preview widgets & state
+	replyPreviewBar    *gtk.Box
+	replyPreviewSender *gtk.Label
+	replyPreviewText   *gtk.Label
+	cancelReplyBtn     *gtk.Button
+	replyingTo         *StoredMessage
+	messageRowMap      map[string]*gtk.ListBoxRow
+
 	// Settings widgets
 	settingsProfileRow    *adw.ActionRow
 	settingsProfileAvatar *adw.Avatar
@@ -125,6 +133,10 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 	attachPhotoBtn, _ := castObject[*gtk.Button](builder, "attach_photo_btn")
 	attachDocBtn, _ := castObject[*gtk.Button](builder, "attach_doc_btn")
 	attachPollBtn, _ := castObject[*gtk.Button](builder, "attach_poll_btn")
+	replyPreviewBar, _ := castObject[*gtk.Box](builder, "reply_preview_bar")
+	replyPreviewSender, _ := castObject[*gtk.Label](builder, "reply_preview_sender")
+	replyPreviewText, _ := castObject[*gtk.Label](builder, "reply_preview_text")
+	cancelReplyBtn, _ := castObject[*gtk.Button](builder, "cancel_reply_btn")
 
 	if !ok1 || !ok2 || !ok3 || !ok4 || !okBtn || !ok5 || !ok6 || !ok7 || !ok8 || !ok9 || !ok10 || !ok11 || !ok12 || !ok13 ||
 		!ok14 || !ok15 || !ok16 || !ok17 || !ok18 || !ok19 || !ok20 || !ok21 || !ok22 ||
@@ -163,6 +175,11 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 		attachPhotoBtn:         attachPhotoBtn,
 		attachDocBtn:           attachDocBtn,
 		attachPollBtn:          attachPollBtn,
+		replyPreviewBar:        replyPreviewBar,
+		replyPreviewSender:     replyPreviewSender,
+		replyPreviewText:       replyPreviewText,
+		cancelReplyBtn:         cancelReplyBtn,
+		messageRowMap:          make(map[string]*gtk.ListBoxRow),
 		settingsProfileRow:     settingsProfileRow,
 		settingsProfileAvatar:  settingsProfileAvatar,
 		settingsResyncBtn:      settingsResyncBtn,
@@ -173,6 +190,7 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 		settingsLogoutBtn:      settingsLogoutBtn,
 	}
 	activeMainWindow = ctrl
+
 
 	// Filter chats by user name or phone in sidebar
 	chatsList.SetFilterFunc(func(row *gtk.ListBoxRow) bool {
@@ -446,13 +464,29 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 		}
 	})
 
-	// Message sending
+	// Message sending & reply controls
 	sendButton.ConnectClicked(func() {
 		ctrl.sendMessage()
 	})
 	messageEntry.ConnectActivate(func() {
 		ctrl.sendMessage()
 	})
+
+	if cancelReplyBtn != nil {
+		cancelReplyBtn.ConnectClicked(func() {
+			ctrl.cancelReply()
+		})
+	}
+
+	keyController := gtk.NewEventControllerKey()
+	keyController.ConnectKeyPressed(func(val uint, code uint, state gdk.ModifierType) bool {
+		if val == gdk.KEY_Escape && ctrl.replyingTo != nil {
+			ctrl.cancelReply()
+			return true
+		}
+		return false
+	})
+	messageEntry.AddController(keyController)
 
 	// Populate chat lists & settings info
 	ctrl.loadChats()
@@ -1388,6 +1422,9 @@ func (c *whatsDownMainController) selectChat(chat Chat) {
 	// On narrow/mobile screens, show the conversation content
 	c.splitView.SetShowContent(true)
 
+	// Clear active reply when switching chats
+	c.cancelReply()
+
 	// Clear unread count locally and in database
 	if chat.UnreadCount > 0 {
 		chat.UnreadCount = 0
@@ -1421,8 +1458,11 @@ func (c *whatsDownMainController) loadMessages(chatJID string) {
 	}
 
 	c.currentMessages = msgs
+	c.messageRowMap = make(map[string]*gtk.ListBoxRow)
 	for _, msg := range msgs {
-		c.messagesList.Append(c.createMessageBubble(msg))
+		bubble := c.createMessageBubble(msg)
+		c.messageRowMap[msg.ID] = bubble
+		c.messagesList.Append(bubble)
 	}
 	c.messagesList.InvalidateFilter()
 
@@ -1797,7 +1837,11 @@ func formatMessageTextWithMentions(text string, mentionedJIDs []string, resolveN
 
 // extractPollDetails extracts question, options, and selectable count from a raw poll protobuf.
 func extractPollDetails(raw []byte) (question string, options []string, selectableCount uint32) {
-	e2e := parseE2EMessage(raw)
+	return extractPollDetailsFromMsg(parseE2EMessage(raw))
+}
+
+// extractPollDetailsFromMsg extracts question, options, and selectable count from a waE2E.Message.
+func extractPollDetailsFromMsg(e2e *waE2E.Message) (question string, options []string, selectableCount uint32) {
 	if e2e == nil {
 		return "Poll", nil, 1
 	}
@@ -1825,6 +1869,7 @@ func extractPollDetails(raw []byte) (question string, options []string, selectab
 	}
 	return question, options, selectableCount
 }
+
 
 // getMaxImageWidth calculates the maximum width for an image message: half of a normal message width.
 func (c *whatsDownMainController) getMaxImageWidth() int {
@@ -1883,11 +1928,13 @@ func (c *whatsDownMainController) createMessageBubble(msg StoredMessage) *gtk.Li
 	row := gtk.NewListBoxRow()
 	row.SetSelectable(false)
 	row.SetActivatable(false)
+	row.AddCSSClass("message-row")
 
 	box := gtk.NewBox(gtk.OrientationVertical, 4)
 	box.AddCSSClass("chat-bubble")
 
-	if msg.FromMe || c.isSelfJID(msg.ChatJID) {
+	isOutgoing := msg.FromMe || c.isSelfJID(msg.ChatJID)
+	if isOutgoing {
 		box.AddCSSClass("chat-bubble-outgoing")
 		box.SetHAlign(gtk.AlignEnd)
 	} else {
@@ -1950,6 +1997,11 @@ func (c *whatsDownMainController) createMessageBubble(msg StoredMessage) *gtk.Li
 	}
 
 	mCopy := msg
+
+	// Render quote block if message replies to another message
+	if quoteWidget := c.createQuoteWidget(msg); quoteWidget != nil {
+		box.Append(quoteWidget)
+	}
 
 	// Render media thumbnail and interactive open buttons
 	switch msg.Kind {
@@ -2419,7 +2471,55 @@ func (c *whatsDownMainController) createMessageBubble(msg StoredMessage) *gtk.Li
 	// Right-click context menu on message bubble
 	c.attachMessageContextMenu(box, msg)
 
-	row.SetChild(box)
+	rowBox := gtk.NewBox(gtk.OrientationHorizontal, 6)
+	rowBox.AddCSSClass("message-row-box")
+
+	if msg.Kind != messageKindDeleted {
+		replyBtn := gtk.NewButton()
+		replyBtn.AddCSSClass("flat")
+		replyBtn.AddCSSClass("circular")
+		replyBtn.AddCSSClass("message-reply-btn")
+		replyBtn.SetIconName("mail-reply-sender-symbolic")
+		replyBtn.SetTooltipText("Reply")
+		replyBtn.SetVAlign(gtk.AlignCenter)
+		replyBtn.SetCanFocus(false)
+		replyBtn.SetOpacity(0.0)
+
+		replyBtn.ConnectClicked(func() {
+			if replyBtn.Opacity() < 0.2 {
+				return
+			}
+			c.startReply(mCopy)
+		})
+
+		motion := gtk.NewEventControllerMotion()
+		motion.ConnectEnter(func(x, y float64) {
+			replyBtn.SetOpacity(1.0)
+		})
+		motion.ConnectLeave(func() {
+			replyBtn.SetOpacity(0.0)
+		})
+		row.AddController(motion)
+
+		if isOutgoing {
+			rowBox.SetHAlign(gtk.AlignEnd)
+			rowBox.Append(replyBtn)
+			rowBox.Append(box)
+		} else {
+			rowBox.SetHAlign(gtk.AlignStart)
+			rowBox.Append(box)
+			rowBox.Append(replyBtn)
+		}
+	} else {
+		if isOutgoing {
+			rowBox.SetHAlign(gtk.AlignEnd)
+		} else {
+			rowBox.SetHAlign(gtk.AlignStart)
+		}
+		rowBox.Append(box)
+	}
+
+	row.SetChild(rowBox)
 	return row
 }
 
@@ -2438,6 +2538,22 @@ func (c *whatsDownMainController) attachMessageContextMenu(widget gtk.Widgetter,
 	menuBox.SetMarginEnd(4)
 
 	mCopy := msg
+
+	// 0. Reply
+	if mCopy.Kind != messageKindDeleted {
+		replyBtn := gtk.NewButton()
+		replyBtn.AddCSSClass("flat")
+		replyBtn.AddCSSClass("popover-menu-btn")
+		rBox := gtk.NewBox(gtk.OrientationHorizontal, 10)
+		rBox.Append(gtk.NewImageFromIconName("mail-reply-sender-symbolic"))
+		rBox.Append(gtk.NewLabel("Reply"))
+		replyBtn.SetChild(rBox)
+		replyBtn.ConnectClicked(func() {
+			popover.Popdown()
+			c.startReply(mCopy)
+		})
+		menuBox.Append(replyBtn)
+	}
 
 	// 1. Star / Unstar
 	starText := "Star Message"
@@ -2533,6 +2649,313 @@ func (c *whatsDownMainController) toggleMessageStarred(msg StoredMessage) {
 	}()
 }
 
+// startReply initiates replying to a specific message, showing the preview bar above the message entry.
+func (c *whatsDownMainController) startReply(msg StoredMessage) {
+	c.replyingTo = &msg
+
+	sender := "You"
+	if !msg.FromMe && !c.isSelfJID(msg.ChatJID) {
+		sender = msg.SenderName
+		if sender == "" || strings.Contains(sender, "@") || strings.HasPrefix(sender, "+") {
+			if msg.SenderJID != "" {
+				if resolved := c.resolveContactName(msg.SenderJID); resolved != "" {
+					sender = resolved
+				}
+			}
+		}
+		if sender == "" {
+			sender = cleanPhoneNumber(msg.SenderJID)
+		}
+		if sender == "" {
+			sender = "Sender"
+		}
+	}
+	if c.replyPreviewSender != nil {
+		c.replyPreviewSender.SetText(fmt.Sprintf("Replying to %s", sender))
+	}
+
+	previewText := msg.Text
+	if previewText == "" {
+		switch msg.Kind {
+		case messageKindImage:
+			previewText = "📷 Photo"
+		case messageKindVideo:
+			previewText = "🎥 Video"
+		case messageKindAudio, messageKindVoice:
+			previewText = "🎵 Audio"
+		case messageKindDocument:
+			previewText = "📄 Document"
+		case messageKindLocation:
+			previewText = "📍 Location"
+		case messageKindPoll:
+			previewText = "📊 Poll"
+		case messageKindSticker:
+			previewText = "🏷️ Sticker"
+		default:
+			previewText = "Message"
+		}
+	}
+	if c.replyPreviewText != nil {
+		c.replyPreviewText.SetText(previewText)
+	}
+	if c.replyPreviewBar != nil {
+		c.replyPreviewBar.SetVisible(true)
+	}
+	if c.messageEntry != nil {
+		c.messageEntry.GrabFocus()
+	}
+}
+
+// cancelReply clears the active reply state and hides the preview bar.
+func (c *whatsDownMainController) cancelReply() {
+	c.replyingTo = nil
+	if c.replyPreviewBar != nil {
+		c.replyPreviewBar.SetVisible(false)
+	}
+}
+
+// buildReplyContextInfo constructs a waE2E.ContextInfo quoting the specified message.
+func (c *whatsDownMainController) buildReplyContextInfo(quoted StoredMessage) *waE2E.ContextInfo {
+	var quotedRaw *waE2E.Message
+	if len(quoted.Raw) > 0 {
+		quotedRaw = parseE2EMessage(quoted.Raw)
+	}
+	if quotedRaw == nil {
+		quotedRaw = &waE2E.Message{
+			Conversation: proto.String(quoted.Text),
+		}
+	} else {
+		// Clone and strip any nested ContextInfo from the quoted snapshot
+		quotedRaw = proto.Clone(quotedRaw).(*waE2E.Message)
+		if quotedRaw.ExtendedTextMessage != nil {
+			quotedRaw.ExtendedTextMessage.ContextInfo = nil
+		}
+		if quotedRaw.ImageMessage != nil {
+			quotedRaw.ImageMessage.ContextInfo = nil
+		}
+		if quotedRaw.VideoMessage != nil {
+			quotedRaw.VideoMessage.ContextInfo = nil
+		}
+		if quotedRaw.AudioMessage != nil {
+			quotedRaw.AudioMessage.ContextInfo = nil
+		}
+		if quotedRaw.DocumentMessage != nil {
+			quotedRaw.DocumentMessage.ContextInfo = nil
+		}
+		if quotedRaw.StickerMessage != nil {
+			quotedRaw.StickerMessage.ContextInfo = nil
+		}
+	}
+
+	var participant string
+	if quoted.FromMe || c.isSelfJID(quoted.ChatJID) {
+		if waClient != nil && waClient.Store != nil && waClient.Store.ID != nil {
+			participant = waClient.Store.ID.ToNonAD().String()
+		}
+	} else {
+		participant = quoted.SenderJID
+		if participant == "" {
+			participant = quoted.ChatJID
+		}
+	}
+	if pj, err := types.ParseJID(participant); err == nil {
+		participant = pj.ToNonAD().String()
+	}
+
+	ctxInfo := &waE2E.ContextInfo{
+		StanzaID:      proto.String(quoted.ID),
+		QuotedMessage: quotedRaw,
+	}
+	if participant != "" {
+		ctxInfo.Participant = proto.String(participant)
+	}
+	return ctxInfo
+}
+
+// createQuoteWidget builds a quote preview block inside a chat bubble if msg replies to another message.
+func (c *whatsDownMainController) createQuoteWidget(msg StoredMessage) *gtk.Box {
+	ctxInfo := extractContextInfo(msg.Raw)
+	if ctxInfo == nil {
+		return nil
+	}
+	stanzaID := ctxInfo.GetStanzaID()
+	participant := ctxInfo.GetParticipant()
+	quotedRaw := ctxInfo.GetQuotedMessage()
+	if stanzaID == "" && quotedRaw == nil {
+		return nil
+	}
+
+	var origMsg *StoredMessage
+	if msgStore != nil && stanzaID != "" {
+		origMsg, _ = msgStore.getMessageByID(context.Background(), stanzaID)
+	}
+
+	quotedSenderName := ""
+	if origMsg != nil {
+		if origMsg.FromMe || c.isSelfJID(origMsg.SenderJID) {
+			quotedSenderName = "You"
+		} else {
+			quotedSenderName = origMsg.SenderName
+			if quotedSenderName == "" || strings.Contains(quotedSenderName, "@") || strings.HasPrefix(quotedSenderName, "+") {
+				if origMsg.SenderJID != "" {
+					if resolved := c.resolveContactName(origMsg.SenderJID); resolved != "" {
+						quotedSenderName = resolved
+					}
+				}
+			}
+			if quotedSenderName == "" {
+				quotedSenderName = cleanPhoneNumber(origMsg.SenderJID)
+			}
+		}
+	}
+	if quotedSenderName == "" {
+		if c.isSelfJID(participant) {
+			quotedSenderName = "You"
+		} else if participant != "" {
+			if resolved := c.resolveContactName(participant); resolved != "" {
+				quotedSenderName = resolved
+			} else {
+				quotedSenderName = cleanPhoneNumber(participant)
+			}
+		}
+	}
+	if quotedSenderName == "" {
+		if msg.FromMe {
+			quotedSenderName = "You"
+		} else {
+			quotedSenderName = "Message"
+		}
+	}
+
+	var quotedSnippet string
+	if origMsg != nil && origMsg.Text != "" {
+		quotedSnippet = origMsg.Text
+	} else if quotedRaw != nil {
+		quotedSnippet, _ = summarizeProtoMessage(quotedRaw)
+	} else if origMsg != nil {
+		switch origMsg.Kind {
+		case messageKindImage:
+			quotedSnippet = "📷 Photo"
+		case messageKindVideo:
+			quotedSnippet = "🎥 Video"
+		case messageKindAudio, messageKindVoice:
+			quotedSnippet = "🎵 Audio"
+		case messageKindDocument:
+			quotedSnippet = "📄 Document"
+		case messageKindLocation:
+			quotedSnippet = "📍 Location"
+		case messageKindPoll:
+			quotedSnippet = "📊 Poll"
+		case messageKindSticker:
+			quotedSnippet = "🏷️ Sticker"
+		default:
+			quotedSnippet = "Message"
+		}
+	} else {
+		quotedSnippet = "Original message"
+	}
+
+	quoteBox := gtk.NewBox(gtk.OrientationHorizontal, 6)
+	quoteBox.AddCSSClass("chat-bubble-quote")
+	quoteBox.SetCursorFromName("pointer")
+
+	contentBox := gtk.NewBox(gtk.OrientationVertical, 2)
+	contentBox.SetHExpand(true)
+
+	colorSeed := participant
+	if colorSeed == "" {
+		colorSeed = quotedSenderName
+	}
+	authorColor := getSenderColor(colorSeed)
+	if quotedSenderName == "You" {
+		authorColor = "#3584e4"
+	}
+
+	authorLabel := gtk.NewLabel("")
+	authorLabel.SetMarkup(fmt.Sprintf(`<span foreground="%s" weight="bold">%s</span>`, authorColor, glib.MarkupEscapeText(quotedSenderName)))
+	authorLabel.SetXAlign(0)
+	authorLabel.AddCSSClass("chat-bubble-quote-sender")
+	contentBox.Append(authorLabel)
+
+	textLabel := gtk.NewLabel(quotedSnippet)
+	textLabel.SetXAlign(0)
+	textLabel.SetEllipsize(pango.EllipsizeEnd)
+	textLabel.SetMaxWidthChars(36)
+	textLabel.AddCSSClass("chat-bubble-quote-text")
+	contentBox.Append(textLabel)
+
+	quoteBox.Append(contentBox)
+
+	// Show small thumbnail if available
+	if origMsg != nil && (origMsg.Kind == messageKindImage || origMsg.Kind == messageKindVideo) {
+		if tex := getMediaThumbnailTexture(*origMsg); tex != nil {
+			thumbPic := gtk.NewPicture()
+			thumbPic.SetKeepAspectRatio(true)
+			thumbPic.SetCanShrink(true)
+			thumbPic.SetSizeRequest(36, 36)
+			thumbPic.SetPaintable(tex)
+			thumbPic.AddCSSClass("chat-bubble-quote-thumb")
+			quoteBox.Append(thumbPic)
+		}
+	} else if quotedRaw != nil {
+		var jpegBytes []byte
+		if img := quotedRaw.GetImageMessage(); img != nil && len(img.GetJPEGThumbnail()) > 0 {
+			jpegBytes = img.GetJPEGThumbnail()
+		} else if vid := quotedRaw.GetVideoMessage(); vid != nil && len(vid.GetJPEGThumbnail()) > 0 {
+			jpegBytes = vid.GetJPEGThumbnail()
+		}
+		if len(jpegBytes) > 0 {
+			if tex, err := gdk.NewTextureFromBytes(glib.NewBytes(jpegBytes)); err == nil && tex != nil {
+				thumbPic := gtk.NewPicture()
+				thumbPic.SetKeepAspectRatio(true)
+				thumbPic.SetCanShrink(true)
+				thumbPic.SetSizeRequest(36, 36)
+				thumbPic.SetPaintable(tex)
+				thumbPic.AddCSSClass("chat-bubble-quote-thumb")
+				quoteBox.Append(thumbPic)
+			}
+		}
+	}
+
+	if stanzaID != "" {
+		targetID := stanzaID
+		gesture := gtk.NewGestureClick()
+		gesture.ConnectPressed(func(nPress int, x, y float64) {
+			c.scrollToMessageID(targetID)
+		})
+		quoteBox.AddController(gesture)
+	}
+
+	return quoteBox
+}
+
+// scrollToMessageID scrolls the chat viewport to the message with the given ID and highlights it.
+func (c *whatsDownMainController) scrollToMessageID(id string) {
+	if c.messageRowMap == nil {
+		return
+	}
+	row, ok := c.messageRowMap[id]
+	if !ok || row == nil {
+		return
+	}
+
+	if c.messagesScrolledWindow != nil {
+		if vp, ok := c.messagesScrolledWindow.Child().(*gtk.Viewport); ok {
+			vp.ScrollTo(row, nil)
+		} else {
+			row.GrabFocus()
+		}
+	} else {
+		row.GrabFocus()
+	}
+
+	row.AddCSSClass("message-highlight")
+	glib.TimeoutAdd(1200, func() bool {
+		row.RemoveCSSClass("message-highlight")
+		return false
+	})
+}
+
 // sendMessage sends the text from messageEntry to the currently selected chat.
 func (c *whatsDownMainController) sendMessage() {
 	if c.currentChat == nil || waClient == nil {
@@ -2544,6 +2967,12 @@ func (c *whatsDownMainController) sendMessage() {
 		return
 	}
 	c.messageEntry.SetText("")
+
+	var ctxInfo *waE2E.ContextInfo
+	if c.replyingTo != nil {
+		ctxInfo = c.buildReplyContextInfo(*c.replyingTo)
+		c.cancelReply()
+	}
 
 	targetJID, err := types.ParseJID(c.currentChat.JID)
 	if err != nil {
@@ -2559,14 +2988,27 @@ func (c *whatsDownMainController) sendMessage() {
 	}
 	go func() {
 		ctx := context.Background()
-		resp, err := waClient.SendMessage(ctx, targetJID, &waE2E.Message{
-			Conversation: proto.String(text),
-		})
+		var waMsg waE2E.Message
+		if ctxInfo != nil {
+			waMsg = waE2E.Message{
+				ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+					Text:        proto.String(text),
+					ContextInfo: ctxInfo,
+				},
+			}
+		} else {
+			waMsg = waE2E.Message{
+				Conversation: proto.String(text),
+			}
+		}
+
+		resp, err := waClient.SendMessage(ctx, targetJID, &waMsg)
 		if err != nil {
 			log.Printf("sending message to %s: %v", targetJID, err)
 			return
 		}
 
+		rawProto, _ := proto.Marshal(&waMsg)
 		if msgStore != nil {
 			sentMsg := StoredMessage{
 				ChatJID:   chatJIDStr,
@@ -2576,12 +3018,13 @@ func (c *whatsDownMainController) sendMessage() {
 				Timestamp: time.Now(),
 				Kind:      messageKindText,
 				Text:      text,
+				Raw:       rawProto,
 			}
 			_, _ = msgStore.db.ExecContext(ctx, `
-				INSERT INTO whatsdown_messages (chat_jid, id, sender_jid, sender_name, from_me, timestamp, kind, text)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+				INSERT INTO whatsdown_messages (chat_jid, id, sender_jid, sender_name, from_me, timestamp, kind, text, raw)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 				ON CONFLICT (chat_jid, id) DO NOTHING`,
-				sentMsg.ChatJID, sentMsg.ID, sentMsg.SenderJID, "", 1, sentMsg.Timestamp.Unix(), sentMsg.Kind, sentMsg.Text)
+				sentMsg.ChatJID, sentMsg.ID, sentMsg.SenderJID, "", 1, sentMsg.Timestamp.Unix(), sentMsg.Kind, sentMsg.Text, sentMsg.Raw)
 
 			_, _ = msgStore.db.ExecContext(ctx, `
 				UPDATE whatsdown_chats SET last_message_at = ? WHERE jid = ?`,
@@ -2590,7 +3033,11 @@ func (c *whatsDownMainController) sendMessage() {
 			glib.IdleAdd(func() {
 				if c.currentChat != nil && (c.currentChat.JID == chatJIDStr || (c.isSelfJID(c.currentChat.JID) && c.isSelfJID(chatJIDStr))) {
 					c.currentMessages = append(c.currentMessages, sentMsg)
-					c.messagesList.Append(c.createMessageBubble(sentMsg))
+					bubble := c.createMessageBubble(sentMsg)
+					if c.messageRowMap != nil {
+						c.messageRowMap[sentMsg.ID] = bubble
+					}
+					c.messagesList.Append(bubble)
 					c.messagesList.InvalidateFilter()
 					c.scrollToBottom()
 					glib.TimeoutAdd(50, func() bool {
@@ -2922,6 +3369,12 @@ func (c *whatsDownMainController) sendAttachment(filePath, caption string) {
 		return
 	}
 
+	var ctxInfo *waE2E.ContextInfo
+	if c.replyingTo != nil {
+		ctxInfo = c.buildReplyContextInfo(*c.replyingTo)
+		c.cancelReply()
+	}
+
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		log.Printf("reading attachment file: %v", err)
@@ -3006,6 +3459,7 @@ func (c *whatsDownMainController) sendAttachment(filePath, caption string) {
 					FileEncSHA256: uploadResp.FileEncSHA256,
 					FileSHA256:    uploadResp.FileSHA256,
 					FileLength:    &fileLength,
+					ContextInfo:   ctxInfo,
 				}
 				waMsg.ImageMessage = imgMsg
 			case messageKindVideo:
@@ -3018,6 +3472,7 @@ func (c *whatsDownMainController) sendAttachment(filePath, caption string) {
 					FileEncSHA256: uploadResp.FileEncSHA256,
 					FileSHA256:    uploadResp.FileSHA256,
 					FileLength:    &fileLength,
+					ContextInfo:   ctxInfo,
 				}
 				waMsg.VideoMessage = vidMsg
 			case messageKindAudio:
@@ -3029,6 +3484,7 @@ func (c *whatsDownMainController) sendAttachment(filePath, caption string) {
 					FileEncSHA256: uploadResp.FileEncSHA256,
 					FileSHA256:    uploadResp.FileSHA256,
 					FileLength:    &fileLength,
+					ContextInfo:   ctxInfo,
 				}
 				waMsg.AudioMessage = audMsg
 			default:
@@ -3042,6 +3498,7 @@ func (c *whatsDownMainController) sendAttachment(filePath, caption string) {
 					FileEncSHA256: uploadResp.FileEncSHA256,
 					FileSHA256:    uploadResp.FileSHA256,
 					FileLength:    &fileLength,
+					ContextInfo:   ctxInfo,
 				}
 				waMsg.DocumentMessage = docMsg
 			}
@@ -3058,13 +3515,13 @@ func (c *whatsDownMainController) sendAttachment(filePath, caption string) {
 			var waMsg waE2E.Message
 			switch kind {
 			case messageKindImage:
-				waMsg.ImageMessage = &waE2E.ImageMessage{Caption: proto.String(caption), Mimetype: proto.String(mimeType)}
+				waMsg.ImageMessage = &waE2E.ImageMessage{Caption: proto.String(caption), Mimetype: proto.String(mimeType), ContextInfo: ctxInfo}
 			case messageKindVideo:
-				waMsg.VideoMessage = &waE2E.VideoMessage{Caption: proto.String(caption), Mimetype: proto.String(mimeType)}
+				waMsg.VideoMessage = &waE2E.VideoMessage{Caption: proto.String(caption), Mimetype: proto.String(mimeType), ContextInfo: ctxInfo}
 			case messageKindAudio:
-				waMsg.AudioMessage = &waE2E.AudioMessage{Mimetype: proto.String(mimeType)}
+				waMsg.AudioMessage = &waE2E.AudioMessage{Mimetype: proto.String(mimeType), ContextInfo: ctxInfo}
 			default:
-				waMsg.DocumentMessage = &waE2E.DocumentMessage{FileName: proto.String(filename), Caption: proto.String(caption), Mimetype: proto.String(mimeType)}
+				waMsg.DocumentMessage = &waE2E.DocumentMessage{FileName: proto.String(filename), Caption: proto.String(caption), Mimetype: proto.String(mimeType), ContextInfo: ctxInfo}
 			}
 			rawProto, _ = proto.Marshal(&waMsg)
 		}
@@ -3099,7 +3556,11 @@ func (c *whatsDownMainController) sendAttachment(filePath, caption string) {
 			glib.IdleAdd(func() {
 				if c.currentChat != nil && c.currentChat.JID == chatJIDStr {
 					c.currentMessages = append(c.currentMessages, sentMsg)
-					c.messagesList.Append(c.createMessageBubble(sentMsg))
+					bubble := c.createMessageBubble(sentMsg)
+					if c.messageRowMap != nil {
+						c.messageRowMap[sentMsg.ID] = bubble
+					}
+					c.messagesList.Append(bubble)
 					c.messagesList.InvalidateFilter()
 					c.scrollToBottom()
 					glib.TimeoutAdd(50, func() bool {
@@ -3261,6 +3722,13 @@ func (c *whatsDownMainController) sendPoll(question string, options []string, al
 	if c.currentChat == nil {
 		return
 	}
+
+	var ctxInfo *waE2E.ContextInfo
+	if c.replyingTo != nil {
+		ctxInfo = c.buildReplyContextInfo(*c.replyingTo)
+		c.cancelReply()
+	}
+
 	chatJIDStr := c.currentChat.JID
 	if c.isSelfJID(chatJIDStr) {
 		if canonical := c.getCanonicalSelfJID(); canonical != "" {
@@ -3285,6 +3753,9 @@ func (c *whatsDownMainController) sendPoll(question string, options []string, al
 				return
 			}
 			waMsg := waClient.BuildPollCreation(question, options, selectableCount)
+			if ctxInfo != nil && waMsg != nil && waMsg.PollCreationMessage != nil {
+				waMsg.PollCreationMessage.ContextInfo = ctxInfo
+			}
 			resp, err := waClient.SendMessage(ctx, targetJID, waMsg)
 			if err != nil {
 				log.Printf("sending poll message: %v", err)
@@ -3304,6 +3775,7 @@ func (c *whatsDownMainController) sendPoll(question string, options []string, al
 					Name:                   proto.String(question),
 					Options:                optProtos,
 					SelectableOptionsCount: proto.Uint32(uint32(selectableCount)),
+					ContextInfo:            ctxInfo,
 				},
 			}
 			rawProto, _ = proto.Marshal(waMsg)
@@ -3341,7 +3813,11 @@ func (c *whatsDownMainController) sendPoll(question string, options []string, al
 			glib.IdleAdd(func() {
 				if c.currentChat != nil && c.currentChat.JID == chatJIDStr {
 					c.currentMessages = append(c.currentMessages, sentMsg)
-					c.messagesList.Append(c.createMessageBubble(sentMsg))
+					bubble := c.createMessageBubble(sentMsg)
+					if c.messageRowMap != nil {
+						c.messageRowMap[sentMsg.ID] = bubble
+					}
+					c.messagesList.Append(bubble)
 					c.messagesList.InvalidateFilter()
 					c.scrollToBottom()
 					glib.TimeoutAdd(50, func() bool {

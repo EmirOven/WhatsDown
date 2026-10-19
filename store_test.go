@@ -1056,3 +1056,84 @@ func TestSelfChatCanonicalizationAndCleanup(t *testing.T) {
 		t.Errorf("getMessageByID failed: %v, msg=%v", err, msgByID)
 	}
 }
+
+func TestReplyContextAndSummarization(t *testing.T) {
+	// 1. Text message with reply context
+	replyMsg := &waE2E.Message{
+		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+			Text: proto.String("I agree with you!"),
+			ContextInfo: &waE2E.ContextInfo{
+				StanzaID:    proto.String("orig-msg-123"),
+				Participant: proto.String("15551234567@s.whatsapp.net"),
+				QuotedMessage: &waE2E.Message{
+					Conversation: proto.String("What do you think?"),
+				},
+			},
+		},
+	}
+
+	raw, err := proto.Marshal(replyMsg)
+	if err != nil {
+		t.Fatalf("marshaling replyMsg: %v", err)
+	}
+
+	ctxInfo := extractContextInfo(raw)
+	if ctxInfo == nil {
+		t.Fatalf("expected non-nil ctxInfo")
+	}
+	if ctxInfo.GetStanzaID() != "orig-msg-123" {
+		t.Errorf("expected stanzaID 'orig-msg-123', got %q", ctxInfo.GetStanzaID())
+	}
+	if ctxInfo.GetParticipant() != "15551234567@s.whatsapp.net" {
+		t.Errorf("expected participant '15551234567@s.whatsapp.net', got %q", ctxInfo.GetParticipant())
+	}
+	quoted := ctxInfo.GetQuotedMessage()
+	if quoted == nil || quoted.GetConversation() != "What do you think?" {
+		t.Errorf("expected quoted conversation 'What do you think?', got %v", quoted)
+	}
+
+	// 2. Test summarizeProtoMessage for various types
+	txt, kind := summarizeProtoMessage(quoted)
+	if txt != "What do you think?" || kind != messageKindText {
+		t.Errorf("summarize text expected ('What do you think?', text), got (%q, %q)", txt, kind)
+	}
+
+	imgProto := &waE2E.Message{
+		ImageMessage: &waE2E.ImageMessage{
+			Caption: proto.String("Sunset at beach"),
+		},
+	}
+	txt, kind = summarizeProtoMessage(imgProto)
+	if txt != "📷 Sunset at beach" || kind != messageKindImage {
+		t.Errorf("summarize image expected ('📷 Sunset at beach', image), got (%q, %q)", txt, kind)
+	}
+
+	vidProto := &waE2E.Message{
+		VideoMessage: &waE2E.VideoMessage{},
+	}
+	txt, kind = summarizeProtoMessage(vidProto)
+	if txt != "🎥 Video" || kind != messageKindVideo {
+		t.Errorf("summarize video expected ('🎥 Video', video), got (%q, %q)", txt, kind)
+	}
+
+	audProto := &waE2E.Message{
+		AudioMessage: &waE2E.AudioMessage{
+			PTT: proto.Bool(true),
+		},
+	}
+	txt, kind = summarizeProtoMessage(audProto)
+	if txt != "🎤 Voice message" || kind != messageKindVoice {
+		t.Errorf("summarize audio voice expected ('🎤 Voice message', voice), got (%q, %q)", txt, kind)
+	}
+
+	docProto := &waE2E.Message{
+		DocumentMessage: &waE2E.DocumentMessage{
+			FileName: proto.String("invoice.pdf"),
+		},
+	}
+	txt, kind = summarizeProtoMessage(docProto)
+	if txt != "📄 invoice.pdf" || kind != messageKindDocument {
+		t.Errorf("summarize document expected ('📄 invoice.pdf', doc), got (%q, %q)", txt, kind)
+	}
+}
+

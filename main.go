@@ -198,9 +198,6 @@ func main() {
 
 func newCSSProvider() *gtk.CSSProvider {
 	provider := gtk.NewCSSProvider()
-	provider.ConnectParsingError(func(section *gtk.CSSSection, err error) {
-		log.Printf("CSS error at %s: %v", section.String(), err)
-	})
 	gtk.StyleContextAddProviderForDisplay(
 		gdk.DisplayGetDefault(),
 		provider,
