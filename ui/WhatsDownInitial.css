@@ -1,0 +1,20 @@
+/* Styles for the WhatsDown initial (setup / QR login) window */
+
+.initial-container {
+  padding: 24px;
+}
+
+.welcome-title {
+  font-size: 24pt;
+  font-weight: 800;
+}
+
+.welcome-subtitle {
+  font-size: 12pt;
+}
+
+.qr-image {
+  padding: 18px;
+  border-radius: 12px;
+  background-color: white;
+}

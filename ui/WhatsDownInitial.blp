@@ -1,0 +1,46 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.ApplicationWindow initial_window {
+  default-height: 400;
+  default-width: 800;
+  title: "WhatsDown Setup";
+
+  content: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {}
+
+    content: Adw.Clamp {
+      Gtk.Box {
+        spacing: 48;
+        styles ["initial-container"]
+
+        Gtk.Box {
+          orientation: vertical;
+          valign: center;
+          spacing: 8;
+
+          Gtk.Label {
+            label: _("Welcome to WhatsDown");
+            xalign: 0;
+            styles ["welcome-title"]
+          }
+
+          Gtk.Label {
+            label: _("Scan the QR code with WhatsApp on your phone to sign in.");
+            xalign: 0;
+            wrap: true;
+            styles ["welcome-subtitle", "dim-label"]
+          }
+        }
+
+        Gtk.Image qr_image {
+          pixel-size: 256;
+          valign: center;
+          halign: center;
+          styles ["qr-image"]
+        }
+      }
+    };
+  };
+}

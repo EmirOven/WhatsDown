@@ -1,0 +1,48 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.ApplicationWindow syncing_window {
+  default-height: 400;
+  default-width: 800;
+  title: "WhatsDown Setup";
+
+  content: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {}
+
+    content: Adw.Clamp {
+      maximum-size: 520;
+      valign: center;
+
+      Gtk.Box {
+        orientation: vertical;
+        spacing: 8;
+        styles ["syncing-container"]
+
+        Gtk.Label {
+          label: _("Syncing your chats");
+          xalign: 0;
+          styles ["syncing-title"]
+        }
+
+        Gtk.Label {
+          label: _("Keep WhatsApp open on your phone while your messages are copied to WhatsDown.");
+          xalign: 0;
+          wrap: true;
+          styles ["syncing-subtitle", "dim-label"]
+        }
+
+        Gtk.ProgressBar sync_progress {
+          show-text: true;
+          styles ["syncing-progress"]
+        }
+
+        Gtk.Label sync_status {
+          xalign: 0;
+          wrap: true;
+          styles ["syncing-status", "dim-label"]
+        }
+      }
+    };
+  };
+}
