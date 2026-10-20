@@ -182,13 +182,14 @@ WHATSDOWN_DEV_PAGE=main ./run.sh
 
 ### Standard Run (Embedded Assets)
 
-To run the application using compiled, embedded assets without file watching:
+Since XML `.ui` files are compiled from Blueprint source files (`.blp`) and not tracked in Git, compile them first before building:
 ```bash
-blueprint-compiler batch-compile ui ui ui/*.blp
+blueprint-compiler batch-compile ui ui ui/*.blp ui/components/*.blp
 WHATSDOWN_DEV=0 ./run.sh
 ```
 Or build the binary directly:
 ```bash
+blueprint-compiler batch-compile ui ui ui/*.blp ui/components/*.blp
 go build -o whatsdown .
 ./whatsdown
 ```

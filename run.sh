@@ -10,7 +10,7 @@ set -u
 cd "$(dirname "$0")" || exit 1
 
 compile_ui() {
-	blueprint-compiler batch-compile ui ui ui/*.blp
+	blueprint-compiler batch-compile ui ui ui/*.blp ui/components/*.blp
 }
 
 export WHATSDOWN_DEV="${WHATSDOWN_DEV:-1}"

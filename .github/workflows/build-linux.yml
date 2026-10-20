@@ -1,0 +1,52 @@
+name: build-linux
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-for-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            blueprint-compiler \
+            libgtk-4-dev \
+            libadwaita-1-dev \
+            libsqlite3-dev \
+            pkg-config \
+            gcc \
+            xvfb
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: "go.mod"
+
+      - name: Compile Blueprint files
+        run: |
+          blueprint-compiler batch-compile ui ui ui/*.blp ui/components/*.blp
+
+      - name: Build WhatsDown
+        run: |
+          go build -v -o whatsdown .
+
+      - name: Run unit tests
+        run: |
+          xvfb-run -a go test -v ./...
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: whatsdown-linux-x86_64
+          path: whatsdown
+          if-no-files-found: error
