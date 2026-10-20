@@ -22,6 +22,8 @@ jobs:
             blueprint-compiler \
             libgtk-4-dev \
             libadwaita-1-dev \
+            libgirepository1.0-dev \
+            gobject-introspection \
             libsqlite3-dev \
             pkg-config \
             gcc \

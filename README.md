@@ -125,6 +125,8 @@ sudo apt install -y \
   golang \
   libgtk-4-dev \
   libadwaita-1-dev \
+  libgirepository1.0-dev \
+  gobject-introspection \
   blueprint-compiler \
   libsqlite3-dev \
   gcc \
