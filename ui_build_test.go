@@ -154,6 +154,20 @@ func TestBuildMainWindow(t *testing.T) {
 			t.Errorf("expected sticker bubble to not be nil")
 		}
 
+		// Test clipboard media paste handling
+		activeMainWindow.currentChat = nil
+		if activeMainWindow.handleClipboardMediaPaste() {
+			t.Errorf("expected handleClipboardMediaPaste to return false when no chat is active")
+		}
+		activeMainWindow.currentChat = &Chat{
+			JID:  "12345@s.whatsapp.net",
+			Name: "Test Chat",
+		}
+		// With empty/text-only clipboard, should return false so normal text paste works
+		if activeMainWindow.handleClipboardMediaPaste() {
+			t.Errorf("expected handleClipboardMediaPaste to return false for empty/text clipboard")
+		}
+
 		app.Quit()
 	})
 

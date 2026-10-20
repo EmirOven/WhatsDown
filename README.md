@@ -23,6 +23,11 @@ WhatsDown is a native Linux WhatsApp client built with **Go**, **GTK 4**, and **
   - **Voice Messages (PTT Recording & Playback):**
     - Built-in voice recorder with live audio capture and Opus/OGG encoding.
     - Interactive recording bar that replaces the message entry during recording, featuring live waveform/level meter, timer, pause/resume, stop, review playback, cancel/delete, and send actions.
+  - **Clipboard Media Paste & Drag-and-Drop:**
+    - Paste screenshots and clipboard images directly into the message box with `Ctrl+V` (or `Shift+Insert`) without needing to save them as files first.
+    - Copy files from your file manager (Nautilus, Dolphin, etc.) and paste them directly into the conversation.
+    - Drag and drop files from desktop or file managers directly onto the chat window.
+    - Any text already typed in the message box is automatically preserved and pre-filled into the attachment's caption.
   - **Interactive Polls:**
     - Create single-choice or multi-choice polls with multiple options directly in conversations.
     - Live voting with real-time percentage progress bars, voter counts, and voter breakdown popovers.

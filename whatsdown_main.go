@@ -8,6 +8,7 @@ import (
 	"hash/fnv"
 	"log"
 	"math"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -691,9 +692,56 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 				return true
 			}
 		}
+
+		// Check for Ctrl+V or Shift+Insert for media/file paste
+		isCtrlV := (state&gdk.ControlMask != 0) && (val == gdk.KEY_v || val == gdk.KEY_V)
+		isShiftInsert := (state&gdk.ShiftMask != 0) && (val == gdk.KEY_Insert)
+		if isCtrlV || isShiftInsert {
+			if ctrl.handleClipboardMediaPaste() {
+				return true
+			}
+		}
 		return false
 	})
 	messageEntry.AddController(keyController)
+
+	if rightChatView != nil {
+		chatKeyCtrl := gtk.NewEventControllerKey()
+		chatKeyCtrl.ConnectKeyPressed(func(val uint, code uint, state gdk.ModifierType) bool {
+			// Don't intercept if user is typing in in-conversation search entry
+			if ctrl.chatSearchEntry != nil && ctrl.chatSearchEntry.HasFocus() {
+				return false
+			}
+			isCtrlV := (state&gdk.ControlMask != 0) && (val == gdk.KEY_v || val == gdk.KEY_V)
+			isShiftInsert := (state&gdk.ShiftMask != 0) && (val == gdk.KEY_Insert)
+			if isCtrlV || isShiftInsert {
+				if ctrl.handleClipboardMediaPaste() {
+					return true
+				}
+			}
+			return false
+		})
+		rightChatView.AddController(chatKeyCtrl)
+
+		dropTarget := gtk.NewDropTarget(gio.GTypeFile, gdk.ActionCopy)
+		dropTarget.ConnectDrop(func(value *glib.Value, x, y float64) bool {
+			if ctrl.currentChat == nil {
+				return false
+			}
+			goVal := value.GoValue()
+			if filer, ok := goVal.(gio.Filer); ok && filer != nil {
+				path := filer.Path()
+				if path != "" {
+					glib.IdleAdd(func() {
+						ctrl.showSendAttachmentDialog(path)
+					})
+					return true
+				}
+			}
+			return false
+		})
+		rightChatView.AddController(dropTarget)
+	}
 
 	messageEntry.ConnectChanged(func() {
 		text := messageEntry.Text()
@@ -4978,12 +5026,19 @@ func (c *whatsDownMainController) showSendAttachmentDialog(filePath string) {
 	captionEntry := gtk.NewEntry()
 	captionEntry.SetPlaceholderText("Add a caption…")
 	captionEntry.SetHExpand(true)
+	if c.messageEntry != nil && strings.TrimSpace(c.messageEntry.Text()) != "" {
+		captionEntry.SetText(strings.TrimSpace(c.messageEntry.Text()))
+	}
 	mainBox.Append(captionEntry)
 
 	doSend := func() {
 		stopCurrentAudio()
 		capText := captionEntry.Text()
 		dialog.Close()
+		if c.messageEntry != nil {
+			c.messageEntry.SetText("")
+			c.messageEntry.SetAttributes(pango.NewAttrList())
+		}
 		c.sendAttachment(filePath, capText)
 	}
 
@@ -4993,6 +5048,104 @@ func (c *whatsDownMainController) showSendAttachmentDialog(filePath string) {
 	dialog.SetTitlebar(headerBar)
 	dialog.SetChild(mainBox)
 	dialog.Present()
+	captionEntry.GrabFocus()
+}
+
+// handleClipboardMediaPaste checks if the clipboard contains an image (e.g. screenshot)
+// or file URI list, and if so opens the send attachment dialog. Returns true if media was handled.
+func (c *whatsDownMainController) handleClipboardMediaPaste() bool {
+	if c.currentChat == nil || c.window == nil {
+		return false
+	}
+
+	clipboard := c.window.Clipboard()
+	if clipboard == nil {
+		return false
+	}
+
+	formats := clipboard.Formats()
+	if formats == nil {
+		return false
+	}
+
+	hasImage := false
+	hasURIList := false
+
+	for _, mime := range formats.MIMETypes() {
+		if strings.HasPrefix(mime, "image/") {
+			hasImage = true
+			break
+		}
+		if mime == "text/uri-list" || mime == "x-special/gnome-copied-files" {
+			hasURIList = true
+		}
+	}
+
+	if !hasImage && !hasURIList {
+		return false
+	}
+
+	if hasImage {
+		clipboard.ReadTextureAsync(context.Background(), func(res gio.AsyncResulter) {
+			texturer, err := clipboard.ReadTextureFinish(res)
+			if err != nil || texturer == nil {
+				return
+			}
+			tex := gdk.BaseTexture(texturer)
+			if tex == nil {
+				return
+			}
+			tempFile := filepath.Join(os.TempDir(), fmt.Sprintf("whatsdown_paste_%d.png", time.Now().UnixNano()))
+			if tex.SaveToPNG(tempFile) {
+				glib.IdleAdd(func() {
+					c.showSendAttachmentDialog(tempFile)
+				})
+			}
+		})
+		return true
+	}
+
+	if hasURIList {
+		clipboard.ReadAsync(context.Background(), []string{"text/uri-list"}, int(glib.PriorityDefault), func(res gio.AsyncResulter) {
+			_, stream, err := clipboard.ReadFinish(res)
+			if err != nil || stream == nil {
+				return
+			}
+			baseStream := gio.BaseInputStream(stream)
+			defer baseStream.Close(context.Background())
+
+			b, err := baseStream.ReadBytes(context.Background(), 65536)
+			if err != nil || b == nil {
+				return
+			}
+			content := string(b.Data())
+			for _, line := range strings.Split(content, "\n") {
+				line = strings.TrimSpace(line)
+				if strings.HasPrefix(line, "#") || line == "" {
+					continue
+				}
+				targetPath := ""
+				if strings.HasPrefix(line, "file://") {
+					if u, err := url.Parse(line); err == nil {
+						targetPath = u.Path
+					}
+				} else if filepath.IsAbs(line) {
+					targetPath = line
+				}
+				if targetPath != "" {
+					if fi, err := os.Stat(targetPath); err == nil && !fi.IsDir() {
+						glib.IdleAdd(func() {
+							c.showSendAttachmentDialog(targetPath)
+						})
+						return
+					}
+				}
+			}
+		})
+		return true
+	}
+
+	return false
 }
 
 // sendAttachment handles uploading (if connected), storing, and displaying outgoing media files.
