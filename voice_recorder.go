@@ -193,6 +193,9 @@ func (r *voiceRecorder) Stop() {
 
 // Paused reports whether the recording is currently paused.
 func (r *voiceRecorder) Paused() bool {
+	if r == nil {
+		return false
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.paused
@@ -200,6 +203,9 @@ func (r *voiceRecorder) Paused() bool {
 
 // Duration returns the length of the captured audio.
 func (r *voiceRecorder) Duration() time.Duration {
+	if r == nil {
+		return 0
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	samples := len(r.pcm) / voiceBytesPerSample
