@@ -104,6 +104,7 @@ Adw.ToolbarView right_chat_view {
 
             Gtk.ListBox messages_list {
               selection-mode: none;
+              margin-bottom: 12;
               styles ["chat-messages-list"]
             }
           };
@@ -118,6 +119,37 @@ Adw.ToolbarView right_chat_view {
             margin-bottom: 14;
             visible: false;
             styles ["circular", "suggested-action", "scroll-bottom-fab"]
+          }
+        }
+
+        Gtk.Box typing_indicator_bar {
+          visible: false;
+          orientation: horizontal;
+          halign: start;
+          margin-start: 16;
+          margin-top: 2;
+          margin-bottom: 4;
+          styles ["typing-indicator-container"]
+
+          Gtk.Box {
+            orientation: horizontal;
+            spacing: 5;
+            styles ["typing-indicator-bubble"]
+
+            Gtk.Label typing_dot_1 {
+              label: "●";
+              styles ["typing-dot", "typing-dot-1"]
+            }
+
+            Gtk.Label typing_dot_2 {
+              label: "●";
+              styles ["typing-dot", "typing-dot-2"]
+            }
+
+            Gtk.Label typing_dot_3 {
+              label: "●";
+              styles ["typing-dot", "typing-dot-3"]
+            }
           }
         }
 
@@ -218,6 +250,14 @@ Adw.ToolbarView right_chat_view {
             use-markup: true;
             styles ["markdown-preview-text"]
           }
+        }
+
+        Gtk.Box emoji_suggestion_bar {
+          visible: false;
+          orientation: horizontal;
+          halign: start;
+          spacing: 4;
+          styles ["emoji-suggestion-bar"]
         }
 
         Gtk.Stack chat_input_stack {

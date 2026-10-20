@@ -713,9 +713,26 @@ func handleWhatsAppEvent(evt any) {
 			}
 		})
 
+	case *events.Presence:
+		glib.IdleAdd(func() {
+			if activeMainWindow != nil {
+				activeMainWindow.handlePresence(e)
+			}
+		})
+
+	case *events.ChatPresence:
+		glib.IdleAdd(func() {
+			if activeMainWindow != nil {
+				activeMainWindow.handleChatPresence(e)
+			}
+		})
+
 	case *events.Connected:
 		go func() {
 			time.Sleep(500 * time.Millisecond)
+			if waClient != nil {
+				_ = waClient.SendPresence(context.Background(), types.PresenceAvailable)
+			}
 			for _, name := range appstate.AllPatchNames {
 				_ = waClient.FetchAppState(context.Background(), name, false, false)
 			}

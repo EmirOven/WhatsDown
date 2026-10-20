@@ -130,9 +130,19 @@ func TestBuildMainWindow(t *testing.T) {
 			Text:   "Hello world",
 			FromMe: true,
 			Kind:   messageKindText,
-		})
+		}, false)
 		if txtBubble == nil {
 			t.Errorf("expected text bubble to not be nil")
+		}
+
+		txtBubbleSameMinute := activeMainWindow.createMessageBubble(StoredMessage{
+			ID:     "test-txt-2",
+			Text:   "Same minute msg",
+			FromMe: true,
+			Kind:   messageKindText,
+		}, true)
+		if txtBubbleSameMinute == nil || !txtBubbleSameMinute.HasCSSClass("message-row-same-minute") {
+			t.Errorf("expected text bubble to have message-row-same-minute class")
 		}
 
 		mediaBubble := activeMainWindow.createMessageBubble(StoredMessage{
@@ -140,7 +150,7 @@ func TestBuildMainWindow(t *testing.T) {
 			Text:   "Media caption",
 			FromMe: false,
 			Kind:   messageKindImage,
-		})
+		}, false)
 		if mediaBubble == nil {
 			t.Errorf("expected media bubble to not be nil")
 		}
@@ -149,7 +159,7 @@ func TestBuildMainWindow(t *testing.T) {
 			ID:     "test-sticker",
 			FromMe: true,
 			Kind:   messageKindSticker,
-		})
+		}, false)
 		if stickerBubble == nil {
 			t.Errorf("expected sticker bubble to not be nil")
 		}
@@ -210,6 +220,36 @@ func TestBuildMainWindow(t *testing.T) {
 			t.Errorf("expected emoji '🚀', got '%s'", text)
 		}
 		activeMainWindow.clearMessageText()
+
+		// Test typing indicator
+		if activeMainWindow.typingIndicatorBar == nil {
+			t.Errorf("expected typingIndicatorBar to not be nil")
+		}
+		activeMainWindow.setTypingIndicator(true)
+		if activeMainWindow.typingIndicatorBar != nil && !activeMainWindow.typingIndicatorBar.Visible() {
+			t.Errorf("expected typingIndicatorBar to be visible after setTypingIndicator(true)")
+		}
+		activeMainWindow.setTypingIndicator(false)
+		if activeMainWindow.typingIndicatorBar != nil && activeMainWindow.typingIndicatorBar.Visible() {
+			t.Errorf("expected typingIndicatorBar to be hidden after setTypingIndicator(false)")
+		}
+
+		// Test online status on top bar
+		testDM := Chat{
+			JID:  "447123456789@s.whatsapp.net",
+			Name: "Alice",
+		}
+		activeMainWindow.selectChat(testDM)
+		activeMainWindow.onlineContacts[testDM.JID] = true
+		activeMainWindow.updateTopbarSubtitle()
+		if activeMainWindow.activeChatTitle.Subtitle() != "Online" {
+			t.Errorf("expected subtitle 'Online', got '%s'", activeMainWindow.activeChatTitle.Subtitle())
+		}
+		activeMainWindow.onlineContacts[testDM.JID] = false
+		activeMainWindow.updateTopbarSubtitle()
+		if activeMainWindow.activeChatTitle.Subtitle() == "Online" {
+			t.Errorf("expected subtitle to not be 'Online' when offline")
+		}
 
 		app.Quit()
 	})

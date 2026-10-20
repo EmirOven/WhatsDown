@@ -90,6 +90,7 @@ type whatsDownMainController struct {
 	savedStickerHashes     map[string]bool
 	suppressChatSelection  bool
 	autoScrollBottom       bool
+	isAutoScrolling        bool
 	messageStatusLabels    map[string]*gtk.Label
 
 	// Reply preview widgets & state
@@ -103,6 +104,12 @@ type whatsDownMainController struct {
 	// Markdown preview widgets
 	markdownPreviewBar   *gtk.Box
 	markdownPreviewLabel *gtk.Label
+
+	// Emoji colon autocomplete widgets & state
+	emojiSuggestionBar   *gtk.Box
+	emojiSuggestions     []string
+	emojiSuggestionIndex int
+	emojiColonStartPos   int
 
 	// Edit message widgets & state
 	editBannerBar  *gtk.Box
@@ -125,6 +132,15 @@ type whatsDownMainController struct {
 	voiceTimerHandle glib.SourceHandle
 	voicePreviewPath string
 	voiceIsPlaying   bool
+
+	// Typing indicator widgets & state
+	typingIndicatorBar  *gtk.Box
+	typingDot1          *gtk.Label
+	typingDot2          *gtk.Label
+	typingDot3          *gtk.Label
+	typingTimeoutSource glib.SourceHandle
+	typingAnimSource    glib.SourceHandle
+	onlineContacts      map[string]bool
 
 	// Settings widgets
 	settingsProfileRow    *adw.ActionRow
@@ -232,6 +248,11 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 	voiceStopBtn, _ := castObject[*gtk.Button](builder, "voice_stop_btn")
 	voicePlayBtn, _ := castObject[*gtk.Button](builder, "voice_play_btn")
 	voiceSendBtn, _ := castObject[*gtk.Button](builder, "voice_send_btn")
+	typingIndicatorBar, _ := castObject[*gtk.Box](builder, "typing_indicator_bar")
+	typingDot1, _ := castObject[*gtk.Label](builder, "typing_dot_1")
+	typingDot2, _ := castObject[*gtk.Label](builder, "typing_dot_2")
+	typingDot3, _ := castObject[*gtk.Label](builder, "typing_dot_3")
+	emojiSuggestionBar, _ := castObject[*gtk.Box](builder, "emoji_suggestion_bar")
 
 	if !ok1 || !ok2 || !ok3 || !ok4 || !okBtn || !ok5 || !ok6 || !ok7 || !ok8 || !ok9 || !ok10 || !ok11 || !ok12 || !ok13 ||
 		!ok14 || !ok15 || !ok16 || !ok17 || !ok18 || !ok19 || !ok20 || !ok21 || !ok22 ||
@@ -312,6 +333,7 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 		cancelReplyBtn:         cancelReplyBtn,
 		markdownPreviewBar:     markdownPreviewBar,
 		markdownPreviewLabel:   markdownPreviewLabel,
+		emojiSuggestionBar:     emojiSuggestionBar,
 		editBannerBar:          editBannerBar,
 		editBannerText:         editBannerText,
 		cancelEditBtn:          cancelEditBtn,
@@ -325,6 +347,11 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 		voiceStopBtn:           voiceStopBtn,
 		voicePlayBtn:           voicePlayBtn,
 		voiceSendBtn:           voiceSendBtn,
+		typingIndicatorBar:     typingIndicatorBar,
+		typingDot1:             typingDot1,
+		typingDot2:             typingDot2,
+		typingDot3:             typingDot3,
+		onlineContacts:         make(map[string]bool),
 		messageRowMap:          make(map[string]*gtk.ListBoxRow),
 		settingsProfileRow:     settingsProfileRow,
 		settingsProfileAvatar:  settingsProfileAvatar,
@@ -442,7 +469,7 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 	if scrollToBottomBtn != nil {
 		scrollToBottomBtn.ConnectClicked(func() {
 			ctrl.autoScrollBottom = true
-			ctrl.scrollToBottom()
+			ctrl.scrollToBottomAnimated()
 		})
 	}
 
@@ -451,17 +478,33 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 			adj.ConnectValueChanged(func() {
 				maxVal := adj.Upper() - adj.PageSize()
 				isAtBottom := maxVal <= 10 || adj.Value() >= maxVal-60
-				if maxVal > 10 && adj.Value() < maxVal-120 {
-					ctrl.autoScrollBottom = false
-				} else if isAtBottom {
-					ctrl.autoScrollBottom = true
+				if !ctrl.isAutoScrolling {
+					if maxVal > 10 && adj.Value() < maxVal-150 {
+						ctrl.autoScrollBottom = false
+					} else if isAtBottom {
+						ctrl.autoScrollBottom = true
+					}
 				}
 				if scrollToBottomBtn != nil {
-					scrollToBottomBtn.SetVisible(!isAtBottom)
+					if ctrl.isAutoScrolling || isAtBottom {
+						scrollToBottomBtn.SetVisible(false)
+					} else {
+						scrollToBottomBtn.SetVisible(true)
+					}
 				}
 			})
 			adj.ConnectChanged(func() {
-				if ctrl.autoScrollBottom {
+				if ctrl.autoScrollBottom || ctrl.isAutoScrolling {
+					ctrl.scrollToBottom()
+				}
+			})
+			adj.NotifyProperty("page-size", func() {
+				if ctrl.autoScrollBottom || ctrl.isAutoScrolling {
+					ctrl.scrollToBottom()
+				}
+			})
+			adj.NotifyProperty("upper", func() {
+				if ctrl.autoScrollBottom || ctrl.isAutoScrolling {
 					ctrl.scrollToBottom()
 				}
 			})
@@ -691,6 +734,26 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 	keyController := gtk.NewEventControllerKey()
 	keyController.SetPropagationPhase(gtk.PhaseCapture)
 	keyController.ConnectKeyPressed(func(val uint, code uint, state gdk.ModifierType) bool {
+		// Emoji suggestions keyboard navigation
+		if ctrl.isEmojiSuggestionVisible() {
+			if val == gdk.KEY_Left {
+				ctrl.navigateEmojiSuggestion(-1)
+				return true
+			}
+			if val == gdk.KEY_Right {
+				ctrl.navigateEmojiSuggestion(1)
+				return true
+			}
+			if val == gdk.KEY_Return || val == gdk.KEY_KP_Enter || val == gdk.KEY_ISO_Enter {
+				ctrl.commitSelectedEmoji()
+				return true
+			}
+			if val == gdk.KEY_Escape {
+				ctrl.hideEmojiSuggestions()
+				return true
+			}
+		}
+
 		if val == gdk.KEY_Escape {
 			if ctrl.editingMessage != nil {
 				ctrl.cancelEditing()
@@ -811,6 +874,7 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 			}
 
 			ctrl.updateMessageEntryHeight()
+			ctrl.checkEmojiSuggestion()
 
 			// If user pasted a file path / URI into the message box, immediately clear and open attachment preview
 			if targetPath, ok := parseFilePathFromText(text); ok {
@@ -2232,15 +2296,24 @@ func (c *whatsDownMainController) jumpToMessage(chatJID string, msgID string) {
 // clears unread counts.
 func (c *whatsDownMainController) selectChat(chat Chat) {
 	c.currentChat = &chat
+	c.setTypingIndicator(false)
 
 	displayName := formatDisplayName(chat)
-	subtitle := formatTopbarSubtitle(chat)
-
 	c.activeChatBtn.SetSensitive(true)
 	c.activeChatTitle.SetTitle(displayName)
-	c.activeChatTitle.SetSubtitle(subtitle)
+	c.updateTopbarSubtitle()
 	loadAvatar(chat.JID, displayName, c.activeChatAvatar)
 	c.contentStack.SetVisibleChildName("chat")
+
+	// Subscribe to presence updates for DMs so we receive Online and typing status
+	if waClient != nil && !strings.HasSuffix(chat.JID, "@g.us") && !strings.HasSuffix(chat.JID, "@broadcast") && !strings.HasSuffix(chat.JID, "@newsletter") {
+		go func() {
+			targetJID, err := types.ParseJID(chat.JID)
+			if err == nil {
+				_ = waClient.SubscribePresence(context.Background(), targetJID)
+			}
+		}()
+	}
 
 	// Reset conversation search
 	c.chatSearchBtn.SetSensitive(true)
@@ -2353,8 +2426,12 @@ func (c *whatsDownMainController) loadMessages(chatJID string) {
 
 	c.currentMessages = msgs
 	c.messageRowMap = make(map[string]*gtk.ListBoxRow)
-	for _, msg := range msgs {
-		bubble := c.createMessageBubble(msg)
+	for i, msg := range msgs {
+		sameMinuteAsPrev := false
+		if i > 0 {
+			sameMinuteAsPrev = c.isSameAuthorAndDisplayTime(msgs[i-1], msg)
+		}
+		bubble := c.createMessageBubble(msg, sameMinuteAsPrev)
 		c.messageRowMap[msg.ID] = bubble
 		c.messagesList.Append(bubble)
 	}
@@ -2368,6 +2445,14 @@ func (c *whatsDownMainController) loadMessages(chatJID string) {
 func (c *whatsDownMainController) scrollToBottom() {
 	if c.messagesScrolledWindow == nil {
 		return
+	}
+	if vp, ok := c.messagesScrolledWindow.Child().(*gtk.Viewport); ok && c.messagesList != nil {
+		cnt := len(c.currentMessages)
+		if cnt > 0 {
+			if lastRow := c.messagesList.RowAtIndex(cnt - 1); lastRow != nil {
+				vp.ScrollTo(lastRow, nil)
+			}
+		}
 	}
 	adj := c.messagesScrolledWindow.VAdjustment()
 	if adj != nil {
@@ -2386,22 +2471,23 @@ func (c *whatsDownMainController) scrollToBottom() {
 // scrollToBottomAnimated ensures the viewport reaches the bottom reliably across async layout passes.
 func (c *whatsDownMainController) scrollToBottomAnimated() {
 	c.autoScrollBottom = true
+	c.isAutoScrolling = true
 	c.scrollToBottom()
 	glib.IdleAdd(func() {
-		if c.autoScrollBottom {
-			c.scrollToBottom()
-		}
+		c.scrollToBottom()
 	})
-	delays := []uint{30, 80, 150, 300, 500, 800}
+	delays := []uint{15, 40, 80, 150, 250, 400, 600, 900, 1300}
 	for _, d := range delays {
 		delay := d
 		glib.TimeoutAdd(delay, func() bool {
-			if c.autoScrollBottom {
-				c.scrollToBottom()
-			}
+			c.scrollToBottom()
 			return false
 		})
 	}
+	glib.TimeoutAdd(1500, func() bool {
+		c.isAutoScrolling = false
+		return false
+	})
 }
 
 // getMessageText returns the raw text currently inside the message input view.
@@ -2436,6 +2522,7 @@ func (c *whatsDownMainController) setMessageText(text string) {
 // clearMessageText resets the message input view to empty.
 func (c *whatsDownMainController) clearMessageText() {
 	c.setMessageText("")
+	c.hideEmojiSuggestions()
 }
 
 // updateMessageEntryHeight dynamically sizes the message text box between 1 and 6 lines,
@@ -2474,6 +2561,163 @@ func (c *whatsDownMainController) updateMessageEntryHeight() {
 		}
 		c.messageEntryScrolled.SetSizeRequest(-1, targetH)
 		c.messageEntry.ScrollToMark(buf.GetInsert(), 0, false, 0, 0)
+	})
+}
+
+// isSameAuthorAndDisplayTime checks if a message has the same author and the same
+// displayed time (HH:MM) as the message above it.
+func (c *whatsDownMainController) isSameAuthorAndDisplayTime(prev, cur StoredMessage) bool {
+	// In self-chat, all messages are from the same author
+	isSelfChat := (c.currentChat != nil && c.isSelfJID(c.currentChat.JID)) || c.isSelfJID(prev.ChatJID) || c.isSelfJID(cur.ChatJID)
+	if !isSelfChat {
+		prevIsOutgoing := prev.FromMe || c.isSelfJID(prev.ChatJID)
+		curIsOutgoing := cur.FromMe || c.isSelfJID(cur.ChatJID)
+		if prevIsOutgoing != curIsOutgoing {
+			return false
+		}
+		if !prevIsOutgoing && prev.SenderJID != "" && cur.SenderJID != "" && prev.SenderJID != cur.SenderJID {
+			return false
+		}
+	}
+	return prev.Timestamp.Local().Format("15:04") == cur.Timestamp.Local().Format("15:04")
+}
+
+// isContactOnline checks if the given user or JID is recorded as currently online.
+func (c *whatsDownMainController) isContactOnline(jid string) bool {
+	if c.onlineContacts == nil {
+		return false
+	}
+	if c.isSelfJID(jid) {
+		return true
+	}
+	if c.onlineContacts[jid] {
+		return true
+	}
+	for contactJID, online := range c.onlineContacts {
+		if online && c.isSameChat(contactJID, jid) {
+			return true
+		}
+	}
+	return false
+}
+
+// updateTopbarSubtitle updates the secondary header line with "Online" or the standard subtitle.
+func (c *whatsDownMainController) updateTopbarSubtitle() {
+	if c.currentChat == nil || c.activeChatTitle == nil {
+		return
+	}
+	isDM := !strings.HasSuffix(c.currentChat.JID, "@g.us") && !strings.HasSuffix(c.currentChat.JID, "@broadcast") && !strings.HasSuffix(c.currentChat.JID, "@newsletter")
+	if isDM && c.isContactOnline(c.currentChat.JID) {
+		c.activeChatTitle.SetSubtitle("Online")
+		return
+	}
+	c.activeChatTitle.SetSubtitle(formatTopbarSubtitle(*c.currentChat))
+}
+
+// handlePresence processes a WhatsApp user presence update.
+func (c *whatsDownMainController) handlePresence(evt *events.Presence) {
+	if evt == nil {
+		return
+	}
+	jidStr := evt.From.ToNonAD().String()
+	if c.onlineContacts == nil {
+		c.onlineContacts = make(map[string]bool)
+	}
+	c.onlineContacts[jidStr] = !evt.Unavailable
+	if c.currentChat != nil && c.isSameChat(c.currentChat.JID, jidStr) {
+		c.updateTopbarSubtitle()
+	}
+}
+
+// handleChatPresence processes typing/recording updates for the active DM conversation.
+func (c *whatsDownMainController) handleChatPresence(evt *events.ChatPresence) {
+	if c.currentChat == nil || evt == nil {
+		return
+	}
+	// Typing indicator is only shown for DMs
+	if evt.IsGroup || strings.HasSuffix(c.currentChat.JID, "@g.us") || strings.HasSuffix(c.currentChat.JID, "@broadcast") || strings.HasSuffix(c.currentChat.JID, "@newsletter") {
+		return
+	}
+
+	chatJID := evt.Chat.ToNonAD().String()
+	if chatJID == "" {
+		chatJID = evt.Sender.ToNonAD().String()
+	}
+	if !c.isSameChat(c.currentChat.JID, chatJID) {
+		return
+	}
+
+	isComposing := evt.State == types.ChatPresenceComposing
+	if isComposing {
+		// If the user is currently typing, they are definitely online
+		if c.onlineContacts == nil {
+			c.onlineContacts = make(map[string]bool)
+		}
+		c.onlineContacts[chatJID] = true
+		c.updateTopbarSubtitle()
+	}
+	c.setTypingIndicator(isComposing)
+}
+
+// setTypingIndicator shows or hides the jumping dots typing indicator with an auto-hide timer.
+func (c *whatsDownMainController) setTypingIndicator(isTyping bool) {
+	if c.typingIndicatorBar == nil {
+		return
+	}
+
+	if c.typingTimeoutSource != 0 {
+		glib.SourceRemove(c.typingTimeoutSource)
+		c.typingTimeoutSource = 0
+	}
+
+	if !isTyping {
+		c.typingIndicatorBar.SetVisible(false)
+		if c.typingAnimSource != 0 {
+			glib.SourceRemove(c.typingAnimSource)
+			c.typingAnimSource = 0
+		}
+		return
+	}
+
+	c.typingIndicatorBar.SetVisible(true)
+	c.startTypingDotsAnimation()
+	if c.autoScrollBottom {
+		c.scrollToBottomAnimated()
+	}
+
+	// WhatsApp clients frequently do not send ChatPresencePaused when user stops typing,
+	// so auto-dismiss after 5 seconds of inactivity.
+	c.typingTimeoutSource = glib.TimeoutAdd(5000, func() bool {
+		c.setTypingIndicator(false)
+		return false
+	})
+}
+
+// startTypingDotsAnimation cycles the jumping dots smoothly.
+func (c *whatsDownMainController) startTypingDotsAnimation() {
+	if c.typingAnimSource != 0 {
+		return
+	}
+	dotIdx := 0
+	c.typingAnimSource = glib.TimeoutAdd(280, func() bool {
+		if c.typingIndicatorBar == nil || !c.typingIndicatorBar.Visible() {
+			c.typingAnimSource = 0
+			return false
+		}
+		dots := []*gtk.Label{c.typingDot1, c.typingDot2, c.typingDot3}
+		for i, dot := range dots {
+			if dot != nil {
+				if i == dotIdx {
+					dot.SetOpacity(1.0)
+					dot.SetMarginBottom(4)
+				} else {
+					dot.SetOpacity(0.35)
+					dot.SetMarginBottom(0)
+				}
+			}
+		}
+		dotIdx = (dotIdx + 1) % 3
+		return true
 	})
 }
 
@@ -2840,11 +3084,18 @@ func computeImageDisplaySize(w, h, maxW int) (int, int) {
 }
 
 // createMessageBubble constructs a GTK widget representing a message bubble.
-func (c *whatsDownMainController) createMessageBubble(msg StoredMessage) *gtk.ListBoxRow {
+func (c *whatsDownMainController) createMessageBubble(msg StoredMessage, sameMinuteAsPrev bool) *gtk.ListBoxRow {
 	row := gtk.NewListBoxRow()
 	row.SetSelectable(false)
 	row.SetActivatable(false)
 	row.AddCSSClass("message-row")
+	if sameMinuteAsPrev {
+		row.AddCSSClass("message-row-same-minute")
+		row.SetMarginTop(2)
+	} else {
+		row.SetMarginTop(8)
+	}
+	row.SetMarginBottom(0)
 
 	box := gtk.NewBox(gtk.OrientationVertical, 4)
 	box.AddCSSClass("chat-bubble")
@@ -3387,7 +3638,7 @@ func (c *whatsDownMainController) createMessageBubble(msg StoredMessage) *gtk.Li
 						pic.SetSizeRequest(sw, sh)
 						pic.QueueResize()
 					}
-					c.scrollToBottom()
+					c.scrollToBottomAnimated()
 				})
 			}
 		})
@@ -3459,7 +3710,7 @@ func (c *whatsDownMainController) createMessageBubble(msg StoredMessage) *gtk.Li
 		footerBox.Append(starIcon)
 	}
 
-	timeStr := msg.Timestamp.Format("15:04")
+	timeStr := msg.Timestamp.Local().Format("15:04")
 	if msg.Edited {
 		timeStr += " (edited)"
 	}
@@ -4043,6 +4294,13 @@ func (c *whatsDownMainController) isSameChat(jidA, jidB string) bool {
 	if c.isSelfJID(jidA) && c.isSelfJID(jidB) {
 		return true
 	}
+	pA, errA := types.ParseJID(jidA)
+	pB, errB := types.ParseJID(jidB)
+	if errA == nil && errB == nil {
+		if pA.ToNonAD().String() == pB.ToNonAD().String() {
+			return true
+		}
+	}
 	if msgStore != nil {
 		ctx := context.Background()
 		pnA := msgStore.resolveLIDtoPN(ctx, jidA)
@@ -4072,17 +4330,37 @@ func (c *whatsDownMainController) updateSingleMessageRow(messageID string) {
 		return
 	}
 
+	sameMinuteAsPrev := false
+	isLastMessage := false
 	for i := range c.currentMessages {
 		if c.currentMessages[i].ID == messageID {
+			if i > 0 {
+				sameMinuteAsPrev = c.isSameAuthorAndDisplayTime(c.currentMessages[i-1], *updatedMsg)
+			}
+			if i == len(c.currentMessages)-1 {
+				isLastMessage = true
+			}
 			c.currentMessages[i] = *updatedMsg
 			break
 		}
 	}
 
-	newRow := c.createMessageBubble(*updatedMsg)
+	newRow := c.createMessageBubble(*updatedMsg, sameMinuteAsPrev)
+	if sameMinuteAsPrev {
+		row.AddCSSClass("message-row-same-minute")
+		row.SetMarginTop(2)
+	} else {
+		row.RemoveCSSClass("message-row-same-minute")
+		row.SetMarginTop(8)
+	}
+	row.SetMarginBottom(0)
 	if child := newRow.Child(); child != nil {
 		newRow.SetChild(nil)
 		row.SetChild(child)
+	}
+
+	if isLastMessage {
+		c.scrollToBottomAnimated()
 	}
 }
 
@@ -4741,8 +5019,13 @@ func (c *whatsDownMainController) sendSticker(filePath string) {
 			glib.IdleAdd(func() {
 				if c.currentChat != nil && c.isSameChat(c.currentChat.JID, chatJIDStr) {
 					if _, exists := c.messageRowMap[sentMsg.ID]; !exists {
+						sameMinuteAsPrev := false
+						if len(c.currentMessages) > 0 {
+							prevMsg := c.currentMessages[len(c.currentMessages)-1]
+							sameMinuteAsPrev = c.isSameAuthorAndDisplayTime(prevMsg, sentMsg)
+						}
 						c.currentMessages = append(c.currentMessages, sentMsg)
-						bubble := c.createMessageBubble(sentMsg)
+						bubble := c.createMessageBubble(sentMsg, sameMinuteAsPrev)
 						if c.messageRowMap != nil {
 							c.messageRowMap[sentMsg.ID] = bubble
 						}
@@ -4854,6 +5137,7 @@ func (c *whatsDownMainController) startReply(msg StoredMessage) {
 	if c.replyPreviewBar != nil {
 		c.replyPreviewBar.SetVisible(true)
 	}
+	c.scrollToBottomAnimated()
 	if c.messageEntry != nil {
 		c.messageEntry.GrabFocus()
 	}
@@ -4865,6 +5149,7 @@ func (c *whatsDownMainController) cancelReply() {
 	if c.replyPreviewBar != nil {
 		c.replyPreviewBar.SetVisible(false)
 	}
+	c.scrollToBottomAnimated()
 }
 
 // startEditing populates the messageEntry with the message text and reveals the edit banner.
@@ -4878,6 +5163,7 @@ func (c *whatsDownMainController) startEditing(msg StoredMessage) {
 	if c.editBannerBar != nil {
 		c.editBannerBar.SetVisible(true)
 	}
+	c.scrollToBottomAnimated()
 	if c.messageEntry != nil {
 		c.setMessageText(msg.Text)
 		c.messageEntry.GrabFocus()
@@ -4890,6 +5176,7 @@ func (c *whatsDownMainController) cancelEditing() {
 	if c.editBannerBar != nil {
 		c.editBannerBar.SetVisible(false)
 	}
+	c.scrollToBottomAnimated()
 	c.clearMessageText()
 }
 
@@ -5382,8 +5669,13 @@ func (c *whatsDownMainController) sendMessage() {
 			glib.IdleAdd(func() {
 				if c.currentChat != nil && c.isSameChat(c.currentChat.JID, chatJIDStr) {
 					if _, exists := c.messageRowMap[sentMsg.ID]; !exists {
+						sameMinuteAsPrev := false
+						if len(c.currentMessages) > 0 {
+							prevMsg := c.currentMessages[len(c.currentMessages)-1]
+							sameMinuteAsPrev = c.isSameAuthorAndDisplayTime(prevMsg, sentMsg)
+						}
 						c.currentMessages = append(c.currentMessages, sentMsg)
-						bubble := c.createMessageBubble(sentMsg)
+						bubble := c.createMessageBubble(sentMsg, sameMinuteAsPrev)
 						if c.messageRowMap != nil {
 							c.messageRowMap[sentMsg.ID] = bubble
 						}
@@ -6078,8 +6370,13 @@ func (c *whatsDownMainController) sendAttachment(filePath, caption string) {
 			glib.IdleAdd(func() {
 				if c.currentChat != nil && c.isSameChat(c.currentChat.JID, chatJIDStr) {
 					if _, exists := c.messageRowMap[sentMsg.ID]; !exists {
+						sameMinuteAsPrev := false
+						if len(c.currentMessages) > 0 {
+							prevMsg := c.currentMessages[len(c.currentMessages)-1]
+							sameMinuteAsPrev = c.isSameAuthorAndDisplayTime(prevMsg, sentMsg)
+						}
 						c.currentMessages = append(c.currentMessages, sentMsg)
-						bubble := c.createMessageBubble(sentMsg)
+						bubble := c.createMessageBubble(sentMsg, sameMinuteAsPrev)
 						if c.messageRowMap != nil {
 							c.messageRowMap[sentMsg.ID] = bubble
 						}
@@ -6503,8 +6800,13 @@ func (c *whatsDownMainController) sendVoiceMessage(filePath string, duration tim
 			glib.IdleAdd(func() {
 				if c.currentChat != nil && c.isSameChat(c.currentChat.JID, chatJIDStr) {
 					if _, exists := c.messageRowMap[sentMsg.ID]; !exists {
+						sameMinuteAsPrev := false
+						if len(c.currentMessages) > 0 {
+							prevMsg := c.currentMessages[len(c.currentMessages)-1]
+							sameMinuteAsPrev = c.isSameAuthorAndDisplayTime(prevMsg, sentMsg)
+						}
 						c.currentMessages = append(c.currentMessages, sentMsg)
-						bubble := c.createMessageBubble(sentMsg)
+						bubble := c.createMessageBubble(sentMsg, sameMinuteAsPrev)
 						if c.messageRowMap != nil {
 							c.messageRowMap[sentMsg.ID] = bubble
 						}
@@ -6846,8 +7148,13 @@ func (c *whatsDownMainController) sendPoll(question string, options []string, al
 			glib.IdleAdd(func() {
 				if c.currentChat != nil && c.isSameChat(c.currentChat.JID, chatJIDStr) {
 					if _, exists := c.messageRowMap[sentMsg.ID]; !exists {
+						sameMinuteAsPrev := false
+						if len(c.currentMessages) > 0 {
+							prevMsg := c.currentMessages[len(c.currentMessages)-1]
+							sameMinuteAsPrev = c.isSameAuthorAndDisplayTime(prevMsg, sentMsg)
+						}
 						c.currentMessages = append(c.currentMessages, sentMsg)
-						bubble := c.createMessageBubble(sentMsg)
+						bubble := c.createMessageBubble(sentMsg, sameMinuteAsPrev)
 						if c.messageRowMap != nil {
 							c.messageRowMap[sentMsg.ID] = bubble
 						}
@@ -7336,9 +7643,15 @@ func (c *whatsDownMainController) handleIncomingLiveMessage(evt *events.Message)
 		}
 
 		if newMsg != nil {
+			c.setTypingIndicator(false)
 			if _, exists := c.messageRowMap[newMsg.ID]; !exists {
+				sameMinuteAsPrev := false
+				if len(c.currentMessages) > 0 {
+					prevMsg := c.currentMessages[len(c.currentMessages)-1]
+					sameMinuteAsPrev = c.isSameAuthorAndDisplayTime(prevMsg, *newMsg)
+				}
 				c.currentMessages = append(c.currentMessages, *newMsg)
-				bubble := c.createMessageBubble(*newMsg)
+				bubble := c.createMessageBubble(*newMsg, sameMinuteAsPrev)
 				if c.messageRowMap != nil {
 					c.messageRowMap[newMsg.ID] = bubble
 				}
@@ -7692,8 +8005,8 @@ func (c *whatsDownMainController) isSelfJID(jid string) bool {
 	if jid == "" {
 		return false
 	}
-	if msgStore != nil {
-		return msgStore.isSelfJID(context.Background(), jid)
+	if msgStore != nil && msgStore.isSelfJID(context.Background(), jid) {
+		return true
 	}
 	if waClient != nil && waClient.Store != nil {
 		parsed, err := types.ParseJID(jid)

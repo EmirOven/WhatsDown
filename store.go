@@ -1256,6 +1256,16 @@ func (s *messageStore) isSelfJID(ctx context.Context, jid string) bool {
 			return true
 		}
 	}
+	if strings.HasSuffix(jid, "@lid") && pn != "" {
+		resolvedPN := s.resolveLIDtoPN(ctx, jid)
+		if resolvedPN != "" {
+			parsedResolved, _ := types.ParseJID(resolvedPN)
+			parsedPN, _ := types.ParseJID(pn)
+			if parsedResolved.User == parsedPN.User {
+				return true
+			}
+		}
+	}
 	return false
 }
 

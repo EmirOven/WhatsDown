@@ -68,7 +68,19 @@ WhatsDown is a native Linux WhatsApp client built with **Go**, **GTK 4**, and **
     - **Storage & Data:** Database path location, total stored chats and messages counters, and one-click avatar cache cleaner.
     - **Appearance:** Native dark mode switcher using Libadwaita's style manager.
     - **Session Management:** One-click Log Out action to unlink and return to QR login.
-  - **Conversation View:** Contact avatar, title, incoming/outgoing chat bubbles, sender tags, timestamps, and message input bar for sending messages directly.
+  - **Conversation View & Smart Message Grouping:**
+    - Contact avatar, title, incoming/outgoing chat bubbles, sender tags, timestamps, and delivery/read receipts.
+    - **Live Online Presence:** Real-time presence indicator displaying "Online" under contact names when active.
+    - **Live Typing Indicator:** Smooth, animated 3-dot jumping indicator displayed below messages when the recipient is typing in 1-on-1 direct messages.
+    - **Consecutive Message Grouping:** Messages sent within the same minute by the same sender are automatically grouped with reduced vertical spacing (2px gap). Subsequent bubbles adapt their border radii to match the sharp corner (right side for outgoing, left side for incoming) for a polished, unified look.
+    - **Adaptive Viewport & Reply Preview:** Opening replies smoothly expands and pushes messages up so the last message remains readable without manual scrolling.
+  - **Dynamic Multiline Message Input:**
+    - Compact single-line default height that automatically expands up to 6 lines as multiline text is entered, scrolling smoothly beyond that.
+    - `Ctrl+Enter` inserts newlines, while `Enter` sends the message. Action buttons (emoji, attachment, mic/send) remain aligned to the bottom without stretching.
+  - **Inline Emoji Autocomplete & Fuzzy Search:**
+    - Type `:` followed by any query (e.g., `:wand`, `:hrt`, `:laugh`, `:fire`) to reveal an interactive horizontal suggestion bar with the top 8 matches.
+    - Full Unicode 15.1 catalog with fuzzy subsequence search, word prefix matching, and popularity weighting.
+    - Keyboard-navigable with <kbd>←</kbd> and <kbd>→</kbd> arrow keys, <kbd>Enter</kbd> to insert the selected emoji (replacing the colon query), and <kbd>Esc</kbd> to dismiss.
 - **Profile Picture & Avatar Support:**
   - Uses `Adw.Avatar` for clean circular avatars with automatic initials and deterministic fallback colors.
   - Fetches contact and group profile pictures via `whatsmeow`'s profile picture APIs.
@@ -81,6 +93,25 @@ WhatsDown is a native Linux WhatsApp client built with **Go**, **GTK 4**, and **
   - Tracks message edits and message revokes (deletions)
   - Syncs unread counters, read receipts, pin states, and archive states
 - **Developer Live Reload:** Real-time hot-reloading for Blueprint templates (`.blp`), compiled UI definitions (`.ui`), CSS styles, and automated restarts on Go source changes.
+
+---
+
+## Emoji Font Support & Apple Color Emoji Disclaimer
+
+WhatsDown styles chat text, emoji autocomplete, and reaction pickers with a cross-platform emoji font stack:
+
+```css
+font-family: "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji", "Twemoji Mozilla", sans-serif;
+```
+
+### Apple Emoji Disclaimer
+> [!NOTE]
+> **Emoji Font Disclaimer:**
+> Official WhatsApp clients utilize Apple-designed emoji artwork: native **Apple Color Emoji** on iOS and macOS, and a custom Apple-styled emoji set on Android and WhatsApp Web.
+>
+> On Linux desktop environments, WhatsDown prioritizes `"Apple Color Emoji"` first, so users who have the font installed on their system can enjoy the authentic WhatsApp emoji aesthetic. If `"Apple Color Emoji"` is not installed, the application automatically falls back to system color emoji fonts such as **Noto Color Emoji** or **Segoe UI Emoji**.
+>
+> **Notice:** **Apple Color Emoji** is a proprietary trademark and copyright of **Apple Inc.** WhatsDown is an independent open-source project and does **not** bundle, distribute, or license proprietary Apple fonts. Users wishing to use Apple Color Emoji under Linux must provide their own legally acquired font files in compliance with Apple's software license agreements.
 
 ---
 

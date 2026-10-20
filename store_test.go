@@ -2117,3 +2117,43 @@ func TestReactionsStore(t *testing.T) {
 		t.Errorf("expected 1 reaction with 🎉 on target message, got %+v", msgs[0].Reactions)
 	}
 }
+
+func TestSameMinuteAndGrouping(t *testing.T) {
+	loc, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		loc = time.FixedZone("CEST", 2*3600)
+	}
+	tLocal := time.Date(2026, 10, 20, 14, 30, 15, 0, loc)
+
+	ctrl := &whatsDownMainController{}
+	m1 := StoredMessage{
+		ChatJID:   "123@s.whatsapp.net",
+		FromMe:    true,
+		Timestamp: tLocal,
+	}
+	m2 := StoredMessage{
+		ChatJID:   "123@s.whatsapp.net",
+		FromMe:    true,
+		Timestamp: tLocal.Add(20 * time.Second), // same minute 14:30
+	}
+	mDiffTime := StoredMessage{
+		ChatJID:   "123@s.whatsapp.net",
+		FromMe:    true,
+		Timestamp: tLocal.Add(70 * time.Second), // 14:31
+	}
+	mDiffSender := StoredMessage{
+		ChatJID:   "123@s.whatsapp.net",
+		FromMe:    false,
+		Timestamp: tLocal.Add(10 * time.Second),
+	}
+
+	if !ctrl.isSameAuthorAndDisplayTime(m1, m2) {
+		t.Errorf("expected isSameAuthorAndDisplayTime to be true for consecutive messages from same sender with same displayed time")
+	}
+	if ctrl.isSameAuthorAndDisplayTime(m1, mDiffTime) {
+		t.Errorf("expected isSameAuthorAndDisplayTime to be false for different displayed times")
+	}
+	if ctrl.isSameAuthorAndDisplayTime(m1, mDiffSender) {
+		t.Errorf("expected isSameAuthorAndDisplayTime to be false for different senders")
+	}
+}

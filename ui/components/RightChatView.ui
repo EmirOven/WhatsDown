@@ -145,6 +145,7 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                         <child>
                           <object class="GtkListBox" id="messages_list">
                             <property name="selection-mode">0</property>
+                            <property name="margin-bottom">12</property>
                             <style>
                               <class name="chat-messages-list"/>
                             </style>
@@ -166,6 +167,55 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                           <class name="suggested-action"/>
                           <class name="scroll-bottom-fab"/>
                         </style>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkBox" id="typing_indicator_bar">
+                    <property name="visible">false</property>
+                    <property name="orientation">0</property>
+                    <property name="halign">1</property>
+                    <property name="margin-start">16</property>
+                    <property name="margin-top">2</property>
+                    <property name="margin-bottom">4</property>
+                    <style>
+                      <class name="typing-indicator-container"/>
+                    </style>
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">0</property>
+                        <property name="spacing">5</property>
+                        <style>
+                          <class name="typing-indicator-bubble"/>
+                        </style>
+                        <child>
+                          <object class="GtkLabel" id="typing_dot_1">
+                            <property name="label">●</property>
+                            <style>
+                              <class name="typing-dot"/>
+                              <class name="typing-dot-1"/>
+                            </style>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkLabel" id="typing_dot_2">
+                            <property name="label">●</property>
+                            <style>
+                              <class name="typing-dot"/>
+                              <class name="typing-dot-2"/>
+                            </style>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkLabel" id="typing_dot_3">
+                            <property name="label">●</property>
+                            <style>
+                              <class name="typing-dot"/>
+                              <class name="typing-dot-3"/>
+                            </style>
+                          </object>
+                        </child>
                       </object>
                     </child>
                   </object>
@@ -313,6 +363,17 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                         </style>
                       </object>
                     </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkBox" id="emoji_suggestion_bar">
+                    <property name="visible">false</property>
+                    <property name="orientation">0</property>
+                    <property name="halign">1</property>
+                    <property name="spacing">4</property>
+                    <style>
+                      <class name="emoji-suggestion-bar"/>
+                    </style>
                   </object>
                 </child>
                 <child>
