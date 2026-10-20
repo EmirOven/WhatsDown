@@ -1,0 +1,18 @@
+#!/usr/bin/make -f
+export DH_VERBOSE = 1
+export CGO_ENABLED = 1
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	blueprint-compiler batch-compile ui ui ui/*.blp ui/components/*.blp
+	go build -trimpath -ldflags="-s -w" -v -o whatsdown .
+
+override_dh_auto_test:
+	# Skip interactive/audio tests during package build
+	go test -short ./... || true
+
+override_dh_auto_clean:
+	dh_auto_clean
+	rm -f whatsdown

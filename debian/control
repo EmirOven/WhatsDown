@@ -1,0 +1,28 @@
+Source: whatsdown
+Section: net
+Priority: optional
+Maintainer: Emir Öven <emiroven@postbetasoftware.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ golang-go (>= 2:1.22~),
+ libgtk-4-dev (>= 4.14),
+ libadwaita-1-dev (>= 1.5),
+ libgirepository1.0-dev | libgirepository-2.0-dev,
+ gobject-introspection,
+ blueprint-compiler,
+ libsqlite3-dev,
+ pkg-config,
+ gcc
+Standards-Version: 4.6.2
+Homepage: https://github.com/EmirOven/WhatsDown
+Rules-Requires-Root: no
+
+Package: whatsdown
+Architecture: any
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+ hicolor-icon-theme
+Description: Native Linux WhatsApp client
+ WhatsDown is a modern native Linux WhatsApp desktop client built with Go,
+ GTK 4, and Libadwaita, utilizing whatsmeow and gotk4.

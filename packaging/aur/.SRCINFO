@@ -1,0 +1,25 @@
+pkgbase = whatsdown-git
+	pkgdesc = Native Linux WhatsApp client built with GTK 4 and Libadwaita
+	pkgver = 0.1.0.r14.g10d5311
+	pkgrel = 1
+	url = https://github.com/EmirOven/WhatsDown
+	arch = x86_64
+	arch = aarch64
+	license = MIT
+	makedepends = git
+	makedepends = go
+	makedepends = blueprint-compiler
+	makedepends = pkgconf
+	makedepends = gcc
+	makedepends = gobject-introspection
+	depends = gtk4
+	depends = libadwaita
+	depends = sqlite
+	depends = hicolor-icon-theme
+	provides = whatsdown
+	conflicts = whatsdown
+	conflicts = whatsdown-bin
+	source = git+https://github.com/EmirOven/WhatsDown.git
+	sha256sums = SKIP
+
+pkgname = whatsdown-git

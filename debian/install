@@ -1,0 +1,3 @@
+whatsdown usr/bin/
+com.postbetasoftware.WhatsDown.desktop usr/share/applications/
+com.postbetasoftware.WhatsDown.svg usr/share/icons/hicolor/scalable/apps/

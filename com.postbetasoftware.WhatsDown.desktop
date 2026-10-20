@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=WhatsDown
+Comment=Native Linux WhatsApp client built with GTK 4 and Libadwaita
+Exec=whatsdown
+Icon=com.postbetasoftware.WhatsDown
+Terminal=false
+Type=Application
+Categories=Network;InstantMessaging;Chat;
+Keywords=WhatsApp;Chat;Message;
+StartupWMClass=com.postbetasoftware.whatsdown
