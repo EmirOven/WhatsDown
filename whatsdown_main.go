@@ -214,6 +214,7 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 	archivedPage, _ := castObject[*adw.ToolbarView](builder, "archived_page")
 	settingsPage, _ := castObject[*adw.ToolbarView](builder, "settings_page")
 	rightChatView, _ := castObject[*adw.ToolbarView](builder, "right_chat_view")
+	chatPage, _ := castObject[*gtk.Box](builder, "chat_page")
 	editBannerBar, _ := castObject[*gtk.Box](builder, "edit_banner_bar")
 	editBannerText, _ := castObject[*gtk.Label](builder, "edit_banner_text")
 	cancelEditBtn, _ := castObject[*gtk.Button](builder, "cancel_edit_btn")
@@ -681,6 +682,7 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 	}
 
 	keyController := gtk.NewEventControllerKey()
+	keyController.SetPropagationPhase(gtk.PhaseCapture)
 	keyController.ConnectKeyPressed(func(val uint, code uint, state gdk.ModifierType) bool {
 		if val == gdk.KEY_Escape {
 			if ctrl.editingMessage != nil {
@@ -707,6 +709,7 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 
 	if rightChatView != nil {
 		chatKeyCtrl := gtk.NewEventControllerKey()
+		chatKeyCtrl.SetPropagationPhase(gtk.PhaseCapture)
 		chatKeyCtrl.ConnectKeyPressed(func(val uint, code uint, state gdk.ModifierType) bool {
 			// Don't intercept if user is typing in in-conversation search entry
 			if ctrl.chatSearchEntry != nil && ctrl.chatSearchEntry.HasFocus() {
@@ -718,13 +721,37 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 				if ctrl.handleClipboardMediaPaste() {
 					return true
 				}
+				if !messageEntry.HasFocus() && ctrl.window != nil {
+					clipboard := ctrl.window.Clipboard()
+					if clipboard != nil {
+						clipboard.ReadTextAsync(context.Background(), func(res gio.AsyncResulter) {
+							txt, err := clipboard.ReadTextFinish(res)
+							if err != nil || txt == "" {
+								return
+							}
+							if targetPath, ok := parseFilePathFromText(txt); ok {
+								glib.IdleAdd(func() {
+									ctrl.showSendAttachmentDialog(targetPath)
+								})
+							} else {
+								glib.IdleAdd(func() {
+									messageEntry.GrabFocus()
+									messageEntry.SetText(txt)
+								})
+							}
+						})
+						return true
+					}
+				}
 			}
 			return false
 		})
 		rightChatView.AddController(chatKeyCtrl)
+	}
 
-		dropTarget := gtk.NewDropTarget(gio.GTypeFile, gdk.ActionCopy)
-		dropTarget.ConnectDrop(func(value *glib.Value, x, y float64) bool {
+	createFileDropTarget := func() *gtk.DropTarget {
+		target := gtk.NewDropTarget(gio.GTypeFile, gdk.ActionCopy)
+		target.ConnectDrop(func(value *glib.Value, x, y float64) bool {
 			if ctrl.currentChat == nil {
 				return false
 			}
@@ -740,11 +767,27 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 			}
 			return false
 		})
-		rightChatView.AddController(dropTarget)
+		return target
 	}
+
+	if chatPage != nil {
+		chatPage.AddController(createFileDropTarget())
+	} else if messagesScrolledWindow != nil {
+		messagesScrolledWindow.AddController(createFileDropTarget())
+	}
+	messageEntry.AddController(createFileDropTarget())
 
 	messageEntry.ConnectChanged(func() {
 		text := messageEntry.Text()
+
+		// If user pasted a file path / URI into the message box, immediately clear and open attachment preview
+		if targetPath, ok := parseFilePathFromText(text); ok {
+			messageEntry.SetText("")
+			glib.IdleAdd(func() {
+				ctrl.showSendAttachmentDialog(targetPath)
+			})
+			return
+		}
 
 		// 1. Live preview directly inside message box using Pango attributes
 		if attrs, err := FormatWhatsAppMarkdownForEntry(text); err == nil && attrs != nil {
@@ -5051,6 +5094,57 @@ func (c *whatsDownMainController) showSendAttachmentDialog(filePath string) {
 	captionEntry.GrabFocus()
 }
 
+// parseFilePathFromText checks if the provided text represents an existing file path
+// or file:// URI (e.g. from clipboard or file manager paste) and returns the verified absolute path.
+func parseFilePathFromText(text string) (string, bool) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return "", false
+	}
+
+	lines := strings.Split(text, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		line = strings.TrimRight(line, "\r")
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if line == "copy" || line == "cut" {
+			continue
+		}
+		if (strings.HasPrefix(line, "'") && strings.HasSuffix(line, "'")) ||
+			(strings.HasPrefix(line, "\"") && strings.HasSuffix(line, "\"")) {
+			if len(line) >= 2 {
+				line = line[1 : len(line)-1]
+			}
+		}
+
+		targetPath := ""
+		if strings.HasPrefix(line, "file://") {
+			if u, err := url.Parse(line); err == nil {
+				targetPath = u.Path
+				if unescaped, err := url.PathUnescape(targetPath); err == nil {
+					targetPath = unescaped
+				}
+			}
+		} else if strings.HasPrefix(line, "/") {
+			targetPath = line
+		} else if strings.HasPrefix(line, "~/") {
+			if home, err := os.UserHomeDir(); err == nil {
+				targetPath = filepath.Join(home, line[2:])
+			}
+		}
+
+		if targetPath != "" {
+			if fi, err := os.Stat(targetPath); err == nil && !fi.IsDir() {
+				return targetPath, true
+			}
+		}
+	}
+
+	return "", false
+}
+
 // handleClipboardMediaPaste checks if the clipboard contains an image (e.g. screenshot)
 // or file URI list, and if so opens the send attachment dialog. Returns true if media was handled.
 func (c *whatsDownMainController) handleClipboardMediaPaste() bool {
@@ -5059,6 +5153,11 @@ func (c *whatsDownMainController) handleClipboardMediaPaste() bool {
 	}
 
 	clipboard := c.window.Clipboard()
+	if clipboard == nil {
+		if disp := gdk.DisplayGetDefault(); disp != nil {
+			clipboard = disp.Clipboard()
+		}
+	}
 	if clipboard == nil {
 		return false
 	}
@@ -5071,12 +5170,24 @@ func (c *whatsDownMainController) handleClipboardMediaPaste() bool {
 	hasImage := false
 	hasURIList := false
 
-	for _, mime := range formats.MIMETypes() {
-		if strings.HasPrefix(mime, "image/") {
+	for _, gtype := range formats.GTypes() {
+		if gtype.IsA(gdk.GTypeTexture) || gtype.IsA(gdk.GTypePaintable) {
 			hasImage = true
 			break
 		}
-		if mime == "text/uri-list" || mime == "x-special/gnome-copied-files" {
+		if gtype.IsA(gdk.GTypeFileList) {
+			hasURIList = true
+		}
+	}
+
+	for _, mime := range formats.MIMETypes() {
+		if strings.HasPrefix(mime, "image/") {
+			hasImage = true
+		}
+		if mime == "text/uri-list" ||
+			mime == "x-special/gnome-copied-files" ||
+			mime == "application/vnd.portal.filetransfer" ||
+			mime == "application/vnd.portal.files" {
 			hasURIList = true
 		}
 	}
@@ -5086,60 +5197,61 @@ func (c *whatsDownMainController) handleClipboardMediaPaste() bool {
 	}
 
 	if hasImage {
+		fallbackReadRawStream := func() {
+			clipboard.ReadAsync(context.Background(), []string{"image/png", "image/jpeg", "image/webp"}, int(glib.PriorityDefault), func(res gio.AsyncResulter) {
+				_, stream, err := clipboard.ReadFinish(res)
+				if err != nil || stream == nil {
+					return
+				}
+				baseStream := gio.BaseInputStream(stream)
+
+				baseStream.ReadBytesAsync(context.Background(), 20*1024*1024, int(glib.PriorityDefault), func(res gio.AsyncResulter) {
+					defer baseStream.Close(context.Background())
+					b, err := baseStream.ReadBytesFinish(res)
+					if err != nil || b == nil || b.Size() == 0 {
+						return
+					}
+					tempFile := filepath.Join(os.TempDir(), fmt.Sprintf("whatsdown_paste_%d.png", time.Now().UnixNano()))
+					if err := os.WriteFile(tempFile, b.Data(), 0644); err == nil {
+						glib.IdleAdd(func() {
+							c.showSendAttachmentDialog(tempFile)
+						})
+					}
+				})
+			})
+		}
+
 		clipboard.ReadTextureAsync(context.Background(), func(res gio.AsyncResulter) {
 			texturer, err := clipboard.ReadTextureFinish(res)
-			if err != nil || texturer == nil {
-				return
+			if err == nil && texturer != nil {
+				tex := gdk.BaseTexture(texturer)
+				if tex != nil {
+					tempFile := filepath.Join(os.TempDir(), fmt.Sprintf("whatsdown_paste_%d.png", time.Now().UnixNano()))
+					if tex.SaveToPNG(tempFile) {
+						glib.IdleAdd(func() {
+							c.showSendAttachmentDialog(tempFile)
+						})
+						return
+					}
+				}
 			}
-			tex := gdk.BaseTexture(texturer)
-			if tex == nil {
-				return
-			}
-			tempFile := filepath.Join(os.TempDir(), fmt.Sprintf("whatsdown_paste_%d.png", time.Now().UnixNano()))
-			if tex.SaveToPNG(tempFile) {
-				glib.IdleAdd(func() {
-					c.showSendAttachmentDialog(tempFile)
-				})
-			}
+
+			// If texture decoding failed, fall back to reading raw stream bytes
+			fallbackReadRawStream()
 		})
 		return true
 	}
 
 	if hasURIList {
-		clipboard.ReadAsync(context.Background(), []string{"text/uri-list"}, int(glib.PriorityDefault), func(res gio.AsyncResulter) {
-			_, stream, err := clipboard.ReadFinish(res)
-			if err != nil || stream == nil {
+		clipboard.ReadTextAsync(context.Background(), func(res gio.AsyncResulter) {
+			text, err := clipboard.ReadTextFinish(res)
+			if err != nil || text == "" {
 				return
 			}
-			baseStream := gio.BaseInputStream(stream)
-			defer baseStream.Close(context.Background())
-
-			b, err := baseStream.ReadBytes(context.Background(), 65536)
-			if err != nil || b == nil {
-				return
-			}
-			content := string(b.Data())
-			for _, line := range strings.Split(content, "\n") {
-				line = strings.TrimSpace(line)
-				if strings.HasPrefix(line, "#") || line == "" {
-					continue
-				}
-				targetPath := ""
-				if strings.HasPrefix(line, "file://") {
-					if u, err := url.Parse(line); err == nil {
-						targetPath = u.Path
-					}
-				} else if filepath.IsAbs(line) {
-					targetPath = line
-				}
-				if targetPath != "" {
-					if fi, err := os.Stat(targetPath); err == nil && !fi.IsDir() {
-						glib.IdleAdd(func() {
-							c.showSendAttachmentDialog(targetPath)
-						})
-						return
-					}
-				}
+			if targetPath, ok := parseFilePathFromText(text); ok {
+				glib.IdleAdd(func() {
+					c.showSendAttachmentDialog(targetPath)
+				})
 			}
 		})
 		return true

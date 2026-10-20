@@ -173,3 +173,52 @@ func TestBuildMainWindow(t *testing.T) {
 
 	app.Run(nil)
 }
+
+func TestParseFilePathFromText(t *testing.T) {
+	// Create a temporary file for testing
+	tmpFile, err := os.CreateTemp("", "whatsdown_test_*.png")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpPath := tmpFile.Name()
+	tmpFile.Close()
+
+	// 1. Direct path
+	if path, ok := parseFilePathFromText(tmpPath); !ok || path != tmpPath {
+		t.Errorf("expected direct path %s, got %s (ok=%v)", tmpPath, path, ok)
+	}
+
+	// 2. file:// URI
+	fileURI := "file://" + tmpPath
+	if path, ok := parseFilePathFromText(fileURI); !ok || path != tmpPath {
+		t.Errorf("expected file URI path %s, got %s (ok=%v)", tmpPath, path, ok)
+	}
+
+	// 3. GNOME copied files format (copy\nfile://...)
+	gnomeFormat := "copy\n" + fileURI + "\r\n"
+	if path, ok := parseFilePathFromText(gnomeFormat); !ok || path != tmpPath {
+		t.Errorf("expected GNOME format path %s, got %s (ok=%v)", tmpPath, path, ok)
+	}
+
+	// 4. Quoted path
+	quoted := `"` + tmpPath + `"`
+	if path, ok := parseFilePathFromText(quoted); !ok || path != tmpPath {
+		t.Errorf("expected quoted path %s, got %s (ok=%v)", tmpPath, path, ok)
+	}
+
+	// 5. Non-file regular text message
+	if path, ok := parseFilePathFromText("Hello, this is a normal WhatsApp text message!"); ok {
+		t.Errorf("expected regular message to return ok=false, got path=%s", path)
+	}
+
+	// 6. Non-existent file path
+	if path, ok := parseFilePathFromText("/does/not/exist/image_never_exists.png"); ok {
+		t.Errorf("expected non-existent file to return ok=false, got path=%s", path)
+	}
+
+	// 7. Directory should return false (only files can be sent as media/attachments)
+	if path, ok := parseFilePathFromText(os.TempDir()); ok {
+		t.Errorf("expected directory to return ok=false, got path=%s", path)
+	}
+}

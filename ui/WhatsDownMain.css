@@ -736,3 +736,20 @@
 .voice-meter-area {
   min-width: 140px;
 }
+
+/* Drag and drop zone feedback */
+adw-toolbar-view:drop(active),
+headerbar:drop(active),
+.top-bar:drop(active),
+tabbar:drop(active) {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
+
+.chat-page:drop(active),
+.chat-messages-list:drop(active) {
+  outline: 2px dashed @accent_color !important;
+  outline-offset: -4px;
+  background-color: alpha(@accent_color, 0.06);
+}
