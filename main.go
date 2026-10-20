@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
@@ -49,6 +50,9 @@ var MainCSS string
 
 //go:embed ui/components/ChatsMenu.ui
 var ChatsMenuUI string
+
+//go:embed ui/components/CallsMenu.ui
+var CallsMenuUI string
 
 //go:embed ui/components/ArchivedMenu.ui
 var ArchivedMenuUI string
@@ -265,6 +269,7 @@ func buildWindow(p page, uiXML string) error {
 			embedded string
 		}{
 			{"ui/components/ChatsMenu.ui", ChatsMenuUI},
+			{"ui/components/CallsMenu.ui", CallsMenuUI},
 			{"ui/components/ArchivedMenu.ui", ArchivedMenuUI},
 			{"ui/components/SettingsMenu.ui", SettingsMenuUI},
 			{"ui/components/RightChatView.ui", RightChatViewUI},
@@ -703,8 +708,95 @@ func handleWhatsAppEvent(evt any) {
 			}
 			if msgStore != nil && waClient != nil {
 				msgStore.importStickersFromChatHistory(context.Background(), waClient)
+				groups, err := waClient.GetJoinedGroups(context.Background())
+				if err == nil && len(groups) > 0 {
+					_ = msgStore.syncGroups(context.Background(), groups)
+					glib.IdleAdd(func() {
+						if activeMainWindow != nil {
+							activeMainWindow.loadChats()
+						}
+					})
+				}
 			}
 		}()
+
+	case *events.CallOffer:
+		log.Printf("incoming call offer: callID=%s from=%s caller=%s", e.CallID, e.From, e.CallCreator)
+		if msgStore != nil {
+			callerJID := e.CallCreator.ToNonAD().String()
+			if callerJID == "" {
+				callerJID = e.From.ToNonAD().String()
+			}
+			chatJID := e.From.ToNonAD().String()
+			if chatJID == "" {
+				chatJID = callerJID
+			}
+			go func() {
+				_ = msgStore.saveCall(context.Background(), CallRecord{
+					ID:        e.CallID,
+					ChatJID:   chatJID,
+					CallerJID: callerJID,
+					Timestamp: e.Timestamp,
+					Outcome:   CallOutcomeConnected,
+					FromMe:    false,
+				})
+				glib.IdleAdd(func() {
+					if activeMainWindow != nil {
+						activeMainWindow.loadCalls()
+					}
+				})
+			}()
+		}
+
+	case *events.CallTerminate:
+		log.Printf("call terminate: callID=%s reason=%s", e.CallID, e.Reason)
+		if msgStore != nil {
+			outcome := CallOutcomeConnected
+			rLower := strings.ToLower(e.Reason)
+			if strings.Contains(rLower, "miss") || strings.Contains(rLower, "timeout") {
+				outcome = CallOutcomeMissed
+			} else if strings.Contains(rLower, "reject") || strings.Contains(rLower, "decline") {
+				outcome = CallOutcomeRejected
+			}
+			callerJID := e.CallCreator.ToNonAD().String()
+			if callerJID == "" {
+				callerJID = e.From.ToNonAD().String()
+			}
+			chatJID := e.From.ToNonAD().String()
+			if chatJID == "" {
+				chatJID = callerJID
+			}
+			go func() {
+				_ = msgStore.saveCall(context.Background(), CallRecord{
+					ID:        e.CallID,
+					ChatJID:   chatJID,
+					CallerJID: callerJID,
+					Timestamp: e.Timestamp,
+					Outcome:   outcome,
+					FromMe:    false,
+				})
+				glib.IdleAdd(func() {
+					if activeMainWindow != nil {
+						activeMainWindow.loadCalls()
+					}
+				})
+			}()
+		}
+
+	case *events.GroupInfo:
+		if waClient != nil && msgStore != nil {
+			go func() {
+				groups, err := waClient.GetJoinedGroups(context.Background())
+				if err == nil {
+					_ = msgStore.syncGroups(context.Background(), groups)
+					glib.IdleAdd(func() {
+						if activeMainWindow != nil {
+							activeMainWindow.loadChats()
+						}
+					})
+				}
+			}()
+		}
 
 	case *events.Pin:
 		if e.Action != nil && msgStore != nil {

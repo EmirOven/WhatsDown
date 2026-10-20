@@ -54,6 +54,37 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
               </object>
             </child>
             <child>
+              <object class="GtkButton" id="calls_nav_btn">
+                <property name="tooltip-text" translatable="yes">Calls</property>
+                <style>
+                  <class name="flat"/>
+                  <class name="nav-rail-btn"/>
+                </style>
+                <property name="child">
+                  <object class="GtkBox">
+                    <property name="orientation">1</property>
+                    <property name="spacing">4</property>
+                    <property name="valign">3</property>
+                    <property name="halign">3</property>
+                    <child>
+                      <object class="GtkImage">
+                        <property name="icon-name">call-start-symbolic</property>
+                        <property name="pixel-size">22</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label" translatable="yes">Calls</property>
+                        <style>
+                          <class name="caption"/>
+                        </style>
+                      </object>
+                    </child>
+                  </object>
+                </property>
+              </object>
+            </child>
+            <child>
               <object class="GtkButton" id="archived_nav_btn">
                 <property name="tooltip-text" translatable="yes">Archived</property>
                 <style>

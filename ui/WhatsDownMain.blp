@@ -36,6 +36,27 @@ Adw.ApplicationWindow main_window {
         };
       }
 
+      Gtk.Button calls_nav_btn {
+        tooltip-text: _("Calls");
+        styles ["flat", "nav-rail-btn"]
+        child: Gtk.Box {
+          orientation: vertical;
+          spacing: 4;
+          valign: center;
+          halign: center;
+
+          Gtk.Image {
+            icon-name: "call-start-symbolic";
+            pixel-size: 22;
+          }
+
+          Gtk.Label {
+            label: _("Calls");
+            styles ["caption"]
+          }
+        };
+      }
+
       Gtk.Button archived_nav_btn {
         tooltip-text: _("Archived");
         styles ["flat", "nav-rail-btn"]

@@ -150,6 +150,31 @@ var migrations = []string{
 	);
 	CREATE INDEX IF NOT EXISTS idx_whatsdown_message_edits_msg ON whatsdown_message_edits (chat_jid, message_id);
 	`,
+
+	// 11: group communities support
+	`
+	ALTER TABLE whatsdown_chats ADD COLUMN parent_jid TEXT NOT NULL DEFAULT '';
+	ALTER TABLE whatsdown_chats ADD COLUMN is_parent INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE whatsdown_chats ADD COLUMN is_default_sub_group INTEGER NOT NULL DEFAULT 0;
+	CREATE INDEX IF NOT EXISTS idx_whatsdown_chats_parent ON whatsdown_chats (parent_jid);
+	`,
+
+	// 12: call history log
+	`
+	CREATE TABLE IF NOT EXISTS whatsdown_calls (
+		id            TEXT PRIMARY KEY,
+		chat_jid      TEXT NOT NULL,
+		caller_jid    TEXT NOT NULL,
+		caller_name   TEXT NOT NULL DEFAULT '',
+		timestamp     INTEGER NOT NULL,
+		duration_secs INTEGER NOT NULL DEFAULT 0,
+		is_video      INTEGER NOT NULL DEFAULT 0,
+		is_group      INTEGER NOT NULL DEFAULT 0,
+		outcome       INTEGER NOT NULL DEFAULT 0,
+		from_me       INTEGER NOT NULL DEFAULT 0
+	);
+	CREATE INDEX IF NOT EXISTS idx_whatsdown_calls_time ON whatsdown_calls (timestamp DESC);
+	`,
 }
 
 // Delivery / read status of outgoing messages.
@@ -158,6 +183,15 @@ const (
 	MessageStatusSent      = 1 // server ack (single check)
 	MessageStatusDelivered = 2 // delivered to recipient (double check)
 	MessageStatusRead      = 3 // read / viewed by recipient (blue double check)
+)
+
+// Call outcome constants.
+const (
+	CallOutcomeConnected = 0
+	CallOutcomeMissed    = 1
+	CallOutcomeFailed    = 2
+	CallOutcomeRejected  = 3
+	CallOutcomeDeclined  = 4
 )
 
 // Values of whatsdown_messages.kind.
@@ -172,8 +206,23 @@ const (
 	messageKindLocation = "location"
 	messageKindContact  = "contact"
 	messageKindPoll     = "poll"
+	messageKindCall     = "call"
 	messageKindDeleted  = "deleted"
 )
+
+// CallRecord represents a WhatsApp call history entry.
+type CallRecord struct {
+	ID           string
+	ChatJID      string
+	CallerJID    string
+	CallerName   string
+	Timestamp    time.Time
+	DurationSecs int
+	IsVideo      bool
+	IsGroup      bool
+	Outcome      int
+	FromMe       bool
+}
 
 type messageStore struct {
 	db            *sql.DB
@@ -439,6 +488,39 @@ func (s *messageStore) saveMessageTxWithStar(ctx context.Context, tx execer, evt
 		raw = nil
 	}
 
+	if evt.Message != nil && evt.Message.GetCallLogMesssage() != nil {
+		cl := evt.Message.GetCallLogMesssage()
+		callerJID := evt.Info.Sender.ToNonAD().String()
+		if callerJID == "" {
+			callerJID = chat
+		}
+		outcome := CallOutcomeConnected
+		switch cl.GetCallOutcome() {
+		case waE2E.CallLogMessage_CONNECTED:
+			outcome = CallOutcomeConnected
+		case waE2E.CallLogMessage_MISSED:
+			outcome = CallOutcomeMissed
+		case waE2E.CallLogMessage_FAILED:
+			outcome = CallOutcomeFailed
+		case waE2E.CallLogMessage_REJECTED:
+			outcome = CallOutcomeRejected
+		case waE2E.CallLogMessage_ACCEPTED_ELSEWHERE, waE2E.CallLogMessage_SILENCED_BY_DND, waE2E.CallLogMessage_SILENCED_UNKNOWN_CALLER:
+			outcome = CallOutcomeDeclined
+		}
+		_ = s.saveCallTx(ctx, tx, CallRecord{
+			ID:           evt.Info.ID,
+			ChatJID:      chat,
+			CallerJID:    callerJID,
+			CallerName:   evt.Info.PushName,
+			Timestamp:    evt.Info.Timestamp,
+			DurationSecs: int(cl.GetDurationSecs()),
+			IsVideo:      cl.GetIsVideo(),
+			IsGroup:      evt.Info.IsGroup,
+			Outcome:      outcome,
+			FromMe:       evt.Info.IsFromMe,
+		})
+	}
+
 	// Use the sender's push name as a fallback name for direct chats.
 	nameHint := ""
 	if !evt.Info.IsGroup && !evt.Info.IsFromMe && !isSelf {
@@ -542,6 +624,18 @@ func describeMessage(m *waE2E.Message) (kind, text string, ok bool) {
 		return messageKindContact, m.GetContactMessage().GetDisplayName(), true
 	case m.GetContactsArrayMessage() != nil:
 		return messageKindContact, m.GetContactsArrayMessage().GetDisplayName(), true
+	case m.GetCallLogMesssage() != nil:
+		cl := m.GetCallLogMesssage()
+		text := "Voice call"
+		if cl.GetIsVideo() {
+			text = "Video call"
+		}
+		if cl.GetCallOutcome() == waE2E.CallLogMessage_MISSED {
+			text = "Missed " + strings.ToLower(text)
+		} else if cl.GetDurationSecs() > 0 {
+			text = fmt.Sprintf("%s (%s)", text, formatCallDuration(int(cl.GetDurationSecs())))
+		}
+		return messageKindCall, text, true
 	}
 	for _, poll := range []*waE2E.PollCreationMessage{
 		m.GetPollCreationMessage(), m.GetPollCreationMessageV2(), m.GetPollCreationMessageV3(),
@@ -554,6 +648,23 @@ func describeMessage(m *waE2E.Message) (kind, text string, ok bool) {
 	return "", "", false
 }
 
+func formatCallDuration(secs int) string {
+	if secs <= 0 {
+		return "0s"
+	}
+	m := secs / 60
+	s := secs % 60
+	if m == 0 {
+		return fmt.Sprintf("%ds", s)
+	}
+	h := m / 60
+	m = m % 60
+	if h > 0 {
+		return fmt.Sprintf("%dh %dm %ds", h, m, s)
+	}
+	return fmt.Sprintf("%dm %ds", m, s)
+}
+
 // Chat is a row of whatsdown_chats with the latest message preview.
 type Chat struct {
 	JID               string
@@ -563,6 +674,9 @@ type Chat struct {
 	Archived          bool
 	Pinned            bool
 	Muted             bool
+	ParentJID         string
+	IsParent          bool
+	IsDefaultSubGroup bool
 	LastMessageText   string
 	LastMessageSender string
 	LastMessageFromMe bool
@@ -629,6 +743,9 @@ func (s *messageStore) fetchChats(ctx context.Context, archived bool) ([]Chat, e
 			c.archived,
 			c.pinned,
 			c.muted,
+			COALESCE(c.parent_jid, ''),
+			COALESCE(c.is_parent, 0),
+			COALESCE(c.is_default_sub_group, 0),
 			COALESCE(lm_msg.text, ''),
 			COALESCE(
 				NULLIF(lm_cnt.full_name, ''),
@@ -674,7 +791,7 @@ func (s *messageStore) fetchChats(ctx context.Context, archived bool) ([]Chat, e
 	for rows.Next() {
 		var c Chat
 		var ts int64
-		var fromMe int
+		var fromMe, isParent, isDefaultSub int
 		if err := rows.Scan(
 			&c.JID,
 			&c.Name,
@@ -683,6 +800,9 @@ func (s *messageStore) fetchChats(ctx context.Context, archived bool) ([]Chat, e
 			&c.Archived,
 			&c.Pinned,
 			&c.Muted,
+			&c.ParentJID,
+			&isParent,
+			&isDefaultSub,
 			&c.LastMessageText,
 			&c.LastMessageSender,
 			&fromMe,
@@ -691,6 +811,8 @@ func (s *messageStore) fetchChats(ctx context.Context, archived bool) ([]Chat, e
 		); err != nil {
 			return nil, err
 		}
+		c.IsParent = isParent != 0
+		c.IsDefaultSubGroup = isDefaultSub != 0
 		c.LastMessageFromMe = fromMe != 0
 		c.LastMessageAt = time.Unix(ts, 0)
 		chats = append(chats, c)
@@ -734,6 +856,8 @@ func (s *messageStore) getChatOrContact(ctx context.Context, jid string) (Chat, 
 	var lastMsgAt int64
 	var unread int
 	var archived, pinned, muted bool
+	var parentJID string
+	var isParent, isDefaultSub int
 	var lastMsgText, lastMsgSender, lastMsgKind string
 	var fromMe, lastMsgStatus int
 
@@ -757,6 +881,9 @@ func (s *messageStore) getChatOrContact(ctx context.Context, jid string) (Chat, 
 			COALESCE(c.archived, 0),
 			COALESCE(c.pinned, 0),
 			COALESCE(c.muted, 0),
+			COALESCE(c.parent_jid, ''),
+			COALESCE(c.is_parent, 0),
+			COALESCE(c.is_default_sub_group, 0),
 			COALESCE(lm_msg.text, ''),
 			COALESCE(
 				NULLIF(lm_cnt.full_name, ''),
@@ -794,6 +921,7 @@ func (s *messageStore) getChatOrContact(ctx context.Context, jid string) (Chat, 
 		LEFT JOIN whatsmeow_contacts lm_cnt_lid ON lm_cnt_lid.their_jid = (lm_lid.pn || '@s.whatsapp.net')`,
 		jid).Scan(
 		&name, &lastMsgAt, &unread, &archived, &pinned, &muted,
+		&parentJID, &isParent, &isDefaultSub,
 		&lastMsgText, &lastMsgSender, &fromMe, &lastMsgKind, &lastMsgStatus,
 	)
 	if err != nil {
@@ -807,12 +935,206 @@ func (s *messageStore) getChatOrContact(ctx context.Context, jid string) (Chat, 
 		Archived:          archived,
 		Pinned:            pinned,
 		Muted:             muted,
+		ParentJID:         parentJID,
+		IsParent:          isParent != 0,
+		IsDefaultSubGroup: isDefaultSub != 0,
 		LastMessageText:   lastMsgText,
 		LastMessageSender: lastMsgSender,
 		LastMessageFromMe: fromMe != 0,
 		LastMessageKind:   lastMsgKind,
 		LastMessageStatus: lastMsgStatus,
 	}, nil
+}
+
+// setChatCommunity sets community hierarchy information for a chat.
+func (s *messageStore) setChatCommunity(ctx context.Context, jid string, parentJID string, isParent bool, isDefaultSubGroup bool) error {
+	isP := 0
+	if isParent {
+		isP = 1
+	}
+	isD := 0
+	if isDefaultSubGroup {
+		isD = 1
+	}
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE whatsdown_chats
+		SET parent_jid = ?, is_parent = ?, is_default_sub_group = ?
+		WHERE jid = ?`, parentJID, isP, isD, jid)
+	return err
+}
+
+// syncGroups updates community and parent-child group relations from whatsmeow.
+func (s *messageStore) syncGroups(ctx context.Context, groups []*types.GroupInfo) error {
+	if len(groups) == 0 {
+		return nil
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	for _, g := range groups {
+		if g == nil {
+			continue
+		}
+		jid := g.JID.ToNonAD().String()
+		name := g.GroupName.Name
+		isParent := 0
+		if g.GroupParent.IsParent {
+			isParent = 1
+		}
+		parentJID := ""
+		if !g.GroupLinkedParent.LinkedParentJID.IsEmpty() {
+			parentJID = g.GroupLinkedParent.LinkedParentJID.ToNonAD().String()
+		}
+		isDefaultSub := 0
+		if g.GroupIsDefaultSub.IsDefaultSubGroup {
+			isDefaultSub = 1
+		}
+
+		if parentJID != "" {
+			_, _ = tx.ExecContext(ctx, `
+				INSERT INTO whatsdown_chats (jid, name, is_parent)
+				VALUES (?, 'Community', 1)
+				ON CONFLICT (jid) DO UPDATE SET is_parent = 1`,
+				parentJID)
+		}
+
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO whatsdown_chats (jid, name, parent_jid, is_parent, is_default_sub_group)
+			VALUES (?, ?, ?, ?, ?)
+			ON CONFLICT (jid) DO UPDATE SET
+				name = CASE WHEN excluded.name <> '' THEN excluded.name ELSE name END,
+				parent_jid = excluded.parent_jid,
+				is_parent = excluded.is_parent,
+				is_default_sub_group = excluded.is_default_sub_group`,
+			jid, name, parentJID, isParent, isDefaultSub)
+		if err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func (s *messageStore) saveCallTx(ctx context.Context, tx execer, call CallRecord) error {
+	isVideoVal := 0
+	if call.IsVideo {
+		isVideoVal = 1
+	}
+	isGroupVal := 0
+	if call.IsGroup {
+		isGroupVal = 1
+	}
+	fromMeVal := 0
+	if call.FromMe {
+		fromMeVal = 1
+	}
+	ts := call.Timestamp.Unix()
+	if ts <= 0 {
+		ts = time.Now().Unix()
+	}
+
+	_, err := tx.ExecContext(ctx, `
+		INSERT INTO whatsdown_calls (
+			id, chat_jid, caller_jid, caller_name, timestamp,
+			duration_secs, is_video, is_group, outcome, from_me
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (id) DO UPDATE SET
+			caller_name   = CASE WHEN excluded.caller_name <> '' THEN excluded.caller_name ELSE caller_name END,
+			duration_secs = CASE WHEN excluded.duration_secs > 0 THEN excluded.duration_secs ELSE duration_secs END,
+			outcome       = excluded.outcome`,
+		call.ID, call.ChatJID, call.CallerJID, call.CallerName, ts,
+		call.DurationSecs, isVideoVal, isGroupVal, call.Outcome, fromMeVal)
+	return err
+}
+
+func (s *messageStore) saveCall(ctx context.Context, call CallRecord) error {
+	return s.saveCallTx(ctx, s.db, call)
+}
+
+func (s *messageStore) listCalls(ctx context.Context, query string) ([]CallRecord, error) {
+	sqlQuery := `
+		SELECT 
+			c.id,
+			c.chat_jid,
+			c.caller_jid,
+			COALESCE(
+				NULLIF(cnt.full_name, ''),
+				NULLIF(cnt_lid.full_name, ''),
+				NULLIF(cnt.first_name, ''),
+				NULLIF(cnt_lid.first_name, ''),
+				NULLIF(cnt.business_name, ''),
+				NULLIF(cnt_lid.business_name, ''),
+				NULLIF(cnt.push_name, ''),
+				NULLIF(cnt_lid.push_name, ''),
+				NULLIF(ch.name, ''),
+				NULLIF(c.caller_name, ''),
+				CASE WHEN lm.pn IS NOT NULL AND lm.pn <> '' THEN '+' || lm.pn ELSE NULL END,
+				c.caller_jid
+			) AS resolved_caller_name,
+			c.timestamp,
+			c.duration_secs,
+			c.is_video,
+			c.is_group,
+			c.outcome,
+			c.from_me
+		FROM whatsdown_calls c
+		LEFT JOIN whatsmeow_contacts cnt ON cnt.their_jid = c.caller_jid
+		LEFT JOIN whatsmeow_lid_map lm ON (lm.lid || '@lid') = c.caller_jid
+		LEFT JOIN whatsmeow_contacts cnt_lid ON cnt_lid.their_jid = (lm.pn || '@s.whatsapp.net')
+		LEFT JOIN whatsdown_chats ch ON ch.jid = c.chat_jid
+	`
+	var args []any
+	if query != "" {
+		sqlQuery += ` WHERE (ch.name LIKE ? OR cnt.full_name LIKE ? OR cnt.push_name LIKE ? OR c.caller_name LIKE ? OR c.caller_jid LIKE ?)`
+		like := "%" + query + "%"
+		args = append(args, like, like, like, like, like)
+	}
+	sqlQuery += ` ORDER BY c.timestamp DESC LIMIT 200`
+
+	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var calls []CallRecord
+	for rows.Next() {
+		var rec CallRecord
+		var ts int64
+		var isVideo, isGroup, fromMe int
+		if err := rows.Scan(
+			&rec.ID,
+			&rec.ChatJID,
+			&rec.CallerJID,
+			&rec.CallerName,
+			&ts,
+			&rec.DurationSecs,
+			&isVideo,
+			&isGroup,
+			&rec.Outcome,
+			&fromMe,
+		); err != nil {
+			return nil, err
+		}
+		rec.Timestamp = time.Unix(ts, 0)
+		rec.IsVideo = isVideo != 0
+		rec.IsGroup = isGroup != 0
+		rec.FromMe = fromMe != 0
+		calls = append(calls, rec)
+	}
+	return calls, rows.Err()
+}
+
+func (s *messageStore) deleteCall(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM whatsdown_calls WHERE id = ?`, id)
+	return err
+}
+
+func (s *messageStore) clearCalls(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM whatsdown_calls`)
+	return err
 }
 
 // getSelfJIDs retrieves own phone number JID and own LID from whatsmeow_device.

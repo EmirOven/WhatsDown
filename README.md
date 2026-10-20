@@ -8,7 +8,32 @@ WhatsDown is a native Linux WhatsApp client built with **Go**, **GTK 4**, and **
 - **QR Code Pairing:** Clean QR login interface with instant visual feedback.
 - **Syncing Progress:** Dedicated syncing screen tracking initial history sync chunks (conversations & messages) as well as offline catches upon reconnect.
 - **Main Chat Interface (`WhatsDownMain`):** Full Libadwaita adaptive split-view interface:
-  - **Left-hand Navigation Menu:** Modern navigation rail allowing one-click switching between active **Chats** (default), **Archived** conversations, and **Settings**.
+  - **Left-hand Navigation Menu:** Modern navigation rail allowing one-click switching between active **Chats** (default), **Calls**, **Archived** conversations, and **Settings**.
+  - **WhatsApp Community Grouping:**
+    - Groups belonging to a WhatsApp Community are automatically organized together under an expandable community folder.
+    - Community folders appear among other chats sorted by their latest activity, displaying the community avatar, title, chat count, and aggregated unread count badge.
+    - Clicking a community expands or collapses it inline (like a Discord server group), showing its member chats indented with tree branch styling.
+    - Community member chats do not appear in the top-level chat list by themselves.
+    - Searching chats automatically auto-expands any community whose child chats match the query.
+  - **Calls Page & WhatsApp Call History:**
+    - Dedicated **Calls** page in the navigation rail displaying your full WhatsApp call history.
+    - Tracks incoming, outgoing, and missed voice and video calls with durations, caller avatars, resolved names/numbers, and relative timestamps.
+    - Live sync of call events (`CallOffer`, `CallTerminate`, and `CallLogMessage` protobuf payloads).
+    - One-click navigation to open the chat conversation with any caller, plus a context menu to remove entries from history.
+  - **Voice Messages (PTT Recording & Playback):**
+    - Built-in voice recorder with live audio capture and Opus/OGG encoding.
+    - Interactive recording bar that replaces the message entry during recording, featuring live waveform/level meter, timer, pause/resume, stop, review playback, cancel/delete, and send actions.
+  - **Interactive Polls:**
+    - Create single-choice or multi-choice polls with multiple options directly in conversations.
+    - Live voting with real-time percentage progress bars, voter counts, and voter breakdown popovers.
+  - **Stickers & Sticker Management:**
+    - Native sticker picker popover with saved stickers gallery.
+    - Right-click any sticker in chat to save it to your personal sticker collection.
+    - Automatic background import of sent and received stickers from chat history.
+  - **Message Editing & Deletion:**
+    - Right-click sent messages to edit within the 15-minute WhatsApp window.
+    - Inline edit mode with cancel action, displaying an `Edited` indicator and edit timestamp history.
+    - Revoke/delete sent messages for everyone or for yourself.
   - **Cross-Device Pinned & Archived Sync:** Pinned and archived statuses are synced across all devices using WhatsApp App State synchronization (`events.Pin` and `events.Archive`). Any pin or archive changes made on your phone or in WhatsDown are updated seamlessly across devices.
   - **Right-Click Context Menu:** Right-click on any chat to:
     - **Pin / Unpin chat:** Keeps important conversations pinned to the top of your list with a visual pin indicator and syncs state to WhatsApp.
@@ -145,8 +170,12 @@ go test -v ./...
 WhatsDown stores application data in SQLite at `~/.local/share/whatsdown/whatsdown.db`:
 
 - **Session store (`whatsmeow_*` tables):** Managed by `whatsmeow` for encryption keys, paired device credentials, and connection state.
-- **Chat store (`whatsdown_chats`):** Tracks chat JIDs, contact/group names, unread message counts, timestamps, and pinned/archived states.
-- **Message store (`whatsdown_messages`):** Tracks message IDs, sender JID/name, direction (`from_me`), timestamp, message kind (text, media, location, poll, etc.), display text, edit state, and raw protobuf payload for media processing.
+- **Chat store (`whatsdown_chats`):** Tracks chat JIDs, contact/group names, unread message counts, timestamps, pinned/archived/muted states, and community hierarchy (`parent_jid`, `is_parent`, `is_default_sub_group`).
+- **Message store (`whatsdown_messages`):** Tracks message IDs, sender JID/name, direction (`from_me`), timestamp, message kind (text, media, location, poll, call, voice, etc.), display text, edit state, read status, and raw protobuf payload.
+- **Call store (`whatsdown_calls`):** Tracks call IDs, caller and chat JIDs, caller name, timestamps, duration, call type (audio/video, direct/group), direction, and outcome (connected, missed, rejected, declined).
+- **Poll votes (`whatsdown_poll_votes`):** Tracks vote selections per message and voter JID.
+- **Saved stickers (`whatsdown_saved_stickers`):** Tracks personal saved sticker assets and metadata.
+- **Message edits (`whatsdown_message_edits`):** Stores previous versions of edited messages.
 - **Migration table (`whatsdown_version`):** Tracks schema migrations applied to the local database.
 
 ---

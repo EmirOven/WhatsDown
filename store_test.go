@@ -1671,3 +1671,255 @@ func TestImportStickersFromChatHistory(t *testing.T) {
 		t.Errorf("expected 0 imported on re-run, got %d", importedAgain)
 	}
 }
+
+func TestCommunityGrouping(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("opening sqlite: %v", err)
+	}
+	defer db.Close()
+
+	store, err := openMessageStore(ctx, db)
+	if err != nil {
+		t.Fatalf("openMessageStore: %v", err)
+	}
+
+	commJID := types.NewJID("1111111111", "g.us")
+	sub1JID := types.NewJID("2222222222", "g.us")
+	sub2JID := types.NewJID("3333333333", "g.us")
+	regJID := types.NewJID("4444444444", "g.us")
+
+	groups := []*types.GroupInfo{
+		{
+			JID: commJID,
+			GroupName: types.GroupName{
+				Name: "Tech Community",
+			},
+			GroupParent: types.GroupParent{
+				IsParent: true,
+			},
+		},
+		{
+			JID: sub1JID,
+			GroupName: types.GroupName{
+				Name: "Announcements",
+			},
+			GroupLinkedParent: types.GroupLinkedParent{
+				LinkedParentJID: commJID,
+			},
+			GroupIsDefaultSub: types.GroupIsDefaultSub{
+				IsDefaultSubGroup: true,
+			},
+		},
+		{
+			JID: sub2JID,
+			GroupName: types.GroupName{
+				Name: "General Chat",
+			},
+			GroupLinkedParent: types.GroupLinkedParent{
+				LinkedParentJID: commJID,
+			},
+		},
+		{
+			JID: regJID,
+			GroupName: types.GroupName{
+				Name: "Standalone Project",
+			},
+		},
+	}
+
+	if err := store.syncGroups(ctx, groups); err != nil {
+		t.Fatalf("syncGroups failed: %v", err)
+	}
+
+	chats, err := store.listChats(ctx)
+	if err != nil {
+		t.Fatalf("listChats failed: %v", err)
+	}
+
+	chatMap := make(map[string]Chat)
+	for _, c := range chats {
+		chatMap[c.JID] = c
+	}
+
+	comm, ok := chatMap[commJID.String()]
+	if !ok {
+		t.Fatalf("expected community chat %s to exist", commJID)
+	}
+	if !comm.IsParent {
+		t.Errorf("expected comm.IsParent to be true")
+	}
+	if comm.ParentJID != "" {
+		t.Errorf("expected comm.ParentJID to be empty, got %q", comm.ParentJID)
+	}
+
+	sub1, ok := chatMap[sub1JID.String()]
+	if !ok {
+		t.Fatalf("expected sub1 chat %s to exist", sub1JID)
+	}
+	if sub1.ParentJID != commJID.String() {
+		t.Errorf("expected sub1.ParentJID to be %q, got %q", commJID.String(), sub1.ParentJID)
+	}
+	if !sub1.IsDefaultSubGroup {
+		t.Errorf("expected sub1.IsDefaultSubGroup to be true")
+	}
+
+	sub2, ok := chatMap[sub2JID.String()]
+	if !ok {
+		t.Fatalf("expected sub2 chat %s to exist", sub2JID)
+	}
+	if sub2.ParentJID != commJID.String() {
+		t.Errorf("expected sub2.ParentJID to be %q, got %q", commJID.String(), sub2.ParentJID)
+	}
+
+	reg, ok := chatMap[regJID.String()]
+	if !ok {
+		t.Fatalf("expected reg chat %s to exist", regJID)
+	}
+	if reg.ParentJID != "" || reg.IsParent {
+		t.Errorf("expected regular chat to not be parent and have empty ParentJID")
+	}
+
+	// Test setChatCommunity
+	if err := store.setChatCommunity(ctx, regJID.String(), commJID.String(), false, false); err != nil {
+		t.Fatalf("setChatCommunity failed: %v", err)
+	}
+	updatedReg, err := store.getChatOrContact(ctx, regJID.String())
+	if err != nil {
+		t.Fatalf("getChatOrContact failed: %v", err)
+	}
+	if updatedReg.ParentJID != commJID.String() {
+		t.Errorf("expected updatedReg.ParentJID to be %q, got %q", commJID.String(), updatedReg.ParentJID)
+	}
+}
+
+func TestCallHistory(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("opening sqlite: %v", err)
+	}
+	defer db.Close()
+
+	store, err := openMessageStore(ctx, db)
+	if err != nil {
+		t.Fatalf("openMessageStore: %v", err)
+	}
+
+	// 1. Direct call saving and querying
+	c1 := CallRecord{
+		ID:           "call-1",
+		ChatJID:      "15550001@s.whatsapp.net",
+		CallerJID:    "15550001@s.whatsapp.net",
+		CallerName:   "Alice",
+		Timestamp:    time.Now().Add(-10 * time.Minute),
+		DurationSecs: 0,
+		IsVideo:      false,
+		Outcome:      CallOutcomeMissed,
+		FromMe:       false,
+	}
+	c2 := CallRecord{
+		ID:           "call-2",
+		ChatJID:      "15550002@s.whatsapp.net",
+		CallerJID:    "15550002@s.whatsapp.net",
+		CallerName:   "Bob",
+		Timestamp:    time.Now().Add(-5 * time.Minute),
+		DurationSecs: 154,
+		IsVideo:      true,
+		Outcome:      CallOutcomeConnected,
+		FromMe:       true,
+	}
+
+	if err := store.saveCall(ctx, c1); err != nil {
+		t.Fatalf("saveCall c1 failed: %v", err)
+	}
+	if err := store.saveCall(ctx, c2); err != nil {
+		t.Fatalf("saveCall c2 failed: %v", err)
+	}
+
+	calls, err := store.listCalls(ctx, "")
+	if err != nil || len(calls) != 2 {
+		t.Fatalf("expected 2 calls, got %d (%v)", len(calls), err)
+	}
+	// Ordered by timestamp DESC: c2 is newer than c1
+	if calls[0].ID != "call-2" || calls[1].ID != "call-1" {
+		t.Errorf("unexpected call order: %s, %s", calls[0].ID, calls[1].ID)
+	}
+	if !calls[0].IsVideo || calls[0].DurationSecs != 154 {
+		t.Errorf("call-2 properties mismatch: video=%v, duration=%d", calls[0].IsVideo, calls[0].DurationSecs)
+	}
+
+	// Filter by search query
+	bobCalls, err := store.listCalls(ctx, "Bob")
+	if err != nil || len(bobCalls) != 1 {
+		t.Fatalf("expected 1 call for 'Bob', got %d (%v)", len(bobCalls), err)
+	}
+
+	// Delete single call
+	if err := store.deleteCall(ctx, "call-1"); err != nil {
+		t.Fatalf("deleteCall failed: %v", err)
+	}
+	callsAfterDel, _ := store.listCalls(ctx, "")
+	if len(callsAfterDel) != 1 || callsAfterDel[0].ID != "call-2" {
+		t.Fatalf("expected 1 call after delete, got %d", len(callsAfterDel))
+	}
+
+	// 2. Call extraction from CallLogMesssage inside message
+	isVideo := true
+	outcome := waE2E.CallLogMessage_MISSED
+	dur := int64(0)
+	chatJID := types.NewJID("15559999", "s.whatsapp.net")
+	msg := &events.Message{
+		Info: types.MessageInfo{
+			MessageSource: types.MessageSource{
+				Chat:     chatJID,
+				Sender:   chatJID,
+				IsFromMe: false,
+			},
+			ID:        "msg-call-1",
+			Timestamp: time.Now(),
+			PushName:  "Charlie",
+		},
+		Message: &waE2E.Message{
+			CallLogMesssage: &waE2E.CallLogMessage{
+				IsVideo:      &isVideo,
+				CallOutcome:  &outcome,
+				DurationSecs: &dur,
+			},
+		},
+	}
+
+	kind, text, ok := describeMessage(msg.Message)
+	if !ok || kind != "call" {
+		t.Fatalf("describeMessage expected call, got kind=%q, ok=%v", kind, ok)
+	}
+	if text != "Missed video call" {
+		t.Errorf("expected 'Missed video call', got %q", text)
+	}
+
+	if err := store.saveLiveMessage(ctx, msg); err != nil {
+		t.Fatalf("saveLiveMessage with call failed: %v", err)
+	}
+
+	callRecs, err := store.listCalls(ctx, "msg-call-1")
+	if err != nil || len(callRecs) != 1 {
+		// Or search by caller name "Charlie"
+		callRecs, err = store.listCalls(ctx, "Charlie")
+	}
+	if err != nil || len(callRecs) == 0 {
+		t.Fatalf("expected call record from CallLogMessage to be saved, err: %v", err)
+	}
+	if !callRecs[0].IsVideo || callRecs[0].Outcome != CallOutcomeMissed {
+		t.Errorf("extracted call properties mismatch: video=%v, outcome=%d", callRecs[0].IsVideo, callRecs[0].Outcome)
+	}
+
+	// Clear calls
+	if err := store.clearCalls(ctx); err != nil {
+		t.Fatalf("clearCalls failed: %v", err)
+	}
+	callsCleared, _ := store.listCalls(ctx, "")
+	if len(callsCleared) != 0 {
+		t.Errorf("expected 0 calls after clearCalls, got %d", len(callsCleared))
+	}
+}

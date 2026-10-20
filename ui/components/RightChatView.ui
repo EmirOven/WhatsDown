@@ -316,274 +316,395 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                   </object>
                 </child>
                 <child>
-                  <object class="GtkBox">
-                    <property name="spacing">8</property>
-                    <style>
-                      <class name="chat-input-bar"/>
-                    </style>
+                  <object class="GtkStack" id="chat_input_stack">
+                    <property name="transition-type">1</property>
                     <child>
-                      <object class="GtkMenuButton" id="attach_button">
-                        <property name="icon-name">mail-attachment-symbolic</property>
-                        <property name="tooltip-text" translatable="yes">Attach</property>
-                        <property name="valign">3</property>
-                        <style>
-                          <class name="flat"/>
-                          <class name="circular"/>
-                          <class name="chat-attach-btn"/>
-                        </style>
-                        <property name="popover">
-                          <object class="GtkPopover" id="attach_popover">
-                            <property name="child">
-                              <object class="GtkBox">
-                                <property name="orientation">1</property>
-                                <property name="spacing">4</property>
-                                <property name="margin-top">6</property>
-                                <property name="margin-bottom">6</property>
-                                <property name="margin-start">6</property>
-                                <property name="margin-end">6</property>
-                                <child>
-                                  <object class="GtkButton" id="attach_photo_btn">
-                                    <property name="valign">3</property>
-                                    <style>
-                                      <class name="flat"/>
-                                    </style>
+                      <object class="GtkStackPage">
+                        <property name="name">normal</property>
+                        <property name="child">
+                          <object class="GtkBox" id="chat_input_bar">
+                            <property name="spacing">8</property>
+                            <style>
+                              <class name="chat-input-bar"/>
+                            </style>
+                            <child>
+                              <object class="GtkMenuButton" id="attach_button">
+                                <property name="icon-name">mail-attachment-symbolic</property>
+                                <property name="tooltip-text" translatable="yes">Attach</property>
+                                <property name="valign">3</property>
+                                <style>
+                                  <class name="flat"/>
+                                  <class name="circular"/>
+                                  <class name="chat-attach-btn"/>
+                                </style>
+                                <property name="popover">
+                                  <object class="GtkPopover" id="attach_popover">
                                     <property name="child">
                                       <object class="GtkBox">
-                                        <property name="spacing">10</property>
+                                        <property name="orientation">1</property>
+                                        <property name="spacing">4</property>
+                                        <property name="margin-top">6</property>
+                                        <property name="margin-bottom">6</property>
+                                        <property name="margin-start">6</property>
+                                        <property name="margin-end">6</property>
                                         <child>
-                                          <object class="GtkImage">
-                                            <property name="icon-name">insert-image-symbolic</property>
+                                          <object class="GtkButton" id="attach_photo_btn">
+                                            <property name="valign">3</property>
+                                            <style>
+                                              <class name="flat"/>
+                                            </style>
+                                            <property name="child">
+                                              <object class="GtkBox">
+                                                <property name="spacing">10</property>
+                                                <child>
+                                                  <object class="GtkImage">
+                                                    <property name="icon-name">insert-image-symbolic</property>
+                                                  </object>
+                                                </child>
+                                                <child>
+                                                  <object class="GtkLabel">
+                                                    <property name="label" translatable="yes">Photos &amp; Videos</property>
+                                                  </object>
+                                                </child>
+                                              </object>
+                                            </property>
                                           </object>
                                         </child>
                                         <child>
-                                          <object class="GtkLabel">
-                                            <property name="label" translatable="yes">Photos &amp; Videos</property>
+                                          <object class="GtkButton" id="attach_doc_btn">
+                                            <property name="valign">3</property>
+                                            <style>
+                                              <class name="flat"/>
+                                            </style>
+                                            <property name="child">
+                                              <object class="GtkBox">
+                                                <property name="spacing">10</property>
+                                                <child>
+                                                  <object class="GtkImage">
+                                                    <property name="icon-name">folder-documents-symbolic</property>
+                                                  </object>
+                                                </child>
+                                                <child>
+                                                  <object class="GtkLabel">
+                                                    <property name="label" translatable="yes">Document</property>
+                                                  </object>
+                                                </child>
+                                              </object>
+                                            </property>
+                                          </object>
+                                        </child>
+                                        <child>
+                                          <object class="GtkButton" id="attach_poll_btn">
+                                            <property name="valign">3</property>
+                                            <property name="tooltip-text" translatable="yes">Create a poll</property>
+                                            <style>
+                                              <class name="flat"/>
+                                            </style>
+                                            <property name="child">
+                                              <object class="GtkBox">
+                                                <property name="spacing">10</property>
+                                                <child>
+                                                  <object class="GtkImage">
+                                                    <property name="icon-name">view-list-bullet-symbolic</property>
+                                                  </object>
+                                                </child>
+                                                <child>
+                                                  <object class="GtkLabel">
+                                                    <property name="label" translatable="yes">Poll</property>
+                                                  </object>
+                                                </child>
+                                              </object>
+                                            </property>
+                                          </object>
+                                        </child>
+                                        <child>
+                                          <object class="GtkButton" id="attach_location_btn">
+                                            <property name="valign">3</property>
+                                            <property name="sensitive">false</property>
+                                            <property name="tooltip-text" translatable="yes">Location sharing coming soon</property>
+                                            <style>
+                                              <class name="flat"/>
+                                            </style>
+                                            <property name="child">
+                                              <object class="GtkBox">
+                                                <property name="spacing">10</property>
+                                                <child>
+                                                  <object class="GtkImage">
+                                                    <property name="icon-name">mark-location-symbolic</property>
+                                                  </object>
+                                                </child>
+                                                <child>
+                                                  <object class="GtkLabel">
+                                                    <property name="label" translatable="yes">Location</property>
+                                                  </object>
+                                                </child>
+                                              </object>
+                                            </property>
                                           </object>
                                         </child>
                                       </object>
                                     </property>
                                   </object>
-                                </child>
-                                <child>
-                                  <object class="GtkButton" id="attach_doc_btn">
-                                    <property name="valign">3</property>
-                                    <style>
-                                      <class name="flat"/>
-                                    </style>
-                                    <property name="child">
-                                      <object class="GtkBox">
-                                        <property name="spacing">10</property>
-                                        <child>
-                                          <object class="GtkImage">
-                                            <property name="icon-name">folder-documents-symbolic</property>
-                                          </object>
-                                        </child>
-                                        <child>
-                                          <object class="GtkLabel">
-                                            <property name="label" translatable="yes">Document</property>
-                                          </object>
-                                        </child>
-                                      </object>
-                                    </property>
-                                  </object>
-                                </child>
-                                <child>
-                                  <object class="GtkButton" id="attach_poll_btn">
-                                    <property name="valign">3</property>
-                                    <property name="tooltip-text" translatable="yes">Create a poll</property>
-                                    <style>
-                                      <class name="flat"/>
-                                    </style>
-                                    <property name="child">
-                                      <object class="GtkBox">
-                                        <property name="spacing">10</property>
-                                        <child>
-                                          <object class="GtkImage">
-                                            <property name="icon-name">view-list-bullet-symbolic</property>
-                                          </object>
-                                        </child>
-                                        <child>
-                                          <object class="GtkLabel">
-                                            <property name="label" translatable="yes">Poll</property>
-                                          </object>
-                                        </child>
-                                      </object>
-                                    </property>
-                                  </object>
-                                </child>
-                                <child>
-                                  <object class="GtkButton" id="attach_location_btn">
-                                    <property name="valign">3</property>
-                                    <property name="sensitive">false</property>
-                                    <property name="tooltip-text" translatable="yes">Location sharing coming soon</property>
-                                    <style>
-                                      <class name="flat"/>
-                                    </style>
-                                    <property name="child">
-                                      <object class="GtkBox">
-                                        <property name="spacing">10</property>
-                                        <child>
-                                          <object class="GtkImage">
-                                            <property name="icon-name">mark-location-symbolic</property>
-                                          </object>
-                                        </child>
-                                        <child>
-                                          <object class="GtkLabel">
-                                            <property name="label" translatable="yes">Location</property>
-                                          </object>
-                                        </child>
-                                      </object>
-                                    </property>
-                                  </object>
-                                </child>
+                                </property>
                               </object>
-                            </property>
-                          </object>
-                        </property>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkMenuButton" id="emoji_button">
-                        <property name="icon-name">face-smile-symbolic</property>
-                        <property name="tooltip-text" translatable="yes">Emojis</property>
-                        <property name="valign">3</property>
-                        <style>
-                          <class name="flat"/>
-                          <class name="circular"/>
-                          <class name="chat-attach-btn"/>
-                        </style>
-                        <property name="popover">
-                          <object class="GtkEmojiChooser" id="emoji_chooser"></object>
-                        </property>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkMenuButton" id="sticker_button">
-                        <property name="icon-name">image-x-generic-symbolic</property>
-                        <property name="tooltip-text" translatable="yes">Stickers</property>
-                        <property name="valign">3</property>
-                        <style>
-                          <class name="flat"/>
-                          <class name="circular"/>
-                          <class name="chat-attach-btn"/>
-                        </style>
-                        <property name="popover">
-                          <object class="GtkPopover" id="sticker_popover">
-                            <property name="child">
-                              <object class="GtkBox">
-                                <property name="orientation">1</property>
-                                <property name="spacing">8</property>
-                                <property name="width-request">320</property>
-                                <property name="height-request">360</property>
-                                <property name="margin-top">10</property>
-                                <property name="margin-bottom">10</property>
-                                <property name="margin-start">10</property>
-                                <property name="margin-end">10</property>
-                                <child>
-                                  <object class="GtkBox">
-                                    <property name="orientation">0</property>
-                                    <property name="spacing">8</property>
-                                    <child>
-                                      <object class="GtkLabel">
-                                        <property name="label" translatable="yes">Saved Stickers</property>
-                                        <property name="hexpand">true</property>
-                                        <property name="xalign">0</property>
-                                        <style>
-                                          <class name="heading"/>
-                                        </style>
-                                      </object>
-                                    </child>
-                                    <child>
-                                      <object class="GtkButton" id="add_sticker_btn">
-                                        <property name="icon-name">list-add-symbolic</property>
-                                        <property name="tooltip-text" translatable="yes">Add sticker from file…</property>
-                                        <property name="valign">3</property>
-                                        <style>
-                                          <class name="flat"/>
-                                          <class name="circular"/>
-                                        </style>
-                                      </object>
-                                    </child>
-                                  </object>
-                                </child>
-                                <child>
-                                  <object class="GtkScrolledWindow" id="sticker_scrolled_window">
-                                    <property name="hscrollbar-policy">2</property>
-                                    <property name="vscrollbar-policy">1</property>
-                                    <property name="hexpand">true</property>
-                                    <property name="vexpand">true</property>
-                                    <child>
-                                      <object class="GtkFlowBox" id="sticker_flowbox">
-                                        <property name="valign">1</property>
-                                        <property name="max-children-per-line">4</property>
-                                        <property name="min-children-per-line">4</property>
-                                        <property name="selection-mode">0</property>
-                                        <property name="row-spacing">6</property>
-                                        <property name="column-spacing">6</property>
-                                        <style>
-                                          <class name="sticker-flowbox"/>
-                                        </style>
-                                      </object>
-                                    </child>
-                                  </object>
-                                </child>
-                                <child>
-                                  <object class="GtkBox" id="sticker_empty_box">
-                                    <property name="orientation">1</property>
-                                    <property name="spacing">8</property>
-                                    <property name="valign">3</property>
-                                    <property name="halign">3</property>
-                                    <property name="vexpand">true</property>
-                                    <property name="visible">false</property>
-                                    <child>
-                                      <object class="GtkImage">
-                                        <property name="icon-name">image-x-generic-symbolic</property>
-                                        <property name="pixel-size">48</property>
-                                        <style>
-                                          <class name="dim-label"/>
-                                        </style>
-                                      </object>
-                                    </child>
-                                    <child>
-                                      <object class="GtkLabel">
-                                        <property name="label" translatable="yes">No saved stickers</property>
-                                        <style>
-                                          <class name="heading"/>
-                                        </style>
-                                      </object>
-                                    </child>
-                                    <child>
-                                      <object class="GtkLabel">
-                                        <property name="label" translatable="yes">Click on any sticker in chat to save it,
+                            </child>
+                            <child>
+                              <object class="GtkMenuButton" id="emoji_button">
+                                <property name="icon-name">face-smile-symbolic</property>
+                                <property name="tooltip-text" translatable="yes">Emojis</property>
+                                <property name="valign">3</property>
+                                <style>
+                                  <class name="flat"/>
+                                  <class name="circular"/>
+                                  <class name="chat-attach-btn"/>
+                                </style>
+                                <property name="popover">
+                                  <object class="GtkEmojiChooser" id="emoji_chooser"></object>
+                                </property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkMenuButton" id="sticker_button">
+                                <property name="icon-name">image-x-generic-symbolic</property>
+                                <property name="tooltip-text" translatable="yes">Stickers</property>
+                                <property name="valign">3</property>
+                                <style>
+                                  <class name="flat"/>
+                                  <class name="circular"/>
+                                  <class name="chat-attach-btn"/>
+                                </style>
+                                <property name="popover">
+                                  <object class="GtkPopover" id="sticker_popover">
+                                    <property name="child">
+                                      <object class="GtkBox">
+                                        <property name="orientation">1</property>
+                                        <property name="spacing">8</property>
+                                        <property name="width-request">320</property>
+                                        <property name="height-request">360</property>
+                                        <property name="margin-top">10</property>
+                                        <property name="margin-bottom">10</property>
+                                        <property name="margin-start">10</property>
+                                        <property name="margin-end">10</property>
+                                        <child>
+                                          <object class="GtkBox">
+                                            <property name="orientation">0</property>
+                                            <property name="spacing">8</property>
+                                            <child>
+                                              <object class="GtkLabel">
+                                                <property name="label" translatable="yes">Saved Stickers</property>
+                                                <property name="hexpand">true</property>
+                                                <property name="xalign">0</property>
+                                                <style>
+                                                  <class name="heading"/>
+                                                </style>
+                                              </object>
+                                            </child>
+                                            <child>
+                                              <object class="GtkButton" id="add_sticker_btn">
+                                                <property name="icon-name">list-add-symbolic</property>
+                                                <property name="tooltip-text" translatable="yes">Add sticker from file…</property>
+                                                <property name="valign">3</property>
+                                                <style>
+                                                  <class name="flat"/>
+                                                  <class name="circular"/>
+                                                </style>
+                                              </object>
+                                            </child>
+                                          </object>
+                                        </child>
+                                        <child>
+                                          <object class="GtkScrolledWindow" id="sticker_scrolled_window">
+                                            <property name="hscrollbar-policy">2</property>
+                                            <property name="vscrollbar-policy">1</property>
+                                            <property name="hexpand">true</property>
+                                            <property name="vexpand">true</property>
+                                            <child>
+                                              <object class="GtkFlowBox" id="sticker_flowbox">
+                                                <property name="valign">1</property>
+                                                <property name="max-children-per-line">4</property>
+                                                <property name="min-children-per-line">4</property>
+                                                <property name="selection-mode">0</property>
+                                                <property name="row-spacing">6</property>
+                                                <property name="column-spacing">6</property>
+                                                <style>
+                                                  <class name="sticker-flowbox"/>
+                                                </style>
+                                              </object>
+                                            </child>
+                                          </object>
+                                        </child>
+                                        <child>
+                                          <object class="GtkBox" id="sticker_empty_box">
+                                            <property name="orientation">1</property>
+                                            <property name="spacing">8</property>
+                                            <property name="valign">3</property>
+                                            <property name="halign">3</property>
+                                            <property name="vexpand">true</property>
+                                            <property name="visible">false</property>
+                                            <child>
+                                              <object class="GtkImage">
+                                                <property name="icon-name">image-x-generic-symbolic</property>
+                                                <property name="pixel-size">48</property>
+                                                <style>
+                                                  <class name="dim-label"/>
+                                                </style>
+                                              </object>
+                                            </child>
+                                            <child>
+                                              <object class="GtkLabel">
+                                                <property name="label" translatable="yes">No saved stickers</property>
+                                                <style>
+                                                  <class name="heading"/>
+                                                </style>
+                                              </object>
+                                            </child>
+                                            <child>
+                                              <object class="GtkLabel">
+                                                <property name="label" translatable="yes">Click on any sticker in chat to save it,
 or click + to add from an image file.</property>
-                                        <property name="wrap">true</property>
-                                        <property name="justify">2</property>
-                                        <style>
-                                          <class name="caption"/>
-                                          <class name="dim-label"/>
-                                        </style>
+                                                <property name="wrap">true</property>
+                                                <property name="justify">2</property>
+                                                <style>
+                                                  <class name="caption"/>
+                                                  <class name="dim-label"/>
+                                                </style>
+                                              </object>
+                                            </child>
+                                          </object>
+                                        </child>
                                       </object>
-                                    </child>
+                                    </property>
                                   </object>
-                                </child>
+                                </property>
                               </object>
-                            </property>
+                            </child>
+                            <child>
+                              <object class="GtkEntry" id="message_entry">
+                                <property name="hexpand">true</property>
+                                <property name="placeholder-text" translatable="yes">Type a message…</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="voice_record_btn">
+                                <property name="icon-name">audio-input-microphone-symbolic</property>
+                                <property name="tooltip-text" translatable="yes">Record voice message</property>
+                                <property name="valign">3</property>
+                                <style>
+                                  <class name="flat"/>
+                                  <class name="circular"/>
+                                  <class name="chat-attach-btn"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="send_button">
+                                <property name="icon-name">mail-send-symbolic</property>
+                                <style>
+                                  <class name="suggested-action"/>
+                                </style>
+                              </object>
+                            </child>
                           </object>
                         </property>
                       </object>
                     </child>
                     <child>
-                      <object class="GtkEntry" id="message_entry">
-                        <property name="hexpand">true</property>
-                        <property name="placeholder-text" translatable="yes">Type a message…</property>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkButton" id="send_button">
-                        <property name="icon-name">mail-send-symbolic</property>
-                        <style>
-                          <class name="suggested-action"/>
-                        </style>
+                      <object class="GtkStackPage">
+                        <property name="name">recording</property>
+                        <property name="child">
+                          <object class="GtkBox" id="voice_recording_bar">
+                            <property name="spacing">8</property>
+                            <style>
+                              <class name="chat-input-bar"/>
+                              <class name="voice-recording-bar"/>
+                            </style>
+                            <child>
+                              <object class="GtkButton" id="voice_delete_btn">
+                                <property name="icon-name">user-trash-symbolic</property>
+                                <property name="tooltip-text" translatable="yes">Delete recording</property>
+                                <property name="valign">3</property>
+                                <style>
+                                  <class name="flat"/>
+                                  <class name="circular"/>
+                                  <class name="voice-delete-btn"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkImage" id="voice_status_icon">
+                                <property name="icon-name">media-record-symbolic</property>
+                                <property name="valign">3</property>
+                                <style>
+                                  <class name="voice-record-pulse"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="voice_timer_label">
+                                <property name="label">0:00</property>
+                                <property name="valign">3</property>
+                                <style>
+                                  <class name="voice-timer-label"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkDrawingArea" id="voice_meter_area">
+                                <property name="hexpand">true</property>
+                                <property name="valign">3</property>
+                                <property name="height-request">28</property>
+                                <style>
+                                  <class name="voice-meter-area"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="voice_pause_btn">
+                                <property name="icon-name">media-playback-pause-symbolic</property>
+                                <property name="tooltip-text" translatable="yes">Pause recording</property>
+                                <property name="valign">3</property>
+                                <style>
+                                  <class name="flat"/>
+                                  <class name="circular"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="voice_stop_btn">
+                                <property name="icon-name">media-playback-stop-symbolic</property>
+                                <property name="tooltip-text" translatable="yes">Stop recording</property>
+                                <property name="valign">3</property>
+                                <style>
+                                  <class name="flat"/>
+                                  <class name="circular"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="voice_play_btn">
+                                <property name="icon-name">media-playback-start-symbolic</property>
+                                <property name="tooltip-text" translatable="yes">Play preview</property>
+                                <property name="valign">3</property>
+                                <property name="visible">false</property>
+                                <style>
+                                  <class name="flat"/>
+                                  <class name="circular"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="voice_send_btn">
+                                <property name="icon-name">mail-send-symbolic</property>
+                                <property name="tooltip-text" translatable="yes">Send voice message</property>
+                                <property name="valign">3</property>
+                                <property name="visible">false</property>
+                                <style>
+                                  <class name="suggested-action"/>
+                                </style>
+                              </object>
+                            </child>
+                          </object>
+                        </property>
                       </object>
                     </child>
                   </object>

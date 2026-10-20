@@ -31,6 +31,9 @@ func TestBuildMainWindow(t *testing.T) {
 		if activeMainWindow.sidebarStack.ChildByName("chats") == nil {
 			t.Errorf("child 'chats' not found in sidebarStack")
 		}
+		if activeMainWindow.sidebarStack.ChildByName("calls") == nil {
+			t.Errorf("child 'calls' not found in sidebarStack")
+		}
 		if activeMainWindow.sidebarStack.ChildByName("archived") == nil {
 			t.Errorf("child 'archived' not found in sidebarStack")
 		}
@@ -39,6 +42,10 @@ func TestBuildMainWindow(t *testing.T) {
 		}
 
 		// Test switching pages
+		activeMainWindow.sidebarStack.SetVisibleChildName("calls")
+		if activeMainWindow.sidebarStack.VisibleChildName() != "calls" {
+			t.Errorf("expected visible child 'calls', got '%s'", activeMainWindow.sidebarStack.VisibleChildName())
+		}
 		activeMainWindow.sidebarStack.SetVisibleChildName("archived")
 		if activeMainWindow.sidebarStack.VisibleChildName() != "archived" {
 			t.Errorf("expected visible child 'archived', got '%s'", activeMainWindow.sidebarStack.VisibleChildName())
@@ -61,6 +68,91 @@ func TestBuildMainWindow(t *testing.T) {
 		})
 
 		activeMainWindow.cancelEditing()
+
+		// Test voice recording UI flow
+		if activeMainWindow.chatInputStack == nil {
+			t.Fatalf("chatInputStack is nil")
+		}
+		if activeMainWindow.chatInputStack.VisibleChildName() != "normal" {
+			t.Errorf("expected initial visible child 'normal', got '%s'", activeMainWindow.chatInputStack.VisibleChildName())
+		}
+		if activeMainWindow.voiceRecordBtn == nil {
+			t.Fatalf("voiceRecordBtn is nil")
+		}
+
+		// Simulate starting recording on an active chat
+		activeMainWindow.currentChat = &Chat{JID: "12345@s.whatsapp.net", Name: "Test User"}
+		activeMainWindow.startVoiceRecording()
+		if activeMainWindow.chatInputStack.VisibleChildName() != "recording" {
+			t.Errorf("expected visible child 'recording' after start, got '%s'", activeMainWindow.chatInputStack.VisibleChildName())
+		}
+		if activeMainWindow.voicePauseBtn == nil || !activeMainWindow.voicePauseBtn.Visible() {
+			t.Errorf("expected voicePauseBtn to be visible during recording")
+		}
+		if activeMainWindow.voiceStopBtn == nil || !activeMainWindow.voiceStopBtn.Visible() {
+			t.Errorf("expected voiceStopBtn to be visible during recording")
+		}
+		if activeMainWindow.voiceSendBtn != nil && activeMainWindow.voiceSendBtn.Visible() {
+			t.Errorf("expected voiceSendBtn to be hidden during recording")
+		}
+
+		// Pause & resume
+		activeMainWindow.togglePauseVoiceRecording()
+		if !activeMainWindow.voiceRecorder.Paused() {
+			t.Errorf("expected voiceRecorder to be paused")
+		}
+		activeMainWindow.togglePauseVoiceRecording()
+		if activeMainWindow.voiceRecorder.Paused() {
+			t.Errorf("expected voiceRecorder to be resumed")
+		}
+
+		// Stop recording
+		activeMainWindow.stopVoiceRecording()
+		if activeMainWindow.voicePauseBtn.Visible() {
+			t.Errorf("expected voicePauseBtn to be hidden when stopped")
+		}
+		if activeMainWindow.voiceStopBtn.Visible() {
+			t.Errorf("expected voiceStopBtn to be hidden when stopped")
+		}
+		if !activeMainWindow.voiceSendBtn.Visible() {
+			t.Errorf("expected voiceSendBtn to be visible when stopped")
+		}
+
+		// Delete recording
+		activeMainWindow.deleteVoiceRecording()
+		if activeMainWindow.chatInputStack.VisibleChildName() != "normal" {
+			t.Errorf("expected visible child 'normal' after delete, got '%s'", activeMainWindow.chatInputStack.VisibleChildName())
+		}
+
+		// Test creating message bubbles for media, sticker, and text
+		txtBubble := activeMainWindow.createMessageBubble(StoredMessage{
+			ID:     "test-txt",
+			Text:   "Hello world",
+			FromMe: true,
+			Kind:   messageKindText,
+		})
+		if txtBubble == nil {
+			t.Errorf("expected text bubble to not be nil")
+		}
+
+		mediaBubble := activeMainWindow.createMessageBubble(StoredMessage{
+			ID:     "test-media",
+			Text:   "Media caption",
+			FromMe: false,
+			Kind:   messageKindImage,
+		})
+		if mediaBubble == nil {
+			t.Errorf("expected media bubble to not be nil")
+		}
+
+		stickerBubble := activeMainWindow.createMessageBubble(StoredMessage{
+			ID:     "test-sticker",
+			FromMe: true,
+			Kind:   messageKindSticker,
+		})
+		if stickerBubble == nil {
+			t.Errorf("expected sticker bubble to not be nil")
+		}
 
 		app.Quit()
 	})

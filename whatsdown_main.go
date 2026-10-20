@@ -12,12 +12,15 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/gotk4/pkg/cairo"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -29,6 +32,12 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+type chatRowItem struct {
+	isCommunityHeader bool
+	communityJID      string
+	chat              Chat
+}
+
 // whatsDownMainController manages the state and UI interactions of the
 // WhatsDownMain window.
 type whatsDownMainController struct {
@@ -36,10 +45,14 @@ type whatsDownMainController struct {
 	splitView         *adw.NavigationSplitView
 	sidebarStack      *gtk.Stack
 	chatsNavBtn       *gtk.Button
+	callsNavBtn       *gtk.Button
 	archivedNavBtn    *gtk.Button
 	settingsNavBtn    *gtk.Button
 	chatsSearchEntry  *gtk.SearchEntry
 	chatsList         *gtk.ListBox
+	callsPage         *adw.ToolbarView
+	callsList         *gtk.ListBox
+	callsSearchEntry  *gtk.SearchEntry
 	archivedSearchEntry *gtk.SearchEntry
 	archivedChatsList *gtk.ListBox
 	contentStack      *gtk.Stack
@@ -94,6 +107,22 @@ type whatsDownMainController struct {
 	cancelEditBtn  *gtk.Button
 	editingMessage *StoredMessage
 
+	// Voice message recorder widgets & state
+	chatInputStack   *gtk.Stack
+	voiceRecordBtn   *gtk.Button
+	voiceDeleteBtn   *gtk.Button
+	voiceStatusIcon  *gtk.Image
+	voiceTimerLabel  *gtk.Label
+	voiceMeterArea   *gtk.DrawingArea
+	voicePauseBtn    *gtk.Button
+	voiceStopBtn     *gtk.Button
+	voicePlayBtn     *gtk.Button
+	voiceSendBtn     *gtk.Button
+	voiceRecorder    *voiceRecorder
+	voiceTimerHandle glib.SourceHandle
+	voicePreviewPath string
+	voiceIsPlaying   bool
+
 	// Settings widgets
 	settingsProfileRow    *adw.ActionRow
 	settingsProfileAvatar *adw.Avatar
@@ -107,6 +136,10 @@ type whatsDownMainController struct {
 	currentChat             *Chat
 	chats                   []Chat
 	archivedChats           []Chat
+	calls                   []CallRecord
+	expandedCommunities    map[string]bool
+	displayedChatRows      []chatRowItem
+	displayedArchivedRows  []chatRowItem
 	currentMessages         []StoredMessage
 	chatsSearchFilter       string
 	archivedSearchFilter    string
@@ -173,12 +206,26 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 	markdownPreviewLabel, _ := castObject[*gtk.Label](builder, "markdown_preview_label")
 	contentNavPage, _ := castObject[*adw.NavigationPage](builder, "content_nav_page")
 	chatsPage, _ := castObject[*adw.ToolbarView](builder, "chats_page")
+	callsPage, _ := castObject[*adw.ToolbarView](builder, "calls_page")
+	callsNavBtn, _ := castObject[*gtk.Button](builder, "calls_nav_btn")
+	callsList, _ := castObject[*gtk.ListBox](builder, "calls_list")
+	callsSearchEntry, _ := castObject[*gtk.SearchEntry](builder, "calls_search_entry")
 	archivedPage, _ := castObject[*adw.ToolbarView](builder, "archived_page")
 	settingsPage, _ := castObject[*adw.ToolbarView](builder, "settings_page")
 	rightChatView, _ := castObject[*adw.ToolbarView](builder, "right_chat_view")
 	editBannerBar, _ := castObject[*gtk.Box](builder, "edit_banner_bar")
 	editBannerText, _ := castObject[*gtk.Label](builder, "edit_banner_text")
 	cancelEditBtn, _ := castObject[*gtk.Button](builder, "cancel_edit_btn")
+	chatInputStack, _ := castObject[*gtk.Stack](builder, "chat_input_stack")
+	voiceRecordBtn, _ := castObject[*gtk.Button](builder, "voice_record_btn")
+	voiceDeleteBtn, _ := castObject[*gtk.Button](builder, "voice_delete_btn")
+	voiceStatusIcon, _ := castObject[*gtk.Image](builder, "voice_status_icon")
+	voiceTimerLabel, _ := castObject[*gtk.Label](builder, "voice_timer_label")
+	voiceMeterArea, _ := castObject[*gtk.DrawingArea](builder, "voice_meter_area")
+	voicePauseBtn, _ := castObject[*gtk.Button](builder, "voice_pause_btn")
+	voiceStopBtn, _ := castObject[*gtk.Button](builder, "voice_stop_btn")
+	voicePlayBtn, _ := castObject[*gtk.Button](builder, "voice_play_btn")
+	voiceSendBtn, _ := castObject[*gtk.Button](builder, "voice_send_btn")
 
 	if !ok1 || !ok2 || !ok3 || !ok4 || !okBtn || !ok5 || !ok6 || !ok7 || !ok8 || !ok9 || !ok10 || !ok11 || !ok12 || !ok13 ||
 		!ok14 || !ok15 || !ok16 || !ok17 || !ok18 || !ok19 || !ok20 || !ok21 || !ok22 ||
@@ -189,6 +236,9 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 	if sidebarStack != nil {
 		if chatsPage != nil && sidebarStack.ChildByName("chats") == nil {
 			sidebarStack.AddTitled(chatsPage, "chats", "Chats")
+		}
+		if callsPage != nil && sidebarStack.ChildByName("calls") == nil {
+			sidebarStack.AddTitled(callsPage, "calls", "Calls")
 		}
 		if archivedPage != nil && sidebarStack.ChildByName("archived") == nil {
 			sidebarStack.AddTitled(archivedPage, "archived", "Archived")
@@ -206,6 +256,11 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 		splitView:              splitView,
 		sidebarStack:           sidebarStack,
 		chatsNavBtn:            chatsNavBtn,
+		callsNavBtn:            callsNavBtn,
+		callsPage:              callsPage,
+		callsList:              callsList,
+		callsSearchEntry:       callsSearchEntry,
+		expandedCommunities:    make(map[string]bool),
 		archivedNavBtn:         archivedNavBtn,
 		settingsNavBtn:         settingsNavBtn,
 		chatsSearchEntry:       chatsSearchEntry,
@@ -252,6 +307,16 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 		editBannerBar:          editBannerBar,
 		editBannerText:         editBannerText,
 		cancelEditBtn:          cancelEditBtn,
+		chatInputStack:         chatInputStack,
+		voiceRecordBtn:         voiceRecordBtn,
+		voiceDeleteBtn:         voiceDeleteBtn,
+		voiceStatusIcon:        voiceStatusIcon,
+		voiceTimerLabel:        voiceTimerLabel,
+		voiceMeterArea:         voiceMeterArea,
+		voicePauseBtn:          voicePauseBtn,
+		voiceStopBtn:           voiceStopBtn,
+		voicePlayBtn:           voicePlayBtn,
+		voiceSendBtn:           voiceSendBtn,
 		messageRowMap:          make(map[string]*gtk.ListBoxRow),
 		settingsProfileRow:     settingsProfileRow,
 		settingsProfileAvatar:  settingsProfileAvatar,
@@ -265,47 +330,22 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 	activeMainWindow = ctrl
 
 
-	// Filter chats by user name or phone in sidebar
-	chatsList.SetFilterFunc(func(row *gtk.ListBoxRow) bool {
-		if ctrl.chatsSearchFilter == "" {
-			return true
-		}
-		idx := row.Index()
-		if idx >= 0 && idx < len(ctrl.chats) {
-			chat := ctrl.chats[idx]
-			q := strings.ToLower(ctrl.chatsSearchFilter)
-			name := strings.ToLower(formatDisplayName(chat))
-			sub := strings.ToLower(formatChatSubtitle(chat))
-			phone := strings.ToLower(cleanPhoneNumber(chat.JID))
-			return strings.Contains(name, q) || strings.Contains(sub, q) || strings.Contains(phone, q)
-		}
-		return true
-	})
+	// Search entries
 	chatsSearchEntry.ConnectSearchChanged(func() {
 		ctrl.chatsSearchFilter = strings.TrimSpace(chatsSearchEntry.Text())
-		chatsList.InvalidateFilter()
+		ctrl.loadChats()
 	})
 
-	// Filter archived chats by user name or phone in sidebar
-	archivedChatsList.SetFilterFunc(func(row *gtk.ListBoxRow) bool {
-		if ctrl.archivedSearchFilter == "" {
-			return true
-		}
-		idx := row.Index()
-		if idx >= 0 && idx < len(ctrl.archivedChats) {
-			chat := ctrl.archivedChats[idx]
-			q := strings.ToLower(ctrl.archivedSearchFilter)
-			name := strings.ToLower(formatDisplayName(chat))
-			sub := strings.ToLower(formatChatSubtitle(chat))
-			phone := strings.ToLower(cleanPhoneNumber(chat.JID))
-			return strings.Contains(name, q) || strings.Contains(sub, q) || strings.Contains(phone, q)
-		}
-		return true
-	})
 	archivedSearchEntry.ConnectSearchChanged(func() {
 		ctrl.archivedSearchFilter = strings.TrimSpace(archivedSearchEntry.Text())
-		archivedChatsList.InvalidateFilter()
+		ctrl.loadArchivedChats()
 	})
+
+	if callsSearchEntry != nil {
+		callsSearchEntry.ConnectSearchChanged(func() {
+			ctrl.loadCalls()
+		})
+	}
 
 	// Message search inside conversation
 	chatSearchBtn.SetSensitive(false)
@@ -430,6 +470,9 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 	// Default sidebar view is Chats
 	sidebarStack.SetVisibleChildName("chats")
 	chatsNavBtn.AddCSSClass("active")
+	if callsNavBtn != nil {
+		callsNavBtn.RemoveCSSClass("active")
+	}
 	archivedNavBtn.RemoveCSSClass("active")
 	settingsNavBtn.RemoveCSSClass("active")
 
@@ -437,6 +480,9 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 	chatsNavBtn.ConnectClicked(func() {
 		sidebarStack.SetVisibleChildName("chats")
 		chatsNavBtn.AddCSSClass("active")
+		if callsNavBtn != nil {
+			callsNavBtn.RemoveCSSClass("active")
+		}
 		archivedNavBtn.RemoveCSSClass("active")
 		settingsNavBtn.RemoveCSSClass("active")
 		if ctrl.currentChat != nil {
@@ -446,10 +492,28 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 		}
 		ctrl.loadChats()
 	})
+	if callsNavBtn != nil {
+		callsNavBtn.ConnectClicked(func() {
+			sidebarStack.SetVisibleChildName("calls")
+			callsNavBtn.AddCSSClass("active")
+			chatsNavBtn.RemoveCSSClass("active")
+			archivedNavBtn.RemoveCSSClass("active")
+			settingsNavBtn.RemoveCSSClass("active")
+			if ctrl.currentChat != nil {
+				contentStack.SetVisibleChildName("chat")
+			} else {
+				contentStack.SetVisibleChildName("empty")
+			}
+			ctrl.loadCalls()
+		})
+	}
 	archivedNavBtn.ConnectClicked(func() {
 		sidebarStack.SetVisibleChildName("archived")
 		archivedNavBtn.AddCSSClass("active")
 		chatsNavBtn.RemoveCSSClass("active")
+		if callsNavBtn != nil {
+			callsNavBtn.RemoveCSSClass("active")
+		}
 		settingsNavBtn.RemoveCSSClass("active")
 		if ctrl.currentChat != nil {
 			contentStack.SetVisibleChildName("chat")
@@ -462,6 +526,9 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 		sidebarStack.SetVisibleChildName("settings")
 		settingsNavBtn.AddCSSClass("active")
 		chatsNavBtn.RemoveCSSClass("active")
+		if callsNavBtn != nil {
+			callsNavBtn.RemoveCSSClass("active")
+		}
 		archivedNavBtn.RemoveCSSClass("active")
 		contentStack.SetVisibleChildName("settings")
 		ctrl.refreshSettingsInfo()
@@ -549,8 +616,13 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 			return
 		}
 		idx := row.Index()
-		if idx >= 0 && idx < len(ctrl.chats) {
-			target := ctrl.chats[idx]
+		if idx >= 0 && idx < len(ctrl.displayedChatRows) {
+			item := ctrl.displayedChatRows[idx]
+			if item.isCommunityHeader {
+				ctrl.toggleCommunityExpanded(item.communityJID)
+				return
+			}
+			target := item.chat
 			if ctrl.currentChat != nil && (ctrl.currentChat.JID == target.JID || (ctrl.isSelfJID(ctrl.currentChat.JID) && ctrl.isSelfJID(target.JID))) {
 				return
 			}
@@ -562,14 +634,31 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 			return
 		}
 		idx := row.Index()
-		if idx >= 0 && idx < len(ctrl.archivedChats) {
-			target := ctrl.archivedChats[idx]
+		if idx >= 0 && idx < len(ctrl.displayedArchivedRows) {
+			item := ctrl.displayedArchivedRows[idx]
+			if item.isCommunityHeader {
+				ctrl.toggleCommunityExpanded(item.communityJID)
+				return
+			}
+			target := item.chat
 			if ctrl.currentChat != nil && (ctrl.currentChat.JID == target.JID || (ctrl.isSelfJID(ctrl.currentChat.JID) && ctrl.isSelfJID(target.JID))) {
 				return
 			}
 			ctrl.selectChat(target)
 		}
 	})
+
+	if callsList != nil {
+		callsList.ConnectRowSelected(func(row *gtk.ListBoxRow) {
+			if row == nil {
+				return
+			}
+			idx := row.Index()
+			if idx >= 0 && idx < len(ctrl.calls) {
+				ctrl.openCallChat(ctrl.calls[idx])
+			}
+		})
+	}
 
 	// Message sending & reply controls
 	sendButton.ConnectClicked(func() {
@@ -633,6 +722,7 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 	})
 
 	// Populate chat lists & settings info
+	ctrl.setupVoiceRecording()
 	ctrl.loadChats()
 	ctrl.loadArchivedChats()
 	ctrl.refreshSettingsInfo()
@@ -692,15 +782,7 @@ func (c *whatsDownMainController) loadChats() {
 		return
 	}
 	c.chats = chats
-	c.chatsList.RemoveAll()
-
-	for _, chat := range chats {
-		row := c.createChatRow(chat, false)
-		c.chatsList.Append(row)
-		if c.currentChat != nil && (c.currentChat.JID == chat.JID || (c.isSelfJID(c.currentChat.JID) && c.isSelfJID(chat.JID))) {
-			c.chatsList.SelectRow(row)
-		}
-	}
+	c.renderChatList(chats, false)
 }
 
 // loadArchivedChats loads archived chats and populates the archived list.
@@ -719,9 +801,30 @@ func (c *whatsDownMainController) loadArchivedChats() {
 		return
 	}
 	c.archivedChats = chats
-	c.archivedChatsList.RemoveAll()
+	c.renderChatList(chats, true)
+}
 
-	if len(chats) == 0 {
+func (c *whatsDownMainController) toggleCommunityExpanded(communityJID string) {
+	c.expandedCommunities[communityJID] = !c.expandedCommunities[communityJID]
+	c.loadChats()
+	c.loadArchivedChats()
+}
+
+// renderChatList renders chats with community folders and child indentation.
+func (c *whatsDownMainController) renderChatList(chats []Chat, isArchived bool) {
+	listBox := c.chatsList
+	searchFilter := c.chatsSearchFilter
+	if isArchived {
+		listBox = c.archivedChatsList
+		searchFilter = c.archivedSearchFilter
+	}
+	if listBox == nil {
+		return
+	}
+	listBox.RemoveAll()
+
+	if isArchived && len(chats) == 0 {
+		c.displayedArchivedRows = nil
 		emptyRow := gtk.NewListBoxRow()
 		emptyRow.SetSelectable(false)
 		emptyRow.SetActivatable(false)
@@ -740,17 +843,464 @@ func (c *whatsDownMainController) loadArchivedChats() {
 		box.Append(lbl)
 
 		emptyRow.SetChild(box)
-		c.archivedChatsList.Append(emptyRow)
+		listBox.Append(emptyRow)
 		return
 	}
 
+	searchLower := strings.ToLower(strings.TrimSpace(searchFilter))
+
+	// Group communities and children
+	communityMap := make(map[string]*Chat)
+	childrenMap := make(map[string][]Chat)
+
 	for _, chat := range chats {
-		row := c.createChatRow(chat, true)
-		c.archivedChatsList.Append(row)
-		if c.currentChat != nil && (c.currentChat.JID == chat.JID || (c.isSelfJID(c.currentChat.JID) && c.isSelfJID(chat.JID))) {
-			c.archivedChatsList.SelectRow(row)
+		if chat.IsParent {
+			cp := chat
+			communityMap[chat.JID] = &cp
+		}
+		if chat.ParentJID != "" {
+			childrenMap[chat.ParentJID] = append(childrenMap[chat.ParentJID], chat)
+			if _, exists := communityMap[chat.ParentJID]; !exists {
+				communityMap[chat.ParentJID] = &Chat{
+					JID:      chat.ParentJID,
+					Name:     "Community",
+					IsParent: true,
+				}
+			}
 		}
 	}
+
+	// Aggregate latest message time and unread counts for communities
+	for pJID, comm := range communityMap {
+		children := childrenMap[pJID]
+		for _, ch := range children {
+			comm.UnreadCount += ch.UnreadCount
+			if ch.LastMessageAt.After(comm.LastMessageAt) {
+				comm.LastMessageAt = ch.LastMessageAt
+				comm.LastMessageText = ch.Name + ": " + ch.LastMessageText
+			}
+		}
+	}
+
+	// Auto-expand community if search matches any child
+	if searchLower != "" {
+		for pJID, children := range childrenMap {
+			for _, ch := range children {
+				if strings.Contains(strings.ToLower(ch.Name), searchLower) || strings.Contains(strings.ToLower(ch.LastMessageText), searchLower) {
+					c.expandedCommunities[pJID] = true
+					break
+				}
+			}
+		}
+	}
+
+	// Build top-level chats list: exclude any chat whose ParentJID != ""
+	topLevel := make([]*Chat, 0, len(chats))
+	addedCommunities := make(map[string]bool)
+
+	for i := range chats {
+		chat := &chats[i]
+		if chat.ParentJID != "" {
+			if !addedCommunities[chat.ParentJID] {
+				if comm := communityMap[chat.ParentJID]; comm != nil {
+					topLevel = append(topLevel, comm)
+					addedCommunities[chat.ParentJID] = true
+				}
+			}
+			continue
+		}
+		if chat.IsParent {
+			if !addedCommunities[chat.JID] {
+				if comm := communityMap[chat.JID]; comm != nil {
+					topLevel = append(topLevel, comm)
+					addedCommunities[chat.JID] = true
+				}
+			}
+			continue
+		}
+		topLevel = append(topLevel, chat)
+	}
+
+	// Sort top-level chats: pinned first, then newest activity
+	sort.SliceStable(topLevel, func(i, j int) bool {
+		if topLevel[i].Pinned != topLevel[j].Pinned {
+			return topLevel[i].Pinned
+		}
+		return topLevel[i].LastMessageAt.After(topLevel[j].LastMessageAt)
+	})
+
+	var displayedRows []chatRowItem
+
+	for _, item := range topLevel {
+		if item.IsParent {
+			children := childrenMap[item.JID]
+			// Sort children: default sub group (Announcements) first, then recent
+			sort.SliceStable(children, func(i, j int) bool {
+				if children[i].IsDefaultSubGroup != children[j].IsDefaultSubGroup {
+					return children[i].IsDefaultSubGroup
+				}
+				return children[i].LastMessageAt.After(children[j].LastMessageAt)
+			})
+
+			commMatches := searchLower == "" || strings.Contains(strings.ToLower(item.Name), searchLower)
+			hasMatchingChild := false
+			if searchLower != "" {
+				for _, ch := range children {
+					if strings.Contains(strings.ToLower(ch.Name), searchLower) || strings.Contains(strings.ToLower(ch.LastMessageText), searchLower) {
+						hasMatchingChild = true
+						break
+					}
+				}
+			}
+			if searchLower != "" && !commMatches && !hasMatchingChild {
+				continue
+			}
+
+			isExpanded := c.expandedCommunities[item.JID]
+			commRow := c.createCommunityHeaderRow(*item, len(children), isExpanded)
+			listBox.Append(commRow)
+			displayedRows = append(displayedRows, chatRowItem{
+				isCommunityHeader: true,
+				communityJID:      item.JID,
+				chat:              *item,
+			})
+
+			if isExpanded {
+				for _, child := range children {
+					if searchLower != "" && !commMatches && !strings.Contains(strings.ToLower(child.Name), searchLower) && !strings.Contains(strings.ToLower(child.LastMessageText), searchLower) {
+						continue
+					}
+					childRow := c.createCommunityChildRow(child, isArchived)
+					listBox.Append(childRow)
+					displayedRows = append(displayedRows, chatRowItem{
+						isCommunityHeader: false,
+						communityJID:      item.JID,
+						chat:              child,
+					})
+					if c.currentChat != nil && (c.currentChat.JID == child.JID || (c.isSelfJID(c.currentChat.JID) && c.isSelfJID(child.JID))) {
+						listBox.SelectRow(childRow)
+					}
+				}
+			}
+		} else {
+			if searchLower != "" && !strings.Contains(strings.ToLower(item.Name), searchLower) && !strings.Contains(strings.ToLower(item.LastMessageText), searchLower) {
+				continue
+			}
+			row := c.createChatRow(*item, isArchived)
+			listBox.Append(row)
+			displayedRows = append(displayedRows, chatRowItem{
+				isCommunityHeader: false,
+				chat:              *item,
+			})
+			if c.currentChat != nil && (c.currentChat.JID == item.JID || (c.isSelfJID(c.currentChat.JID) && c.isSelfJID(item.JID))) {
+				listBox.SelectRow(row)
+			}
+		}
+	}
+
+	if isArchived {
+		c.displayedArchivedRows = displayedRows
+	} else {
+		c.displayedChatRows = displayedRows
+	}
+}
+
+func (c *whatsDownMainController) createCommunityHeaderRow(comm Chat, childCount int, isExpanded bool) *gtk.ListBoxRow {
+	row := gtk.NewListBoxRow()
+	row.AddCSSClass("chat-row")
+	row.AddCSSClass("community-folder-row")
+
+	mainBox := gtk.NewBox(gtk.OrientationHorizontal, 12)
+	mainBox.SetHExpand(true)
+
+	displayName := comm.Name
+	if displayName == "" {
+		displayName = "Community"
+	}
+
+	avatar := adw.NewAvatar(40, displayName, true)
+	avatar.SetVAlign(gtk.AlignCenter)
+	loadAvatar(comm.JID, displayName, avatar)
+	mainBox.Append(avatar)
+
+	textBox := gtk.NewBox(gtk.OrientationVertical, 4)
+	textBox.SetHExpand(true)
+	textBox.SetVAlign(gtk.AlignCenter)
+
+	titleLabel := gtk.NewLabel(displayName)
+	titleLabel.SetXAlign(0)
+	titleLabel.AddCSSClass("chat-row-title")
+	titleLabel.AddCSSClass("community-title")
+	titleLabel.SetEllipsize(pango.EllipsizeEnd)
+	textBox.Append(titleLabel)
+
+	subText := fmt.Sprintf("%d chats", childCount)
+	if childCount == 1 {
+		subText = "1 chat"
+	}
+	subLabel := gtk.NewLabel(subText)
+	subLabel.SetXAlign(0)
+	subLabel.AddCSSClass("chat-row-subtitle")
+	subLabel.SetEllipsize(pango.EllipsizeEnd)
+	textBox.Append(subLabel)
+	mainBox.Append(textBox)
+
+	metaBox := gtk.NewBox(gtk.OrientationHorizontal, 6)
+	metaBox.SetVAlign(gtk.AlignCenter)
+
+	if comm.UnreadCount > 0 {
+		badge := gtk.NewLabel(fmt.Sprintf("%d", comm.UnreadCount))
+		badge.AddCSSClass("unread-badge")
+		badge.SetXAlign(0.5)
+		metaBox.Append(badge)
+	}
+
+	chevronIconName := "pan-end-symbolic"
+	if isExpanded {
+		chevronIconName = "pan-down-symbolic"
+	}
+	chevron := gtk.NewImageFromIconName(chevronIconName)
+	chevron.AddCSSClass("dim-label")
+	chevron.AddCSSClass("community-chevron")
+	metaBox.Append(chevron)
+
+	mainBox.Append(metaBox)
+	row.SetChild(mainBox)
+
+	return row
+}
+
+func (c *whatsDownMainController) createCommunityChildRow(chat Chat, isArchivedView bool) *gtk.ListBoxRow {
+	row := c.createChatRow(chat, isArchivedView)
+	row.AddCSSClass("community-child-row")
+	return row
+}
+
+// loadCalls loads call history from the message store and populates the calls list.
+func (c *whatsDownMainController) loadCalls() {
+	if msgStore == nil || c.callsList == nil {
+		return
+	}
+	query := ""
+	if c.callsSearchEntry != nil {
+		query = c.callsSearchEntry.Text()
+	}
+	calls, err := msgStore.listCalls(context.Background(), query)
+	if err != nil {
+		log.Printf("loading calls: %v", err)
+		return
+	}
+	c.calls = calls
+	c.callsList.RemoveAll()
+
+	if len(calls) == 0 {
+		emptyRow := gtk.NewListBoxRow()
+		emptyRow.SetSelectable(false)
+		emptyRow.SetActivatable(false)
+		box := gtk.NewBox(gtk.OrientationVertical, 8)
+		box.SetMarginTop(32)
+		box.SetMarginBottom(32)
+		box.SetHAlign(gtk.AlignCenter)
+
+		icon := gtk.NewImageFromIconName("call-start-symbolic")
+		icon.SetPixelSize(36)
+		icon.AddCSSClass("dim-label")
+		box.Append(icon)
+
+		lbl := gtk.NewLabel("No calls yet")
+		lbl.AddCSSClass("dim-label")
+		box.Append(lbl)
+
+		emptyRow.SetChild(box)
+		c.callsList.Append(emptyRow)
+		return
+	}
+
+	for _, call := range calls {
+		row := c.createCallRow(call)
+		c.callsList.Append(row)
+	}
+}
+
+func (c *whatsDownMainController) createCallRow(call CallRecord) *gtk.ListBoxRow {
+	row := gtk.NewListBoxRow()
+	row.AddCSSClass("chat-row")
+	row.AddCSSClass("call-row")
+
+	mainBox := gtk.NewBox(gtk.OrientationHorizontal, 12)
+	mainBox.SetHExpand(true)
+
+	displayName := call.CallerName
+	if displayName == "" {
+		displayName = cleanPhoneNumber(call.CallerJID)
+	}
+
+	avatar := adw.NewAvatar(40, displayName, true)
+	avatar.SetVAlign(gtk.AlignCenter)
+	loadAvatar(call.CallerJID, displayName, avatar)
+	mainBox.Append(avatar)
+
+	textBox := gtk.NewBox(gtk.OrientationVertical, 4)
+	textBox.SetHExpand(true)
+	textBox.SetVAlign(gtk.AlignCenter)
+
+	titleLabel := gtk.NewLabel(displayName)
+	titleLabel.SetXAlign(0)
+	titleLabel.AddCSSClass("chat-row-title")
+	titleLabel.SetEllipsize(pango.EllipsizeEnd)
+	if call.Outcome == CallOutcomeMissed && !call.FromMe {
+		titleLabel.AddCSSClass("call-title-missed")
+	}
+	textBox.Append(titleLabel)
+
+	subBox := gtk.NewBox(gtk.OrientationHorizontal, 6)
+	subBox.SetVAlign(gtk.AlignCenter)
+
+	var iconName string
+	var iconClass string
+	if call.FromMe {
+		iconName = "call-outgoing-symbolic"
+		iconClass = "call-icon-outgoing"
+	} else if call.Outcome == CallOutcomeMissed {
+		iconName = "call-missed-symbolic"
+		iconClass = "call-icon-missed"
+	} else {
+		iconName = "call-incoming-symbolic"
+		iconClass = "call-icon-incoming"
+	}
+
+	callIcon := gtk.NewImageFromIconName(iconName)
+	callIcon.AddCSSClass(iconClass)
+	subBox.Append(callIcon)
+
+	if call.IsVideo {
+		vidIcon := gtk.NewImageFromIconName("camera-video-symbolic")
+		vidIcon.AddCSSClass("dim-label")
+		subBox.Append(vidIcon)
+	}
+
+	detailText := formatChatTime(call.Timestamp)
+	if call.DurationSecs > 0 {
+		detailText = fmt.Sprintf("%s (%s)", detailText, formatCallDuration(call.DurationSecs))
+	} else if call.Outcome == CallOutcomeMissed {
+		detailText = fmt.Sprintf("%s · Missed", detailText)
+	}
+	subLabel := gtk.NewLabel(detailText)
+	subLabel.SetXAlign(0)
+	subLabel.AddCSSClass("chat-row-subtitle")
+	if call.Outcome == CallOutcomeMissed && !call.FromMe {
+		subLabel.AddCSSClass("call-subtitle-missed")
+	}
+	subBox.Append(subLabel)
+	textBox.Append(subBox)
+
+	mainBox.Append(textBox)
+
+	actionBtn := gtk.NewButton()
+	actionBtn.AddCSSClass("flat")
+	actionBtn.AddCSSClass("circular")
+	actionBtn.SetVAlign(gtk.AlignCenter)
+	actionBtnIcon := gtk.NewImageFromIconName("chat-message-new-symbolic")
+	actionBtn.SetChild(actionBtnIcon)
+	actionBtn.SetTooltipText("Open chat")
+	actionBtn.ConnectClicked(func() {
+		c.openCallChat(call)
+	})
+	mainBox.Append(actionBtn)
+
+	row.SetChild(mainBox)
+	c.attachCallContextMenu(row, call)
+
+	return row
+}
+
+func (c *whatsDownMainController) openCallChat(call CallRecord) {
+	chatJID := call.ChatJID
+	if chatJID == "" {
+		chatJID = call.CallerJID
+	}
+	targetChat, err := msgStore.getChatOrContact(context.Background(), chatJID)
+	if err != nil || targetChat.JID == "" {
+		targetChat = Chat{
+			JID:  chatJID,
+			Name: call.CallerName,
+		}
+	}
+	c.selectChat(targetChat)
+
+	c.sidebarStack.SetVisibleChildName("chats")
+	c.chatsNavBtn.AddCSSClass("active")
+	if c.callsNavBtn != nil {
+		c.callsNavBtn.RemoveCSSClass("active")
+	}
+	if c.archivedNavBtn != nil {
+		c.archivedNavBtn.RemoveCSSClass("active")
+	}
+	if c.settingsNavBtn != nil {
+		c.settingsNavBtn.RemoveCSSClass("active")
+	}
+	c.contentStack.SetVisibleChildName("chat")
+}
+
+func (c *whatsDownMainController) attachCallContextMenu(row *gtk.ListBoxRow, call CallRecord) {
+	popover := gtk.NewPopover()
+	popover.SetParent(row)
+	popover.SetHasArrow(false)
+	popover.AddCSSClass("popover-menu-box")
+
+	menuBox := gtk.NewBox(gtk.OrientationVertical, 2)
+	menuBox.SetMarginTop(4)
+	menuBox.SetMarginBottom(4)
+	menuBox.SetMarginStart(4)
+	menuBox.SetMarginEnd(4)
+
+	openBtn := gtk.NewButton()
+	openBtn.AddCSSClass("flat")
+	openBtn.AddCSSClass("popover-menu-btn")
+	openBtnBox := gtk.NewBox(gtk.OrientationHorizontal, 10)
+	openIcon := gtk.NewImageFromIconName("chat-message-new-symbolic")
+	openLabel := gtk.NewLabel("Open Chat")
+	openBtnBox.Append(openIcon)
+	openBtnBox.Append(openLabel)
+	openBtn.SetChild(openBtnBox)
+	openBtn.ConnectClicked(func() {
+		popover.Popdown()
+		c.openCallChat(call)
+	})
+	menuBox.Append(openBtn)
+
+	delBtn := gtk.NewButton()
+	delBtn.AddCSSClass("flat")
+	delBtn.AddCSSClass("popover-menu-btn")
+	delBtnBox := gtk.NewBox(gtk.OrientationHorizontal, 10)
+	delIcon := gtk.NewImageFromIconName("user-trash-symbolic")
+	delLabel := gtk.NewLabel("Delete from History")
+	delBtnBox.Append(delIcon)
+	delBtnBox.Append(delLabel)
+	delBtn.SetChild(delBtnBox)
+	delBtn.ConnectClicked(func() {
+		popover.Popdown()
+		if msgStore != nil {
+			go func() {
+				_ = msgStore.deleteCall(context.Background(), call.ID)
+				glib.IdleAdd(func() {
+					c.loadCalls()
+				})
+			}()
+		}
+	})
+	menuBox.Append(delBtn)
+
+	popover.SetChild(menuBox)
+
+	gesture := gtk.NewGestureClick()
+	gesture.SetButton(3)
+	gesture.ConnectPressed(func(n int, x, y float64) {
+		rect := gdk.NewRectangle(int(x), int(y), 1, 1)
+		popover.SetPointingTo(&rect)
+		popover.Popup()
+	})
+	row.AddController(gesture)
 }
 
 // createChatRow creates a styled list row representing a single chat with context menu.
@@ -940,13 +1490,6 @@ func (c *whatsDownMainController) attachContextMenu(row *gtk.ListBoxRow, chat Ch
 	gesture := gtk.NewGestureClick()
 	gesture.SetButton(gdk.BUTTON_SECONDARY)
 	gesture.ConnectPressed(func(nPress int, x, y float64) {
-		if isArchivedView {
-			c.archivedChatsList.SelectRow(row)
-		} else {
-			c.chatsList.SelectRow(row)
-		}
-		c.selectChat(chat)
-
 		rect := gdk.NewRectangle(int(x), int(y), 1, 1)
 		popover.SetPointingTo(&rect)
 		popover.Popup()
@@ -1582,8 +2125,9 @@ func (c *whatsDownMainController) selectChat(chat Chat) {
 	// On narrow/mobile screens, show the conversation content
 	c.splitView.SetShowContent(true)
 
-	// Clear active reply when switching chats
+	// Clear active reply and voice recording when switching chats
 	c.cancelReply()
+	c.deleteVoiceRecording()
 
 	// Clear unread count locally, dispatch read receipts to WhatsApp, and sync AppState across devices
 	c.markChatRead(chat.JID)
@@ -2700,6 +3244,8 @@ func (c *whatsDownMainController) createMessageBubble(msg StoredMessage) *gtk.Li
 
 	footerBox := gtk.NewBox(gtk.OrientationHorizontal, 4)
 	footerBox.SetHAlign(gtk.AlignEnd)
+	footerBox.SetVAlign(gtk.AlignCenter)
+	footerBox.AddCSSClass("chat-bubble-footer")
 	if msg.Kind == messageKindSticker {
 		footerBox.AddCSSClass("chat-bubble-sticker-footer")
 	}
@@ -2707,6 +3253,7 @@ func (c *whatsDownMainController) createMessageBubble(msg StoredMessage) *gtk.Li
 	if msg.Starred {
 		starIcon := gtk.NewImageFromIconName("starred-symbolic")
 		starIcon.AddCSSClass("pin-indicator")
+		starIcon.SetVAlign(gtk.AlignCenter)
 		footerBox.Append(starIcon)
 	}
 
@@ -2716,6 +3263,7 @@ func (c *whatsDownMainController) createMessageBubble(msg StoredMessage) *gtk.Li
 	}
 	timeLabel := gtk.NewLabel(timeStr)
 	timeLabel.SetXAlign(1)
+	timeLabel.SetVAlign(gtk.AlignCenter)
 	timeLabel.AddCSSClass("chat-bubble-time")
 	footerBox.Append(timeLabel)
 
@@ -2725,6 +3273,7 @@ func (c *whatsDownMainController) createMessageBubble(msg StoredMessage) *gtk.Li
 			status = MessageStatusRead
 		}
 		statusLabel := gtk.NewLabel("")
+		statusLabel.SetVAlign(gtk.AlignCenter)
 		statusLabel.AddCSSClass("chat-bubble-status")
 		c.applyStatusToLabel(statusLabel, status)
 		footerBox.Append(statusLabel)
@@ -4658,6 +5207,513 @@ func (c *whatsDownMainController) sendAttachment(filePath, caption string) {
 	}()
 }
 
+// setupVoiceRecording wires up the voice message recording and meter controls.
+func (c *whatsDownMainController) setupVoiceRecording() {
+	if c.voiceRecordBtn != nil {
+		c.voiceRecordBtn.ConnectClicked(func() {
+			c.startVoiceRecording()
+		})
+	}
+	if c.voiceDeleteBtn != nil {
+		c.voiceDeleteBtn.ConnectClicked(func() {
+			c.deleteVoiceRecording()
+		})
+	}
+	if c.voicePauseBtn != nil {
+		c.voicePauseBtn.ConnectClicked(func() {
+			c.togglePauseVoiceRecording()
+		})
+	}
+	if c.voiceStopBtn != nil {
+		c.voiceStopBtn.ConnectClicked(func() {
+			c.stopVoiceRecording()
+		})
+	}
+	if c.voicePlayBtn != nil {
+		c.voicePlayBtn.ConnectClicked(func() {
+			c.togglePlayVoicePreview()
+		})
+	}
+	if c.voiceSendBtn != nil {
+		c.voiceSendBtn.ConnectClicked(func() {
+			c.sendVoiceRecording()
+		})
+	}
+	if c.voiceMeterArea != nil {
+		c.voiceMeterArea.SetDrawFunc(func(area *gtk.DrawingArea, cr *cairo.Context, width, height int) {
+			c.drawVoiceMeter(area, cr, width, height)
+		})
+	}
+}
+
+// startVoiceRecording begins audio capture and presents the recording bar.
+func (c *whatsDownMainController) startVoiceRecording() {
+	if c.currentChat == nil {
+		return
+	}
+	stopCurrentAudio()
+	c.stopVoicePreview()
+
+	rec, err := newVoiceRecorder()
+	if err != nil {
+		log.Printf("startVoiceRecording error: %v", err)
+		return
+	}
+	c.voiceRecorder = rec
+
+	if c.chatInputStack != nil {
+		c.chatInputStack.SetVisibleChildName("recording")
+	}
+	if c.voiceTimerLabel != nil {
+		c.voiceTimerLabel.SetText("0:00")
+	}
+	if c.voiceStatusIcon != nil {
+		c.voiceStatusIcon.SetFromIconName("media-record-symbolic")
+		c.voiceStatusIcon.SetVisible(true)
+	}
+	if c.voicePauseBtn != nil {
+		c.voicePauseBtn.SetIconName("media-playback-pause-symbolic")
+		c.voicePauseBtn.SetTooltipText("Pause recording")
+		c.voicePauseBtn.SetVisible(true)
+	}
+	if c.voiceStopBtn != nil {
+		c.voiceStopBtn.SetVisible(true)
+	}
+	if c.voicePlayBtn != nil {
+		c.voicePlayBtn.SetVisible(false)
+	}
+	if c.voiceSendBtn != nil {
+		c.voiceSendBtn.SetVisible(false)
+	}
+
+	if c.voiceTimerHandle != 0 {
+		glib.SourceRemove(c.voiceTimerHandle)
+		c.voiceTimerHandle = 0
+	}
+
+	c.voiceTimerHandle = glib.TimeoutAdd(50, func() bool {
+		if c.voiceRecorder == nil {
+			c.voiceTimerHandle = 0
+			return false
+		}
+		dur := c.voiceRecorder.Duration()
+		s := int(dur.Seconds())
+		if c.voiceTimerLabel != nil {
+			c.voiceTimerLabel.SetText(fmt.Sprintf("%d:%02d", s/60, s%60))
+		}
+		if c.voiceMeterArea != nil {
+			c.voiceMeterArea.QueueDraw()
+		}
+		if c.voiceRecorder.stopped {
+			c.voiceTimerHandle = 0
+			return false
+		}
+		return true
+	})
+}
+
+// togglePauseVoiceRecording toggles pause/resume of the active recording.
+func (c *whatsDownMainController) togglePauseVoiceRecording() {
+	if c.voiceRecorder == nil || c.voiceRecorder.stopped {
+		return
+	}
+	if c.voiceRecorder.Paused() {
+		if err := c.voiceRecorder.Resume(); err != nil {
+			log.Printf("resuming voice recording: %v", err)
+			return
+		}
+		if c.voicePauseBtn != nil {
+			c.voicePauseBtn.SetIconName("media-playback-pause-symbolic")
+			c.voicePauseBtn.SetTooltipText("Pause recording")
+		}
+		if c.voiceStatusIcon != nil {
+			c.voiceStatusIcon.SetFromIconName("media-record-symbolic")
+		}
+	} else {
+		c.voiceRecorder.Pause()
+		if c.voicePauseBtn != nil {
+			c.voicePauseBtn.SetIconName("media-playback-start-symbolic")
+			c.voicePauseBtn.SetTooltipText("Resume recording")
+		}
+		if c.voiceStatusIcon != nil {
+			c.voiceStatusIcon.SetFromIconName("media-playback-pause-symbolic")
+		}
+	}
+	if c.voiceMeterArea != nil {
+		c.voiceMeterArea.QueueDraw()
+	}
+}
+
+// stopVoiceRecording ends audio capture and presents delete/send controls.
+func (c *whatsDownMainController) stopVoiceRecording() {
+	if c.voiceRecorder == nil {
+		return
+	}
+	c.voiceRecorder.Stop()
+
+	if c.voiceTimerHandle != 0 {
+		glib.SourceRemove(c.voiceTimerHandle)
+		c.voiceTimerHandle = 0
+	}
+
+	dur := c.voiceRecorder.Duration()
+	s := int(dur.Seconds())
+	if c.voiceTimerLabel != nil {
+		c.voiceTimerLabel.SetText(fmt.Sprintf("%d:%02d", s/60, s%60))
+	}
+	if c.voicePauseBtn != nil {
+		c.voicePauseBtn.SetVisible(false)
+	}
+	if c.voiceStopBtn != nil {
+		c.voiceStopBtn.SetVisible(false)
+	}
+	if c.voiceStatusIcon != nil {
+		c.voiceStatusIcon.SetFromIconName("audio-x-generic-symbolic")
+	}
+	if c.voicePlayBtn != nil {
+		c.voicePlayBtn.SetIconName("media-playback-start-symbolic")
+		c.voicePlayBtn.SetVisible(true)
+	}
+	if c.voiceSendBtn != nil {
+		c.voiceSendBtn.SetVisible(true)
+	}
+	if c.voiceMeterArea != nil {
+		c.voiceMeterArea.QueueDraw()
+	}
+}
+
+// deleteVoiceRecording discards the active or stopped recording.
+func (c *whatsDownMainController) deleteVoiceRecording() {
+	c.stopVoicePreview()
+
+	if c.voiceTimerHandle != 0 {
+		glib.SourceRemove(c.voiceTimerHandle)
+		c.voiceTimerHandle = 0
+	}
+
+	if c.voiceRecorder != nil {
+		c.voiceRecorder.Stop()
+		c.voiceRecorder = nil
+	}
+
+	if c.chatInputStack != nil {
+		c.chatInputStack.SetVisibleChildName("normal")
+	}
+	if c.voiceMeterArea != nil {
+		c.voiceMeterArea.QueueDraw()
+	}
+}
+
+// togglePlayVoicePreview allows playing back the stopped recording before sending.
+func (c *whatsDownMainController) togglePlayVoicePreview() {
+	if c.voiceRecorder == nil {
+		return
+	}
+	if c.voiceIsPlaying {
+		c.stopVoicePreview()
+		return
+	}
+	if c.voicePreviewPath == "" {
+		tmpPath := filepath.Join(os.TempDir(), fmt.Sprintf("preview_%d.ogg", time.Now().UnixNano()))
+		if err := c.voiceRecorder.EncodeOpus(tmpPath); err != nil {
+			log.Printf("encoding voice preview: %v", err)
+			return
+		}
+		c.voicePreviewPath = tmpPath
+	}
+
+	c.voiceIsPlaying = true
+	if c.voicePlayBtn != nil {
+		c.voicePlayBtn.SetIconName("media-playback-pause-symbolic")
+	}
+
+	playAudioPreview(c.voicePreviewPath, func(playing bool) {
+		c.voiceIsPlaying = playing
+		if !playing {
+			if c.voicePlayBtn != nil {
+				c.voicePlayBtn.SetIconName("media-playback-start-symbolic")
+			}
+		}
+	})
+}
+
+// stopVoicePreview stops playback of the recorded voice note preview.
+func (c *whatsDownMainController) stopVoicePreview() {
+	if c.voiceIsPlaying {
+		stopCurrentAudio()
+		c.voiceIsPlaying = false
+	}
+	if c.voicePlayBtn != nil {
+		c.voicePlayBtn.SetIconName("media-playback-start-symbolic")
+	}
+	if c.voicePreviewPath != "" {
+		_ = os.Remove(c.voicePreviewPath)
+		c.voicePreviewPath = ""
+	}
+}
+
+// sendVoiceRecording stops the recorder, encodes to Opus, and dispatches the voice message.
+func (c *whatsDownMainController) sendVoiceRecording() {
+	if c.voiceRecorder == nil || c.currentChat == nil {
+		c.deleteVoiceRecording()
+		return
+	}
+
+	c.voiceRecorder.Stop()
+	c.stopVoicePreview()
+
+	if c.voiceTimerHandle != 0 {
+		glib.SourceRemove(c.voiceTimerHandle)
+		c.voiceTimerHandle = 0
+	}
+
+	dur := c.voiceRecorder.Duration()
+	if dur < 500*time.Millisecond {
+		c.deleteVoiceRecording()
+		return
+	}
+
+	waveform := c.voiceRecorder.Waveform()
+	rec := c.voiceRecorder
+	c.voiceRecorder = nil
+
+	if c.chatInputStack != nil {
+		c.chatInputStack.SetVisibleChildName("normal")
+	}
+
+	tmpFile := filepath.Join(os.TempDir(), fmt.Sprintf("voice_msg_%d.ogg", time.Now().UnixNano()))
+	go func() {
+		if err := rec.EncodeOpus(tmpFile); err != nil {
+			log.Printf("encoding voice message: %v", err)
+			return
+		}
+		glib.IdleAdd(func() {
+			c.sendVoiceMessage(tmpFile, dur, waveform)
+		})
+	}()
+}
+
+// sendVoiceMessage uploads and sends an Opus voice message (PTT).
+func (c *whatsDownMainController) sendVoiceMessage(filePath string, duration time.Duration, waveform []byte) {
+	if c.currentChat == nil {
+		_ = os.Remove(filePath)
+		return
+	}
+
+	var ctxInfo *waE2E.ContextInfo
+	if c.replyingTo != nil {
+		ctxInfo = c.buildReplyContextInfo(*c.replyingTo)
+		c.cancelReply()
+	}
+
+	data, err := os.ReadFile(filePath)
+	_ = os.Remove(filePath)
+	if err != nil {
+		log.Printf("reading voice file: %v", err)
+		return
+	}
+
+	chatJIDStr := c.currentChat.JID
+	if c.isSelfJID(chatJIDStr) {
+		if canonical := c.getCanonicalSelfJID(); canonical != "" {
+			chatJIDStr = canonical
+		}
+	}
+
+	seconds := uint32(duration.Seconds())
+	if seconds == 0 {
+		seconds = 1
+	}
+
+	mimeType := "audio/ogg; codecs=opus"
+
+	go func() {
+		ctx := context.Background()
+		var msgID string
+		var rawProto []byte
+
+		if waClient != nil {
+			targetJID, err := types.ParseJID(chatJIDStr)
+			if err != nil {
+				log.Printf("parsing JID for voice send: %v", err)
+				return
+			}
+
+			uploadResp, err := waClient.Upload(ctx, data, whatsmeow.MediaAudio)
+			if err != nil {
+				log.Printf("uploading voice message to WhatsApp: %v", err)
+				return
+			}
+
+			fileLength := uint64(len(data))
+			audMsg := &waE2E.AudioMessage{
+				Mimetype:      proto.String(mimeType),
+				URL:           &uploadResp.URL,
+				DirectPath:    &uploadResp.DirectPath,
+				MediaKey:      uploadResp.MediaKey,
+				FileEncSHA256: uploadResp.FileEncSHA256,
+				FileSHA256:    uploadResp.FileSHA256,
+				FileLength:    &fileLength,
+				Seconds:       &seconds,
+				PTT:           proto.Bool(true),
+				Waveform:      waveform,
+				ContextInfo:   ctxInfo,
+			}
+			waMsg := waE2E.Message{AudioMessage: audMsg}
+
+			resp, err := waClient.SendMessage(ctx, targetJID, &waMsg)
+			if err != nil {
+				log.Printf("sending voice message: %v", err)
+				return
+			}
+			msgID = resp.ID
+			rawProto, _ = proto.Marshal(&waMsg)
+		} else {
+			msgID = fmt.Sprintf("dev_voice_%d", time.Now().UnixNano())
+			audMsg := &waE2E.AudioMessage{
+				Mimetype:    proto.String(mimeType),
+				Seconds:     &seconds,
+				PTT:         proto.Bool(true),
+				Waveform:    waveform,
+				ContextInfo: ctxInfo,
+			}
+			waMsg := waE2E.Message{AudioMessage: audMsg}
+			rawProto, _ = proto.Marshal(&waMsg)
+		}
+
+		initStatus := MessageStatusSent
+		if c.isSelfJID(chatJIDStr) {
+			initStatus = MessageStatusRead
+		}
+		sentMsg := StoredMessage{
+			ChatJID:     chatJIDStr,
+			ID:          msgID,
+			SenderJID:   "",
+			SenderName:  "You",
+			FromMe:      true,
+			Timestamp:   time.Now(),
+			Kind:        messageKindVoice,
+			Text:        "",
+			Raw:         rawProto,
+			Status:      initStatus,
+			SenderSaved: true,
+		}
+
+		destPath := getLocalMediaPath(sentMsg)
+		_ = os.WriteFile(destPath, data, 0o600)
+
+		if msgStore != nil {
+			_, _ = msgStore.db.ExecContext(ctx, `
+				INSERT INTO whatsdown_messages (chat_jid, id, sender_jid, sender_name, from_me, timestamp, kind, text, raw, status)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				ON CONFLICT (chat_jid, id) DO UPDATE SET status = MAX(whatsdown_messages.status, excluded.status)`,
+				sentMsg.ChatJID, sentMsg.ID, sentMsg.SenderJID, "", 1, sentMsg.Timestamp.Unix(), sentMsg.Kind, sentMsg.Text, sentMsg.Raw, sentMsg.Status)
+
+			_, _ = msgStore.db.ExecContext(ctx, `
+				UPDATE whatsdown_chats SET last_message_at = ? WHERE jid = ?`,
+				sentMsg.Timestamp.Unix(), sentMsg.ChatJID)
+
+			glib.IdleAdd(func() {
+				if c.currentChat != nil && c.currentChat.JID == chatJIDStr {
+					c.currentMessages = append(c.currentMessages, sentMsg)
+					bubble := c.createMessageBubble(sentMsg)
+					if c.messageRowMap != nil {
+						c.messageRowMap[sentMsg.ID] = bubble
+					}
+					c.messagesList.Append(bubble)
+					c.scrollToBottomAnimated()
+				}
+				c.loadChats()
+				c.loadArchivedChats()
+			})
+		}
+	}()
+}
+
+// drawVoiceMeter renders the audio level meter bars into the recording bar drawing area.
+func (c *whatsDownMainController) drawVoiceMeter(area *gtk.DrawingArea, cr *cairo.Context, width, height int) {
+	if width <= 0 || height <= 0 {
+		return
+	}
+
+	barWidth := 3.0
+	barGap := 2.0
+	step := barWidth + barGap
+	totalBars := int(float64(width) / step)
+	if totalBars <= 0 {
+		return
+	}
+
+	var levels []float64
+	if c.voiceRecorder != nil {
+		levels = c.voiceRecorder.Levels()
+	}
+
+	isRecording := c.voiceRecorder != nil && !c.voiceRecorder.stopped
+	isPaused := c.voiceRecorder != nil && c.voiceRecorder.Paused()
+
+	r, g, b, a := 0.0, 0.66, 0.52, 0.95
+	if isPaused {
+		a = 0.5
+	} else if !isRecording {
+		r, g, b, a = 0.2, 0.6, 0.86, 0.85
+	}
+
+	cr.SetSourceRGBA(r, g, b, a)
+
+	if isRecording {
+		startIdx := len(levels) - totalBars
+		for i := 0; i < totalBars; i++ {
+			idx := startIdx + i
+			lvl := 0.08
+			if idx >= 0 && idx < len(levels) {
+				lvl = math.Max(0.08, math.Min(1.0, levels[idx]))
+			}
+			h := float64(height) * lvl
+			x := float64(i) * step
+			y := (float64(height) - h) / 2.0
+			drawRoundedBar(cr, x, y, barWidth, h)
+		}
+	} else if len(levels) > 0 {
+		waveformLevels := resampleLevels(levels, totalBars)
+		peak := 0.0
+		for _, v := range waveformLevels {
+			peak = math.Max(peak, v)
+		}
+		for i := 0; i < totalBars; i++ {
+			lvl := 0.08
+			if peak > 0 && i < len(waveformLevels) {
+				lvl = math.Max(0.08, math.Min(1.0, waveformLevels[i]/peak))
+			}
+			h := float64(height) * lvl
+			x := float64(i) * step
+			y := (float64(height) - h) / 2.0
+			drawRoundedBar(cr, x, y, barWidth, h)
+		}
+	} else {
+		for i := 0; i < totalBars; i++ {
+			h := float64(height) * 0.08
+			x := float64(i) * step
+			y := (float64(height) - h) / 2.0
+			drawRoundedBar(cr, x, y, barWidth, h)
+		}
+	}
+}
+
+func drawRoundedBar(cr *cairo.Context, x, y, w, h float64) {
+	radius := w / 2.0
+	if h < radius*2 {
+		cr.Rectangle(x, y, w, h)
+		cr.Fill()
+		return
+	}
+	cr.NewPath()
+	cr.Arc(x+radius, y+radius, radius, math.Pi, 0)
+	cr.Arc(x+radius, y+h-radius, radius, 0, math.Pi)
+	cr.ClosePath()
+	cr.Fill()
+}
+
 // showCreatePollDialog opens a modal dialog allowing the user to create and send a poll.
 func (c *whatsDownMainController) showCreatePollDialog() {
 	if c.currentChat == nil {
@@ -5270,51 +6326,27 @@ func (c *whatsDownMainController) showPDFViewerDialog(filePath, docName string) 
 	dialog.Present()
 }
 
-// playMessageDing plays the system instant message alert sound.
-func playMessageDing() {
-	go func() {
-		if _, err := exec.LookPath("canberra-gtk-play"); err == nil {
-			if err := exec.Command("canberra-gtk-play", "-i", "message-new-instant").Run(); err == nil {
-				return
-			}
-		}
-		soundFiles := []string{
-			"/usr/share/sounds/freedesktop/stereo/message-new-instant.oga",
-			"/usr/share/sounds/freedesktop/stereo/message.oga",
-			"/usr/share/sounds/freedesktop/stereo/bell.oga",
-		}
-		for _, s := range soundFiles {
-			if _, err := os.Stat(s); err == nil {
-				if _, err := exec.LookPath("pw-play"); err == nil {
-					if err := exec.Command("pw-play", s).Run(); err == nil {
-						return
-					}
-				}
-				if _, err := exec.LookPath("paplay"); err == nil {
-					if err := exec.Command("paplay", s).Run(); err == nil {
-						return
-					}
-				}
-				if _, err := exec.LookPath("gst-play-1.0"); err == nil {
-					_ = exec.Command("gst-play-1.0", "--no-interactive", s).Run()
-					return
-				}
-			}
-		}
-	}()
-}
-
-// dispatchDesktopNotification dispatches a desktop notification with sender and body.
+// dispatchDesktopNotification dispatches a system desktop notification.
 func dispatchDesktopNotification(title, body string) {
-	go func() {
-		if _, err := exec.LookPath("notify-send"); err == nil {
-			_ = exec.Command("notify-send",
-				"-a", "WhatsDown",
-				"-i", "chat-message-new-symbolic",
-				title, body,
-			).Run()
+	glib.IdleAdd(func() {
+		if application != nil {
+			notif := gio.NewNotification(title)
+			notif.SetBody(body)
+			notif.SetIcon(gio.NewThemedIcon("chat-message-new-symbolic"))
+			application.SendNotification("", notif)
+			return
 		}
-	}()
+
+		go func() {
+			if _, err := exec.LookPath("notify-send"); err == nil {
+				_ = exec.Command("notify-send",
+					"-a", "WhatsDown",
+					"-i", "chat-message-new-symbolic",
+					title, body,
+				).Run()
+			}
+		}()
+	})
 }
 
 // formatNotificationContent extracts a user-friendly sender title and message preview for notifications.
@@ -5375,7 +6407,7 @@ func (c *whatsDownMainController) formatNotificationContent(evt *events.Message)
 	return title, body
 }
 
-// handleIncomingLiveMessage updates the UI when a live message arrives, plays a ding,
+// handleIncomingLiveMessage updates the UI when a live message arrives
 // and dispatches a desktop notification.
 func (c *whatsDownMainController) handleIncomingLiveMessage(evt *events.Message) {
 	if evt.Message != nil && evt.Message.GetPollUpdateMessage() != nil {
@@ -5427,7 +6459,6 @@ func (c *whatsDownMainController) handleIncomingLiveMessage(evt *events.Message)
 			}
 		}
 		if !isMuted {
-			playMessageDing()
 			title, body := c.formatNotificationContent(evt)
 			dispatchDesktopNotification(title, body)
 		}

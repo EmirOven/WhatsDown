@@ -80,10 +80,104 @@
   color: @accent_fg_color;
 }
 
-.chat-bubble-time {
-  font-size: 8pt;
+.chat-bubble-footer {
   margin-top: 4px;
-  color: alpha(currentColor, 0.55);
+}
+
+/* Community Grouping & Folders */
+.community-folder-row {
+  background-color: alpha(currentColor, 0.03);
+  border-radius: 8px;
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
+.community-folder-row:hover {
+  background-color: alpha(currentColor, 0.06);
+}
+
+.community-title {
+  font-weight: 700;
+}
+
+.community-chevron {
+  opacity: 0.7;
+}
+
+.community-child-row {
+  margin-left: 20px;
+  border-left: 2px solid alpha(currentColor, 0.18);
+  border-radius: 0 8px 8px 0;
+  padding-left: 10px;
+}
+
+/* Call History */
+.call-row {
+  padding: 10px 12px;
+}
+
+.call-icon-outgoing {
+  color: alpha(currentColor, 0.65);
+}
+
+.call-icon-incoming {
+  color: #26a269;
+}
+
+.call-icon-missed {
+  color: #e01b24;
+}
+
+.call-title-missed {
+  color: #e01b24;
+}
+
+.call-subtitle-missed {
+  color: #e01b24;
+}
+
+.chat-bubble-time,
+.chat-bubble-status {
+  background-color: alpha(currentColor, 0.12);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 8pt;
+}
+
+.chat-bubble-time {
+  color: alpha(currentColor, 0.65);
+}
+
+.chat-bubble-outgoing .chat-bubble-time {
+  color: rgba(255, 255, 255, 0.85);
+  background-color: alpha(currentColor, 0.18);
+}
+
+.chat-bubble-outgoing .chat-bubble-status {
+  background-color: alpha(currentColor, 0.18);
+}
+
+.chat-bubble-incoming .chat-bubble-time {
+  color: alpha(currentColor, 0.65);
+  background-color: alpha(currentColor, 0.10);
+}
+
+.chat-bubble-incoming .chat-bubble-status {
+  background-color: alpha(currentColor, 0.10);
+}
+
+.chat-bubble .pin-indicator {
+  background-color: alpha(currentColor, 0.12);
+  border-radius: 6px;
+  padding: 1px 4px;
+}
+
+.chat-bubble-outgoing .pin-indicator {
+  background-color: alpha(currentColor, 0.18);
+}
+
+.chat-bubble-incoming .pin-indicator {
+  background-color: alpha(currentColor, 0.10);
 }
 
 .chat-input-bar {
@@ -194,23 +288,53 @@
   color: inherit !important;
   box-shadow: none !important;
   border: none !important;
-  padding: 2px 4px;
+  padding: 6px 12px 6px 12px;
 }
 
 .chat-bubble-sticker .chat-bubble-sticker-picture {
   border-radius: 8px;
 }
 
-.chat-bubble-sticker .chat-bubble-sticker-footer {
+.chat-bubble-sticker .chat-bubble-sender {
+  margin-left: 6px;
+  margin-right: 6px;
   margin-top: 2px;
+  margin-bottom: 4px;
+}
+
+.chat-bubble-sticker .chat-bubble-text {
+  margin-left: 6px;
+  margin-right: 6px;
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+
+.chat-bubble-sticker .chat-bubble-footer,
+.chat-bubble-sticker .chat-bubble-sticker-footer {
+  margin-top: 4px;
+  margin-right: 4px;
+  margin-bottom: 2px;
 }
 
 .chat-bubble-sticker .chat-bubble-time,
 .chat-bubble-sticker .chat-bubble-status {
   background-color: alpha(currentColor, 0.12);
   border-radius: 6px;
-  padding: 1px 5px;
+  padding: 1px 6px;
   font-size: 8pt;
+}
+
+.chat-bubble-sticker .chat-bubble-status-sent {
+  color: alpha(currentColor, 0.65);
+}
+
+.chat-bubble-sticker .chat-bubble-status-delivered {
+  color: alpha(currentColor, 0.90);
+}
+
+.chat-bubble-sticker .chat-bubble-status-read {
+  color: #3584e4;
+  font-weight: 700;
 }
 
 .media-gallery-flowbox {
@@ -364,7 +488,40 @@
 }
 
 .chat-bubble-media {
-  padding: 6px 6px 8px 6px;
+  padding: 10px 10px 10px 10px;
+}
+
+.chat-bubble-media .chat-bubble-sender {
+  margin-left: 6px;
+  margin-right: 6px;
+  margin-top: 2px;
+  margin-bottom: 6px;
+}
+
+.chat-bubble-media .chat-bubble-picture {
+  border-radius: 10px;
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
+.chat-bubble-media .chat-bubble-text {
+  margin-left: 6px;
+  margin-right: 6px;
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+
+.chat-bubble-media .chat-bubble-footer {
+  margin-right: 6px;
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+
+.chat-bubble-media .chat-bubble-quote {
+  margin-left: 4px;
+  margin-right: 4px;
+  margin-top: 2px;
+  margin-bottom: 4px;
 }
 
 .poll-vote-count {
@@ -500,8 +657,8 @@
 }
 
 .chat-bubble-status {
-  font-size: 8.5pt;
-  margin-left: 3px;
+  font-size: 8pt;
+  margin-left: 0;
 }
 
 .chat-bubble-status-sent {
@@ -552,4 +709,30 @@
 .edit-history-card-latest {
   border: 1px solid alpha(@accent_color, 0.35);
   background-color: alpha(@accent_color, 0.06);
+}
+
+.voice-recording-bar {
+  background-color: alpha(@card_bg_color, 0.85);
+  border-radius: 12px;
+  padding: 4px 8px;
+}
+
+.voice-delete-btn:hover {
+  color: @destructive_color;
+}
+
+.voice-record-pulse {
+  color: #e01b24;
+}
+
+.voice-timer-label {
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 14px;
+  min-width: 42px;
+}
+
+.voice-meter-area {
+  min-width: 140px;
 }
