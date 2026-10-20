@@ -83,16 +83,19 @@ func startLiveReload(app *adw.Application, css *gtk.CSSProvider) {
 
 func compileBlueprints() {
 	files, _ := filepath.Glob(filepath.Join(uiDir, "*.blp"))
-	if len(files) == 0 {
+	subFiles, _ := filepath.Glob(filepath.Join(uiDir, "components", "*.blp"))
+	allFiles := append(files, subFiles...)
+	if len(allFiles) == 0 {
 		return
 	}
-	log.Printf("[live-reload] compiling blueprints")
-	args := append([]string{"batch-compile", uiDir, uiDir}, files...)
-	out, err := exec.Command("blueprint-compiler", args...).CombinedOutput()
-	if err != nil {
-		log.Printf("[live-reload] blueprint-compiler failed: %v\n%s", err, out)
+	log.Printf("[live-reload] compiling %d blueprints", len(allFiles))
+	for _, f := range allFiles {
+		out := f[:len(f)-len(".blp")] + ".ui"
+		res, err := exec.Command("blueprint-compiler", "compile", f, "--output", out).CombinedOutput()
+		if err != nil {
+			log.Printf("[live-reload] blueprint-compiler failed for %s: %v\n%s", f, err, res)
+		}
 	}
-	// On success the .ui file changes, which triggers reloadWindow.
 }
 
 func reloadWindow() {

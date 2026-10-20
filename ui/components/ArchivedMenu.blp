@@ -1,0 +1,34 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.ToolbarView archived_page {
+  [top]
+  Adw.HeaderBar {
+    title-widget: Adw.WindowTitle {
+      title: "Archived Chats";
+    };
+  }
+
+  [top]
+  Gtk.Box {
+    orientation: vertical;
+    margin-start: 8;
+    margin-end: 8;
+    margin-top: 2;
+    margin-bottom: 6;
+
+    Gtk.SearchEntry archived_search_entry {
+      placeholder-text: _("Search archived chats…");
+      hexpand: true;
+    }
+  }
+
+  content: Gtk.ScrolledWindow {
+    hscrollbar-policy: never;
+
+    Gtk.ListBox archived_chats_list {
+      selection-mode: single;
+      styles ["navigation-sidebar"]
+    }
+  };
+}

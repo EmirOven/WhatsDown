@@ -47,6 +47,18 @@ var MainUI string
 //go:embed ui/WhatsDownMain.css
 var MainCSS string
 
+//go:embed ui/components/ChatsMenu.ui
+var ChatsMenuUI string
+
+//go:embed ui/components/ArchivedMenu.ui
+var ArchivedMenuUI string
+
+//go:embed ui/components/SettingsMenu.ui
+var SettingsMenuUI string
+
+//go:embed ui/components/RightChatView.ui
+var RightChatViewUI string
+
 // On-disk asset paths, used instead of the embedded copies in dev mode.
 const (
 	uiDir          = "ui"
@@ -245,6 +257,29 @@ func buildWindow(p page, uiXML string) error {
 	if err := builder.AddFromString(uiXML); err != nil {
 		destroyBuilderWindows(builder)
 		return err
+	}
+
+	if p == pageMain {
+		components := []struct {
+			path     string
+			embedded string
+		}{
+			{"ui/components/ChatsMenu.ui", ChatsMenuUI},
+			{"ui/components/ArchivedMenu.ui", ArchivedMenuUI},
+			{"ui/components/SettingsMenu.ui", SettingsMenuUI},
+			{"ui/components/RightChatView.ui", RightChatViewUI},
+		}
+		for _, c := range components {
+			xml := c.embedded
+			if devMode {
+				if data, err := os.ReadFile(c.path); err == nil {
+					xml = string(data)
+				}
+			}
+			if err := builder.AddFromString(xml); err != nil {
+				log.Printf("merging component %s: %v", c.path, err)
+			}
+		}
 	}
 
 	var window *adw.ApplicationWindow
@@ -563,6 +598,7 @@ func handleWhatsAppEvent(evt any) {
 					if activeMainWindow != nil {
 						activeMainWindow.loadChats()
 						activeMainWindow.loadArchivedChats()
+						activeMainWindow.loadSavedStickersUI()
 					}
 				})
 			}
@@ -585,6 +621,9 @@ func handleWhatsAppEvent(evt any) {
 				if err := msgStore.saveLiveMessage(context.Background(), e); err != nil {
 					log.Printf("saving live message: %v", err)
 				}
+				if e.Info.IsFromMe && e.Message != nil && e.Message.GetStickerMessage() != nil {
+					go msgStore.importStickersFromChatHistory(context.Background(), waClient)
+				}
 			}
 			glib.IdleAdd(func() {
 				if syncInfo.reconnecting && !syncInfo.done {
@@ -598,6 +637,14 @@ func handleWhatsAppEvent(evt any) {
 		}()
 
 	case *events.Receipt:
+		status := MessageStatusNone
+		switch e.Type {
+		case types.ReceiptTypeRead, types.ReceiptTypeReadSelf, types.ReceiptTypePlayed, types.ReceiptTypePlayedSelf:
+			status = MessageStatusRead
+		case types.ReceiptTypeDelivered, types.ReceiptTypeSender:
+			status = MessageStatusDelivered
+		}
+
 		if e.Type == types.ReceiptTypeRead || e.Type == types.ReceiptTypeReadSelf {
 			go func() {
 				if msgStore != nil {
@@ -609,6 +656,23 @@ func handleWhatsAppEvent(evt any) {
 						}
 					})
 				}
+			}()
+		}
+
+		if status > MessageStatusNone && len(e.MessageIDs) > 0 {
+			msgIDs := make([]string, len(e.MessageIDs))
+			for i, mid := range e.MessageIDs {
+				msgIDs[i] = string(mid)
+			}
+			go func() {
+				if msgStore != nil {
+					_ = msgStore.updateMessageStatuses(context.Background(), msgIDs, status)
+				}
+				glib.IdleAdd(func() {
+					if activeMainWindow != nil {
+						activeMainWindow.handleReceiptUpdate(msgIDs, status)
+					}
+				})
 			}()
 		}
 
@@ -636,6 +700,9 @@ func handleWhatsAppEvent(evt any) {
 			time.Sleep(500 * time.Millisecond)
 			for _, name := range appstate.AllPatchNames {
 				_ = waClient.FetchAppState(context.Background(), name, false, false)
+			}
+			if msgStore != nil && waClient != nil {
+				msgStore.importStickersFromChatHistory(context.Background(), waClient)
 			}
 		}()
 

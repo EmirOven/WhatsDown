@@ -1,0 +1,158 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.ToolbarView settings_page {
+  [top]
+  Adw.HeaderBar {
+    title-widget: Adw.WindowTitle {
+      title: "Settings";
+    };
+  }
+
+  content: Gtk.ScrolledWindow {
+    hscrollbar-policy: never;
+
+    Gtk.Box {
+      orientation: vertical;
+      spacing: 16;
+      margin-top: 16;
+      margin-bottom: 24;
+      margin-start: 12;
+      margin-end: 12;
+
+      Adw.PreferencesGroup {
+        title: _("Account");
+
+        Adw.ActionRow settings_profile_row {
+          title: "WhatsApp User";
+          subtitle: "Connected";
+
+          [prefix]
+          Adw.Avatar settings_profile_avatar {
+            size: 44;
+            show-initials: true;
+          }
+        }
+      }
+
+      Adw.PreferencesGroup {
+        title: _("Sync &amp; Devices");
+
+        Adw.ActionRow {
+          title: _("Sync with WhatsApp");
+          subtitle: _("Re-sync pinned &amp; archived chats");
+
+          [prefix]
+          Gtk.Image {
+            icon-name: "view-refresh-symbolic";
+          }
+
+          [suffix]
+          Gtk.Button settings_resync_btn {
+            label: _("Sync Now");
+            valign: center;
+            styles ["suggested-action", "pill", "settings-action-btn"]
+          }
+        }
+      }
+
+      Adw.PreferencesGroup {
+        title: _("Storage &amp; Data");
+
+        Adw.ActionRow settings_db_path_row {
+          title: _("Database Path");
+          subtitle: "~/.local/share/whatsdown/whatsdown.db";
+          subtitle-selectable: true;
+
+          [prefix]
+          Gtk.Image {
+            icon-name: "drive-harddisk-symbolic";
+          }
+        }
+
+        Adw.ActionRow settings_stats_row {
+          title: _("Stored Data");
+          subtitle: "0 chats • 0 messages";
+
+          [prefix]
+          Gtk.Image {
+            icon-name: "folder-documents-symbolic";
+          }
+        }
+
+        Adw.ActionRow {
+          title: _("Avatar Cache");
+          subtitle: _("Clear locally cached profile photos");
+
+          [prefix]
+          Gtk.Image {
+            icon-name: "folder-pictures-symbolic";
+          }
+
+          [suffix]
+          Gtk.Button settings_clear_cache_btn {
+            label: _("Clear");
+            valign: center;
+          }
+        }
+      }
+
+      Adw.PreferencesGroup {
+        title: _("Appearance");
+
+        Adw.ComboRow settings_theme_row {
+          title: _("Theme");
+          subtitle: _("Choose color scheme preference");
+
+          [prefix]
+          Gtk.Image {
+            icon-name: "preferences-desktop-appearance-symbolic";
+          }
+
+          model: Gtk.StringList {
+            strings [
+              _("System Default"),
+              _("Light"),
+              _("Dark"),
+            ]
+          };
+        }
+      }
+
+      Adw.PreferencesGroup {
+        title: _("Session");
+
+        Adw.ActionRow {
+          title: _("Log Out");
+          subtitle: _("Disconnect this computer from WhatsApp");
+
+          [prefix]
+          Gtk.Image {
+            icon-name: "system-log-out-symbolic";
+          }
+
+          [suffix]
+          Gtk.Button settings_logout_btn {
+            label: _("Log Out");
+            valign: center;
+            styles ["destructive-action"]
+          }
+        }
+      }
+
+      Adw.PreferencesGroup {
+        title: _("About");
+
+        Adw.ActionRow {
+          title: "WhatsDown";
+          subtitle: "Native Linux WhatsApp client built with Libadwaita &amp; Go";
+
+          [prefix]
+          Gtk.Image {
+            icon-name: "help-about-symbolic";
+          }
+        }
+      }
+    }
+  };
+}

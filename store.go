@@ -9,14 +9,20 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/proto/waHistorySync"
+	"go.mau.fi/whatsmeow/proto/waWeb"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
@@ -108,7 +114,51 @@ var migrations = []string{
 	`
 	ALTER TABLE whatsdown_chats ADD COLUMN muted INTEGER NOT NULL DEFAULT 0;
 	`,
+
+	// 7: message status tracking (sent, delivered, read)
+	`
+	ALTER TABLE whatsdown_messages ADD COLUMN status INTEGER NOT NULL DEFAULT 0;
+	CREATE INDEX IF NOT EXISTS whatsdown_messages_status ON whatsdown_messages (id, from_me);
+	`,
+
+	// 8: backfill outgoing status for existing synced messages
+	`
+	UPDATE whatsdown_messages SET status = 3 WHERE from_me = 1 AND status = 0;
+	`,
+
+	// 9: saved stickers support
+	`
+	CREATE TABLE IF NOT EXISTS whatsdown_saved_stickers (
+		id          TEXT PRIMARY KEY,
+		file_path   TEXT NOT NULL,
+		file_hash   TEXT NOT NULL DEFAULT '',
+		width       INTEGER NOT NULL DEFAULT 512,
+		height      INTEGER NOT NULL DEFAULT 512,
+		saved_at    INTEGER NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS whatsdown_saved_stickers_saved_at ON whatsdown_saved_stickers (saved_at DESC);
+	`,
+
+	// 10: message edit history
+	`
+	CREATE TABLE IF NOT EXISTS whatsdown_message_edits (
+		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		message_id  TEXT NOT NULL,
+		chat_jid    TEXT NOT NULL,
+		text        TEXT NOT NULL,
+		edited_at   INTEGER NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS idx_whatsdown_message_edits_msg ON whatsdown_message_edits (chat_jid, message_id);
+	`,
 }
+
+// Delivery / read status of outgoing messages.
+const (
+	MessageStatusNone      = 0 // pending / unacknowledged
+	MessageStatusSent      = 1 // server ack (single check)
+	MessageStatusDelivered = 2 // delivered to recipient (double check)
+	MessageStatusRead      = 3 // read / viewed by recipient (blue double check)
+)
 
 // Values of whatsdown_messages.kind.
 const (
@@ -126,15 +176,17 @@ const (
 )
 
 type messageStore struct {
-	db      *sql.DB
-	selfMu  sync.RWMutex
-	selfPN  string
-	selfLID string
+	db            *sql.DB
+	selfMu        sync.RWMutex
+	selfPN        string
+	selfLID       string
+	stickerSyncMu sync.Mutex
 }
 
 // execer is satisfied by both *sql.DB and *sql.Tx.
 type execer interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
 func openMessageStore(ctx context.Context, db *sql.DB) (*messageStore, error) {
@@ -250,7 +302,20 @@ func (s *messageStore) saveHistorySync(ctx context.Context, client *whatsmeow.Cl
 				continue
 			}
 			isStarred := hsm.GetMessage().GetStarred()
-			inserted, err := s.saveMessageTxWithStar(ctx, tx, evt, isStarred)
+			status := MessageStatusNone
+			if evt.Info.IsFromMe {
+				switch hsm.GetMessage().GetStatus() {
+				case waWeb.WebMessageInfo_SERVER_ACK:
+					status = MessageStatusSent
+				case waWeb.WebMessageInfo_DELIVERY_ACK:
+					status = MessageStatusDelivered
+				case waWeb.WebMessageInfo_READ, waWeb.WebMessageInfo_PLAYED:
+					status = MessageStatusRead
+				default:
+					status = MessageStatusSent
+				}
+			}
+			inserted, err := s.saveMessageTxWithStar(ctx, tx, evt, isStarred, status)
 			if err != nil {
 				return 0, err
 			}
@@ -260,7 +325,20 @@ func (s *messageStore) saveHistorySync(ctx context.Context, client *whatsmeow.Cl
 		}
 	}
 
-	return stored, tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+
+	favs := data.GetFavoriteStickers()
+	recents := data.GetRecentStickers()
+	if (len(favs) > 0 || len(recents) > 0) && client != nil {
+		go s.syncHistoryStickers(context.Background(), client, favs, recents)
+	}
+	if client != nil {
+		go s.importStickersFromChatHistory(context.Background(), client)
+	}
+
+	return stored, nil
 }
 
 // saveLiveMessage stores a message received while connected (including
@@ -318,7 +396,7 @@ func (s *messageStore) saveMessageTx(ctx context.Context, tx execer, evt *events
 // Edits and deletions update the original message instead. Messages without
 // user-visible content (reactions, key distribution, …) are skipped.
 // Returns whether a new row was inserted.
-func (s *messageStore) saveMessageTxWithStar(ctx context.Context, tx execer, evt *events.Message, starred bool) (bool, error) {
+func (s *messageStore) saveMessageTxWithStar(ctx context.Context, tx execer, evt *events.Message, starred bool, initialStatus ...int) (bool, error) {
 	chat := evt.Info.Chat.ToNonAD().String()
 	isSelf := s.isSelfJID(ctx, chat)
 	if isSelf {
@@ -337,6 +415,11 @@ func (s *messageStore) saveMessageTxWithStar(ctx context.Context, tx execer, evt
 			return false, err
 		case waE2E.ProtocolMessage_MESSAGE_EDIT:
 			if _, text, ok := describeMessage(pm.GetEditedMessage()); ok {
+				var prevText string
+				var prevTs int64
+				if err := tx.QueryRowContext(ctx, `SELECT text, timestamp FROM whatsdown_messages WHERE chat_jid = ? AND id = ?`, chat, targetID).Scan(&prevText, &prevTs); err == nil && prevText != "" {
+					_, _ = tx.ExecContext(ctx, `INSERT INTO whatsdown_message_edits (message_id, chat_jid, text, edited_at) VALUES (?, ?, ?, ?)`, targetID, chat, prevText, prevTs)
+				}
 				raw, _ := proto.Marshal(pm.GetEditedMessage())
 				_, err := tx.ExecContext(ctx,
 					`UPDATE whatsdown_messages SET text = ?, raw = ?, edited = 1 WHERE chat_jid = ? AND id = ?`,
@@ -382,14 +465,24 @@ func (s *messageStore) saveMessageTxWithStar(ctx context.Context, tx execer, evt
 		fromMeVal = 1
 	}
 
+	statusVal := MessageStatusNone
+	if len(initialStatus) > 0 && initialStatus[0] > 0 {
+		statusVal = initialStatus[0]
+	} else if isSelf {
+		statusVal = MessageStatusRead
+	} else if fromMeVal == 1 {
+		statusVal = MessageStatusSent
+	}
+
 	res, err := tx.ExecContext(ctx, `
-		INSERT INTO whatsdown_messages (chat_jid, id, sender_jid, sender_name, from_me, timestamp, kind, text, raw, starred)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO whatsdown_messages (chat_jid, id, sender_jid, sender_name, from_me, timestamp, kind, text, raw, starred, status)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (chat_jid, id) DO UPDATE SET
 			starred = CASE WHEN excluded.starred = 1 THEN 1 ELSE whatsdown_messages.starred END,
-			from_me = CASE WHEN excluded.from_me = 1 THEN 1 ELSE whatsdown_messages.from_me END`,
+			from_me = CASE WHEN excluded.from_me = 1 THEN 1 ELSE whatsdown_messages.from_me END,
+			status  = MAX(whatsdown_messages.status, excluded.status)`,
 		chat, evt.Info.ID, evt.Info.Sender.ToNonAD().String(), evt.Info.PushName,
-		fromMeVal, ts, kind, text, raw, starredInt)
+		fromMeVal, ts, kind, text, raw, starredInt, statusVal)
 	if err != nil {
 		return false, err
 	}
@@ -461,15 +554,20 @@ func describeMessage(m *waE2E.Message) (kind, text string, ok bool) {
 	return "", "", false
 }
 
-// Chat is a row of whatsdown_chats.
+// Chat is a row of whatsdown_chats with the latest message preview.
 type Chat struct {
-	JID           string
-	Name          string
-	LastMessageAt time.Time
-	UnreadCount   int
-	Archived      bool
-	Pinned        bool
-	Muted         bool
+	JID               string
+	Name              string
+	LastMessageAt     time.Time
+	UnreadCount       int
+	Archived          bool
+	Pinned            bool
+	Muted             bool
+	LastMessageText   string
+	LastMessageSender string
+	LastMessageFromMe bool
+	LastMessageKind   string
+	LastMessageStatus int
 }
 
 // StoredMessage is a row of whatsdown_messages (without the raw protobuf).
@@ -485,6 +583,7 @@ type StoredMessage struct {
 	Edited      bool
 	Raw         []byte
 	Starred     bool
+	Status      int
 	SenderSaved bool
 }
 
@@ -529,11 +628,41 @@ func (s *messageStore) fetchChats(ctx context.Context, archived bool) ([]Chat, e
 			c.unread_count,
 			c.archived,
 			c.pinned,
-			c.muted
+			c.muted,
+			COALESCE(lm_msg.text, ''),
+			COALESCE(
+				NULLIF(lm_cnt.full_name, ''),
+				NULLIF(lm_cnt_lid.full_name, ''),
+				NULLIF(lm_cnt.first_name, ''),
+				NULLIF(lm_cnt_lid.first_name, ''),
+				NULLIF(lm_cnt.business_name, ''),
+				NULLIF(lm_cnt_lid.business_name, ''),
+				NULLIF(lm_cnt.push_name, ''),
+				NULLIF(lm_cnt_lid.push_name, ''),
+				NULLIF(lm_msg.sender_name, ''),
+				CASE 
+					WHEN lm_msg.sender_jid LIKE '%@s.whatsapp.net' THEN '+' || SUBSTR(lm_msg.sender_jid, 1, INSTR(lm_msg.sender_jid, '@') - 1)
+					WHEN lm_lid.pn IS NOT NULL AND lm_lid.pn <> '' THEN '+' || lm_lid.pn
+					ELSE ''
+				END
+			) AS resolved_last_sender_name,
+			COALESCE(lm_msg.from_me, 0),
+			COALESCE(lm_msg.kind, ''),
+			COALESCE(lm_msg.status, 0)
 		FROM whatsdown_chats c
 		LEFT JOIN whatsmeow_contacts cnt ON cnt.their_jid = c.jid
 		LEFT JOIN whatsmeow_lid_map lm ON (lm.lid || '@lid') = c.jid
 		LEFT JOIN whatsmeow_contacts cnt_lid ON cnt_lid.their_jid = (lm.pn || '@s.whatsapp.net')
+		LEFT JOIN whatsdown_messages lm_msg ON lm_msg.rowid = (
+			SELECT m2.rowid
+			FROM whatsdown_messages m2
+			WHERE m2.chat_jid = c.jid
+			ORDER BY m2.timestamp DESC, m2.rowid DESC
+			LIMIT 1
+		)
+		LEFT JOIN whatsmeow_contacts lm_cnt ON lm_cnt.their_jid = lm_msg.sender_jid
+		LEFT JOIN whatsmeow_lid_map lm_lid ON (lm_lid.lid || '@lid') = lm_msg.sender_jid
+		LEFT JOIN whatsmeow_contacts lm_cnt_lid ON lm_cnt_lid.their_jid = (lm_lid.pn || '@s.whatsapp.net')
 		WHERE c.archived = ?
 		ORDER BY c.pinned DESC, c.last_message_at DESC`, archivedVal)
 	if err != nil {
@@ -545,9 +674,24 @@ func (s *messageStore) fetchChats(ctx context.Context, archived bool) ([]Chat, e
 	for rows.Next() {
 		var c Chat
 		var ts int64
-		if err := rows.Scan(&c.JID, &c.Name, &ts, &c.UnreadCount, &c.Archived, &c.Pinned, &c.Muted); err != nil {
+		var fromMe int
+		if err := rows.Scan(
+			&c.JID,
+			&c.Name,
+			&ts,
+			&c.UnreadCount,
+			&c.Archived,
+			&c.Pinned,
+			&c.Muted,
+			&c.LastMessageText,
+			&c.LastMessageSender,
+			&fromMe,
+			&c.LastMessageKind,
+			&c.LastMessageStatus,
+		); err != nil {
 			return nil, err
 		}
+		c.LastMessageFromMe = fromMe != 0
 		c.LastMessageAt = time.Unix(ts, 0)
 		chats = append(chats, c)
 	}
@@ -584,12 +728,14 @@ func (s *messageStore) setChatMuted(ctx context.Context, jid string, muted bool)
 	return err
 }
 
-// getChatOrContact retrieves a Chat by JID, resolving contact names and metadata.
+// getChatOrContact retrieves a Chat by JID, resolving contact names, metadata, and latest message preview.
 func (s *messageStore) getChatOrContact(ctx context.Context, jid string) (Chat, error) {
 	var name string
 	var lastMsgAt int64
 	var unread int
 	var archived, pinned, muted bool
+	var lastMsgText, lastMsgSender, lastMsgKind string
+	var fromMe, lastMsgStatus int
 
 	err := s.db.QueryRowContext(ctx, `
 		SELECT
@@ -610,24 +756,62 @@ func (s *messageStore) getChatOrContact(ctx context.Context, jid string) (Chat, 
 			COALESCE(c.unread_count, 0),
 			COALESCE(c.archived, 0),
 			COALESCE(c.pinned, 0),
-			COALESCE(c.muted, 0)
+			COALESCE(c.muted, 0),
+			COALESCE(lm_msg.text, ''),
+			COALESCE(
+				NULLIF(lm_cnt.full_name, ''),
+				NULLIF(lm_cnt_lid.full_name, ''),
+				NULLIF(lm_cnt.first_name, ''),
+				NULLIF(lm_cnt_lid.first_name, ''),
+				NULLIF(lm_cnt.business_name, ''),
+				NULLIF(lm_cnt_lid.business_name, ''),
+				NULLIF(lm_cnt.push_name, ''),
+				NULLIF(lm_cnt_lid.push_name, ''),
+				NULLIF(lm_msg.sender_name, ''),
+				CASE 
+					WHEN lm_msg.sender_jid LIKE '%@s.whatsapp.net' THEN '+' || SUBSTR(lm_msg.sender_jid, 1, INSTR(lm_msg.sender_jid, '@') - 1)
+					WHEN lm_lid.pn IS NOT NULL AND lm_lid.pn <> '' THEN '+' || lm_lid.pn
+					ELSE ''
+				END
+			) AS resolved_last_sender_name,
+			COALESCE(lm_msg.from_me, 0),
+			COALESCE(lm_msg.kind, ''),
+			COALESCE(lm_msg.status, 0)
 		FROM (SELECT ? AS jid) t
 		LEFT JOIN whatsdown_chats c ON c.jid = t.jid
 		LEFT JOIN whatsmeow_contacts cnt ON cnt.their_jid = t.jid
 		LEFT JOIN whatsmeow_lid_map lm ON (lm.lid || '@lid') = t.jid
-		LEFT JOIN whatsmeow_contacts cnt_lid ON cnt_lid.their_jid = (lm.pn || '@s.whatsapp.net')`,
-		jid).Scan(&name, &lastMsgAt, &unread, &archived, &pinned, &muted)
+		LEFT JOIN whatsmeow_contacts cnt_lid ON cnt_lid.their_jid = (lm.pn || '@s.whatsapp.net')
+		LEFT JOIN whatsdown_messages lm_msg ON lm_msg.rowid = (
+			SELECT m2.rowid
+			FROM whatsdown_messages m2
+			WHERE m2.chat_jid = t.jid
+			ORDER BY m2.timestamp DESC, m2.rowid DESC
+			LIMIT 1
+		)
+		LEFT JOIN whatsmeow_contacts lm_cnt ON lm_cnt.their_jid = lm_msg.sender_jid
+		LEFT JOIN whatsmeow_lid_map lm_lid ON (lm_lid.lid || '@lid') = lm_msg.sender_jid
+		LEFT JOIN whatsmeow_contacts lm_cnt_lid ON lm_cnt_lid.their_jid = (lm_lid.pn || '@s.whatsapp.net')`,
+		jid).Scan(
+		&name, &lastMsgAt, &unread, &archived, &pinned, &muted,
+		&lastMsgText, &lastMsgSender, &fromMe, &lastMsgKind, &lastMsgStatus,
+	)
 	if err != nil {
 		return Chat{JID: jid}, err
 	}
 	return Chat{
-		JID:           jid,
-		Name:          name,
-		LastMessageAt: time.Unix(lastMsgAt, 0),
-		UnreadCount:   unread,
-		Archived:      archived,
-		Pinned:        pinned,
-		Muted:         muted,
+		JID:               jid,
+		Name:              name,
+		LastMessageAt:     time.Unix(lastMsgAt, 0),
+		UnreadCount:       unread,
+		Archived:          archived,
+		Pinned:            pinned,
+		Muted:             muted,
+		LastMessageText:   lastMsgText,
+		LastMessageSender: lastMsgSender,
+		LastMessageFromMe: fromMe != 0,
+		LastMessageKind:   lastMsgKind,
+		LastMessageStatus: lastMsgStatus,
 	}, nil
 }
 
@@ -747,7 +931,7 @@ func scanStoredMessages(rows *sql.Rows) ([]StoredMessage, error) {
 	for rows.Next() {
 		var m StoredMessage
 		var ts int64
-		if err := rows.Scan(&m.ChatJID, &m.ID, &m.SenderJID, &m.SenderName, &m.FromMe, &ts, &m.Kind, &m.Text, &m.Edited, &m.Raw, &m.Starred, &m.SenderSaved); err != nil {
+		if err := rows.Scan(&m.ChatJID, &m.ID, &m.SenderJID, &m.SenderName, &m.FromMe, &ts, &m.Kind, &m.Text, &m.Edited, &m.Raw, &m.Starred, &m.Status, &m.SenderSaved); err != nil {
 			return nil, err
 		}
 		m.Timestamp = time.Unix(ts, 0)
@@ -784,6 +968,7 @@ const selectMessagesSQL = `
 		m.edited,
 		m.raw,
 		m.starred,
+		m.status,
 		CASE 
 			WHEN (cnt.full_name IS NOT NULL AND cnt.full_name <> '')
 			  OR (cnt_lid.full_name IS NOT NULL AND cnt_lid.full_name <> '')
@@ -889,6 +1074,7 @@ func (s *messageStore) listMessages(ctx context.Context, chatJID string, before 
 			m.edited,
 			m.raw,
 			m.starred,
+			m.status,
 			CASE 
 				WHEN (cnt.full_name IS NOT NULL AND cnt.full_name <> '')
 				  OR (cnt_lid.full_name IS NOT NULL AND cnt_lid.full_name <> '')
@@ -919,13 +1105,13 @@ func (s *messageStore) listMessages(ctx context.Context, chatJID string, before 
 // getMessage returns a single stored message by chat JID and message ID.
 func (s *messageStore) getMessage(ctx context.Context, chatJID, id string) (*StoredMessage, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT chat_jid, id, sender_jid, sender_name, from_me, timestamp, kind, text, edited, raw, starred, 0
+		SELECT chat_jid, id, sender_jid, sender_name, from_me, timestamp, kind, text, edited, raw, starred, status, 0
 		FROM whatsdown_messages
 		WHERE chat_jid = ? AND id = ?`, chatJID, id)
 	var m StoredMessage
 	var ts int64
 	var fromMe, edited, starred, senderSaved int
-	if err := row.Scan(&m.ChatJID, &m.ID, &m.SenderJID, &m.SenderName, &fromMe, &ts, &m.Kind, &m.Text, &edited, &m.Raw, &starred, &senderSaved); err != nil {
+	if err := row.Scan(&m.ChatJID, &m.ID, &m.SenderJID, &m.SenderName, &fromMe, &ts, &m.Kind, &m.Text, &edited, &m.Raw, &starred, &m.Status, &senderSaved); err != nil {
 		return nil, err
 	}
 	m.FromMe = fromMe != 0
@@ -939,13 +1125,13 @@ func (s *messageStore) getMessage(ctx context.Context, chatJID, id string) (*Sto
 // getMessageByID returns a single stored message by message ID across any chat.
 func (s *messageStore) getMessageByID(ctx context.Context, id string) (*StoredMessage, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT chat_jid, id, sender_jid, sender_name, from_me, timestamp, kind, text, edited, raw, starred, 0
+		SELECT chat_jid, id, sender_jid, sender_name, from_me, timestamp, kind, text, edited, raw, starred, status, 0
 		FROM whatsdown_messages
 		WHERE id = ? LIMIT 1`, id)
 	var m StoredMessage
 	var ts int64
 	var fromMe, edited, starred, senderSaved int
-	if err := row.Scan(&m.ChatJID, &m.ID, &m.SenderJID, &m.SenderName, &fromMe, &ts, &m.Kind, &m.Text, &edited, &m.Raw, &starred, &senderSaved); err != nil {
+	if err := row.Scan(&m.ChatJID, &m.ID, &m.SenderJID, &m.SenderName, &fromMe, &ts, &m.Kind, &m.Text, &edited, &m.Raw, &starred, &m.Status, &senderSaved); err != nil {
 		return nil, err
 	}
 	m.FromMe = fromMe != 0
@@ -954,6 +1140,24 @@ func (s *messageStore) getMessageByID(ctx context.Context, id string) (*StoredMe
 	m.SenderSaved = senderSaved != 0
 	m.Timestamp = time.Unix(ts, 0)
 	return &m, nil
+}
+
+// updateMessageStatuses updates the delivery/read status of outgoing messages.
+func (s *messageStore) updateMessageStatuses(ctx context.Context, ids []string, status int) error {
+	if len(ids) == 0 || status <= 0 {
+		return nil
+	}
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids)+1)
+	args[0] = status
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i+1] = id
+	}
+	query := fmt.Sprintf(`UPDATE whatsdown_messages SET status = MAX(status, ?) WHERE id IN (%s)`,
+		strings.Join(placeholders, ","))
+	_, err := s.db.ExecContext(ctx, query, args...)
+	return err
 }
 
 // PollResults holds the aggregated results of a poll.
@@ -1110,3 +1314,361 @@ func (s *messageStore) togglePollVote(ctx context.Context, chatJID, messageID, o
 	}
 	return s.getPollVotes(ctx, chatJID, messageID, voter)
 }
+
+// SavedSticker represents a sticker stored in the user's personal sticker collection.
+type SavedSticker struct {
+	ID       string
+	FilePath string
+	FileHash string
+	Width    int
+	Height   int
+	SavedAt  time.Time
+}
+
+// saveSticker adds or updates a sticker in the user's saved sticker collection.
+func (s *messageStore) saveSticker(ctx context.Context, sticker SavedSticker) error {
+	savedAt := sticker.SavedAt.Unix()
+	if savedAt == 0 {
+		savedAt = time.Now().Unix()
+	}
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO whatsdown_saved_stickers (id, file_path, file_hash, width, height, saved_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET file_path = excluded.file_path, file_hash = excluded.file_hash, saved_at = excluded.saved_at`,
+		sticker.ID, sticker.FilePath, sticker.FileHash, sticker.Width, sticker.Height, savedAt)
+	return err
+}
+
+// deleteSavedSticker removes a sticker from the user's saved stickers.
+func (s *messageStore) deleteSavedSticker(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM whatsdown_saved_stickers WHERE id = ? OR file_hash = ?`, id, id)
+	return err
+}
+
+// listSavedStickers returns all saved stickers ordered by newest first.
+func (s *messageStore) listSavedStickers(ctx context.Context) ([]SavedSticker, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, file_path, file_hash, width, height, saved_at
+		FROM whatsdown_saved_stickers
+		ORDER BY saved_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []SavedSticker
+	for rows.Next() {
+		var st SavedSticker
+		var unixSaved int64
+		if err := rows.Scan(&st.ID, &st.FilePath, &st.FileHash, &st.Width, &st.Height, &unixSaved); err != nil {
+			return nil, err
+		}
+		st.SavedAt = time.Unix(unixSaved, 0)
+		out = append(out, st)
+	}
+	return out, rows.Err()
+}
+
+// isStickerSaved checks if a sticker is in the saved collection by ID or SHA256 hash.
+func (s *messageStore) isStickerSaved(ctx context.Context, idOrHash string) (bool, error) {
+	var count int
+	err := s.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM whatsdown_saved_stickers WHERE id = ? OR file_hash = ?`, idOrHash, idOrHash).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// syncHistoryStickers downloads favorite and recent stickers received in history sync chunks
+// and stores them into the personal saved stickers collection.
+func (s *messageStore) syncHistoryStickers(ctx context.Context, client *whatsmeow.Client, favorites, recents []*waHistorySync.StickerMetadata) {
+	if client == nil {
+		client = waClient
+	}
+	if client == nil {
+		return
+	}
+	s.stickerSyncMu.Lock()
+	defer s.stickerSyncMu.Unlock()
+
+	targetDir := savedStickersDir()
+	imported := 0
+
+	processList := func(list []*waHistorySync.StickerMetadata, isFav bool) {
+		for _, st := range list {
+			if st == nil {
+				continue
+			}
+			sha := st.GetFileSHA256()
+			if len(sha) == 0 {
+				continue
+			}
+			fileHash := hex.EncodeToString(sha)
+			saved, _ := s.isStickerSaved(ctx, fileHash)
+			if saved {
+				continue
+			}
+
+			destPath := filepath.Join(targetDir, fileHash+".webp")
+			var data []byte
+
+			if fi, err := os.Stat(destPath); err == nil && fi.Size() > 0 {
+				data, _ = os.ReadFile(destPath)
+			}
+
+			if len(data) == 0 {
+				dlCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+				d, err := client.Download(dlCtx, st)
+				cancel()
+				if err != nil || len(d) == 0 {
+					continue
+				}
+				data = d
+				if err := os.WriteFile(destPath, data, 0o600); err != nil {
+					continue
+				}
+			}
+
+			w := int(st.GetWidth())
+			h := int(st.GetHeight())
+			if w <= 0 {
+				w = 512
+			}
+			if h <= 0 {
+				h = 512
+			}
+
+			if err := s.saveSticker(ctx, SavedSticker{
+				ID:       fileHash,
+				FileHash: fileHash,
+				FilePath: destPath,
+				Width:    w,
+				Height:   h,
+				SavedAt:  time.Now(),
+			}); err == nil {
+				imported++
+				if imported%10 == 0 {
+					glib.IdleAdd(func() {
+						if activeMainWindow != nil {
+							activeMainWindow.loadSavedStickersUI()
+						}
+					})
+				}
+			}
+		}
+	}
+
+	processList(favorites, true)
+	processList(recents, false)
+
+	if imported > 0 {
+		log.Printf("syncHistoryStickers: synced %d stickers from device", imported)
+		glib.IdleAdd(func() {
+			if activeMainWindow != nil {
+				activeMainWindow.loadSavedStickersUI()
+			}
+		})
+	}
+}
+
+// importStickersFromChatHistory checks the local database for sticker messages
+// and imports/downloads any that are not yet in the saved stickers collection.
+func (s *messageStore) importStickersFromChatHistory(ctx context.Context, client *whatsmeow.Client) int {
+	if s.db == nil {
+		return 0
+	}
+	s.stickerSyncMu.Lock()
+	defer s.stickerSyncMu.Unlock()
+
+	if client == nil {
+		client = waClient
+	}
+
+	type stickerRow struct {
+		id      string
+		chatJID string
+		raw     []byte
+	}
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, chat_jid, raw
+		FROM whatsdown_messages
+		WHERE kind = 'sticker' AND raw IS NOT NULL
+		ORDER BY from_me DESC, timestamp DESC
+	`)
+	if err != nil {
+		log.Printf("importStickersFromChatHistory query error: %v", err)
+		return 0
+	}
+	defer rows.Close()
+
+	var msgs []stickerRow
+	for rows.Next() {
+		var m stickerRow
+		if err := rows.Scan(&m.id, &m.chatJID, &m.raw); err == nil {
+			msgs = append(msgs, m)
+		}
+	}
+	_ = rows.Close()
+
+	imported := 0
+	targetDir := savedStickersDir()
+	seenHashes := make(map[string]bool)
+
+	for _, m := range msgs {
+		if ctx.Err() != nil {
+			break
+		}
+		waMsg := parseE2EMessage(m.raw)
+		if waMsg == nil || waMsg.GetStickerMessage() == nil {
+			continue
+		}
+		stMsg := waMsg.GetStickerMessage()
+		sha := stMsg.GetFileSHA256()
+		if len(sha) == 0 {
+			continue
+		}
+		hash := hex.EncodeToString(sha)
+		if seenHashes[hash] {
+			continue
+		}
+		seenHashes[hash] = true
+
+		if saved, _ := s.isStickerSaved(ctx, hash); saved {
+			continue
+		}
+
+		destPath := filepath.Join(targetDir, hash+".webp")
+		var data []byte
+
+		// 1. Check if destination already has the sticker file
+		if fi, err := os.Stat(destPath); err == nil && fi.Size() > 0 {
+			data, _ = os.ReadFile(destPath)
+		}
+
+		// 2. Check if media cache has the sticker
+		if len(data) == 0 {
+			localPath := getLocalMediaPath(StoredMessage{ID: m.id, ChatJID: m.chatJID, Raw: m.raw})
+			if fi, err := os.Stat(localPath); err == nil && fi.Size() > 0 {
+				if d, err := os.ReadFile(localPath); err == nil && len(d) > 0 {
+					data = d
+					_ = os.WriteFile(destPath, data, 0o600)
+				}
+			}
+		}
+
+		// 3. Download from WhatsApp MMS servers
+		if len(data) == 0 && client != nil {
+			dlCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+			d, err := client.Download(dlCtx, stMsg)
+			cancel()
+			if err == nil && len(d) > 0 {
+				data = d
+				_ = os.WriteFile(destPath, data, 0o600)
+				localPath := getLocalMediaPath(StoredMessage{ID: m.id, ChatJID: m.chatJID, Raw: m.raw})
+				_ = os.WriteFile(localPath, data, 0o600)
+			} else if err != nil {
+				log.Printf("importStickersFromChatHistory: download sticker %s failed: %v", hash, err)
+			}
+		}
+
+		if len(data) == 0 {
+			continue
+		}
+
+		w := int(stMsg.GetWidth())
+		h := int(stMsg.GetHeight())
+		if w <= 0 {
+			w = 512
+		}
+		if h <= 0 {
+			h = 512
+		}
+
+		if err := s.saveSticker(ctx, SavedSticker{
+			ID:       hash,
+			FileHash: hash,
+			FilePath: destPath,
+			Width:    w,
+			Height:   h,
+			SavedAt:  time.Now(),
+		}); err == nil {
+			imported++
+			if imported%10 == 0 {
+				glib.IdleAdd(func() {
+					if activeMainWindow != nil {
+						activeMainWindow.loadSavedStickersUI()
+					}
+				})
+			}
+		}
+	}
+
+	if imported > 0 {
+		log.Printf("importStickersFromChatHistory: imported %d stickers from chat history", imported)
+		glib.IdleAdd(func() {
+			if activeMainWindow != nil {
+				activeMainWindow.loadSavedStickersUI()
+			}
+		})
+	}
+	return imported
+}
+
+// MessageEdit represents a historical version of an edited message.
+type MessageEdit struct {
+	ID        int64
+	MessageID string
+	ChatJID   string
+	Text      string
+	EditedAt  time.Time
+}
+
+// saveMessageEdit archives the previous version of a message and updates it with the new text.
+func (s *messageStore) saveMessageEdit(ctx context.Context, chatJID, messageID, newText string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var prevText string
+	var prevTs int64
+	if err := tx.QueryRowContext(ctx, `SELECT text, timestamp FROM whatsdown_messages WHERE chat_jid = ? AND id = ?`, chatJID, messageID).Scan(&prevText, &prevTs); err == nil && prevText != "" {
+		_, _ = tx.ExecContext(ctx, `INSERT INTO whatsdown_message_edits (message_id, chat_jid, text, edited_at) VALUES (?, ?, ?, ?)`, messageID, chatJID, prevText, prevTs)
+	}
+
+	_, err = tx.ExecContext(ctx, `UPDATE whatsdown_messages SET text = ?, edited = 1 WHERE chat_jid = ? AND id = ?`, newText, chatJID, messageID)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// getMessageEdits returns all archived edits of a message in chronological order.
+func (s *messageStore) getMessageEdits(ctx context.Context, chatJID, messageID string) ([]MessageEdit, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, message_id, chat_jid, text, edited_at
+		FROM whatsdown_message_edits
+		WHERE chat_jid = ? AND message_id = ?
+		ORDER BY edited_at ASC, id ASC
+	`, chatJID, messageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var edits []MessageEdit
+	for rows.Next() {
+		var e MessageEdit
+		var ts int64
+		if err := rows.Scan(&e.ID, &e.MessageID, &e.ChatJID, &e.Text, &ts); err == nil {
+			e.EditedAt = time.Unix(ts, 0)
+			edits = append(edits, e)
+		}
+	}
+	return edits, rows.Err()
+}
+
+

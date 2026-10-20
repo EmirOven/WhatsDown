@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -61,6 +62,19 @@ type whatsDownMainController struct {
 	attachPhotoBtn         *gtk.Button
 	attachDocBtn           *gtk.Button
 	attachPollBtn          *gtk.Button
+	emojiButton            *gtk.MenuButton
+	emojiChooser           *gtk.EmojiChooser
+	stickerButton          *gtk.MenuButton
+	stickerPopover         *gtk.Popover
+	stickerFlowbox         *gtk.FlowBox
+	stickerEmptyBox        *gtk.Box
+	stickerScrolledWindow  *gtk.ScrolledWindow
+	addStickerBtn          *gtk.Button
+	savedStickers          []SavedSticker
+	savedStickerHashes     map[string]bool
+	suppressChatSelection  bool
+	autoScrollBottom       bool
+	messageStatusLabels    map[string]*gtk.Label
 
 	// Reply preview widgets & state
 	replyPreviewBar    *gtk.Box
@@ -69,6 +83,16 @@ type whatsDownMainController struct {
 	cancelReplyBtn     *gtk.Button
 	replyingTo         *StoredMessage
 	messageRowMap      map[string]*gtk.ListBoxRow
+
+	// Markdown preview widgets
+	markdownPreviewBar   *gtk.Box
+	markdownPreviewLabel *gtk.Label
+
+	// Edit message widgets & state
+	editBannerBar  *gtk.Box
+	editBannerText *gtk.Label
+	cancelEditBtn  *gtk.Button
+	editingMessage *StoredMessage
 
 	// Settings widgets
 	settingsProfileRow    *adw.ActionRow
@@ -133,15 +157,48 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 	attachPhotoBtn, _ := castObject[*gtk.Button](builder, "attach_photo_btn")
 	attachDocBtn, _ := castObject[*gtk.Button](builder, "attach_doc_btn")
 	attachPollBtn, _ := castObject[*gtk.Button](builder, "attach_poll_btn")
+	emojiButton, _ := castObject[*gtk.MenuButton](builder, "emoji_button")
+	emojiChooser, _ := castObject[*gtk.EmojiChooser](builder, "emoji_chooser")
+	stickerButton, _ := castObject[*gtk.MenuButton](builder, "sticker_button")
+	stickerPopover, _ := castObject[*gtk.Popover](builder, "sticker_popover")
+	stickerFlowbox, _ := castObject[*gtk.FlowBox](builder, "sticker_flowbox")
+	stickerEmptyBox, _ := castObject[*gtk.Box](builder, "sticker_empty_box")
+	stickerScrolledWindow, _ := castObject[*gtk.ScrolledWindow](builder, "sticker_scrolled_window")
+	addStickerBtn, _ := castObject[*gtk.Button](builder, "add_sticker_btn")
 	replyPreviewBar, _ := castObject[*gtk.Box](builder, "reply_preview_bar")
 	replyPreviewSender, _ := castObject[*gtk.Label](builder, "reply_preview_sender")
 	replyPreviewText, _ := castObject[*gtk.Label](builder, "reply_preview_text")
 	cancelReplyBtn, _ := castObject[*gtk.Button](builder, "cancel_reply_btn")
+	markdownPreviewBar, _ := castObject[*gtk.Box](builder, "markdown_preview_bar")
+	markdownPreviewLabel, _ := castObject[*gtk.Label](builder, "markdown_preview_label")
+	contentNavPage, _ := castObject[*adw.NavigationPage](builder, "content_nav_page")
+	chatsPage, _ := castObject[*adw.ToolbarView](builder, "chats_page")
+	archivedPage, _ := castObject[*adw.ToolbarView](builder, "archived_page")
+	settingsPage, _ := castObject[*adw.ToolbarView](builder, "settings_page")
+	rightChatView, _ := castObject[*adw.ToolbarView](builder, "right_chat_view")
+	editBannerBar, _ := castObject[*gtk.Box](builder, "edit_banner_bar")
+	editBannerText, _ := castObject[*gtk.Label](builder, "edit_banner_text")
+	cancelEditBtn, _ := castObject[*gtk.Button](builder, "cancel_edit_btn")
 
 	if !ok1 || !ok2 || !ok3 || !ok4 || !okBtn || !ok5 || !ok6 || !ok7 || !ok8 || !ok9 || !ok10 || !ok11 || !ok12 || !ok13 ||
 		!ok14 || !ok15 || !ok16 || !ok17 || !ok18 || !ok19 || !ok20 || !ok21 || !ok22 ||
 		!ok23 || !ok24 || !ok25 || !ok26 || !ok27 {
 		return nil, errors.New("WhatsDownMain.ui missing required widgets")
+	}
+
+	if sidebarStack != nil {
+		if chatsPage != nil && sidebarStack.ChildByName("chats") == nil {
+			sidebarStack.AddTitled(chatsPage, "chats", "Chats")
+		}
+		if archivedPage != nil && sidebarStack.ChildByName("archived") == nil {
+			sidebarStack.AddTitled(archivedPage, "archived", "Archived")
+		}
+		if settingsPage != nil && sidebarStack.ChildByName("settings") == nil {
+			sidebarStack.AddTitled(settingsPage, "settings", "Settings")
+		}
+	}
+	if contentNavPage != nil && rightChatView != nil {
+		contentNavPage.SetChild(rightChatView)
 	}
 
 	ctrl := &whatsDownMainController{
@@ -175,10 +232,26 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 		attachPhotoBtn:         attachPhotoBtn,
 		attachDocBtn:           attachDocBtn,
 		attachPollBtn:          attachPollBtn,
+		emojiButton:            emojiButton,
+		emojiChooser:           emojiChooser,
+		stickerButton:          stickerButton,
+		stickerPopover:         stickerPopover,
+		stickerFlowbox:         stickerFlowbox,
+		stickerEmptyBox:        stickerEmptyBox,
+		stickerScrolledWindow:  stickerScrolledWindow,
+		addStickerBtn:          addStickerBtn,
+		savedStickerHashes:     make(map[string]bool),
+		autoScrollBottom:       true,
+		messageStatusLabels:    make(map[string]*gtk.Label),
 		replyPreviewBar:        replyPreviewBar,
 		replyPreviewSender:     replyPreviewSender,
 		replyPreviewText:       replyPreviewText,
 		cancelReplyBtn:         cancelReplyBtn,
+		markdownPreviewBar:     markdownPreviewBar,
+		markdownPreviewLabel:   markdownPreviewLabel,
+		editBannerBar:          editBannerBar,
+		editBannerText:         editBannerText,
+		cancelEditBtn:          cancelEditBtn,
 		messageRowMap:          make(map[string]*gtk.ListBoxRow),
 		settingsProfileRow:     settingsProfileRow,
 		settingsProfileAvatar:  settingsProfileAvatar,
@@ -264,6 +337,22 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 			ctrl.showCreatePollDialog()
 		})
 	}
+	if emojiChooser != nil {
+		emojiChooser.ConnectEmojiPicked(func(text string) {
+			ctrl.insertEmoji(text)
+		})
+	}
+	if addStickerBtn != nil {
+		addStickerBtn.ConnectClicked(func() {
+			ctrl.openFileChooserForSticker()
+		})
+	}
+	if stickerPopover != nil {
+		stickerPopover.ConnectShow(func() {
+			ctrl.loadSavedStickersUI()
+		})
+	}
+	ctrl.loadSavedStickersUI()
 
 	chatSearchBtn.ConnectToggled(func() {
 		active := chatSearchBtn.Active()
@@ -304,6 +393,7 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 	// Scroll to bottom FAB & adjustment watcher
 	if scrollToBottomBtn != nil {
 		scrollToBottomBtn.ConnectClicked(func() {
+			ctrl.autoScrollBottom = true
 			ctrl.scrollToBottom()
 		})
 	}
@@ -311,12 +401,17 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 	if messagesScrolledWindow != nil {
 		if adj := messagesScrolledWindow.VAdjustment(); adj != nil {
 			adj.ConnectValueChanged(func() {
-				if scrollToBottomBtn == nil {
-					return
-				}
 				maxVal := adj.Upper() - adj.PageSize()
 				isAtBottom := maxVal <= 10 || adj.Value() >= maxVal-60
-				scrollToBottomBtn.SetVisible(!isAtBottom)
+				ctrl.autoScrollBottom = isAtBottom
+				if scrollToBottomBtn != nil {
+					scrollToBottomBtn.SetVisible(!isAtBottom)
+				}
+			})
+			adj.ConnectChanged(func() {
+				if ctrl.autoScrollBottom {
+					ctrl.scrollToBottom()
+				}
 			})
 		}
 	}
@@ -382,11 +477,15 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 					_ = waClient.FetchAppState(context.Background(), name, true, false)
 				}
 			}
+			if msgStore != nil {
+				msgStore.importStickersFromChatHistory(context.Background(), waClient)
+			}
 			glib.IdleAdd(func() {
 				settingsResyncBtn.SetSensitive(true)
 				settingsResyncBtn.SetLabel("Sync Now")
 				ctrl.loadChats()
 				ctrl.loadArchivedChats()
+				ctrl.loadSavedStickersUI()
 				ctrl.refreshSettingsInfo()
 			})
 		}()
@@ -446,21 +545,29 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 
 	// Chat selection handlers
 	chatsList.ConnectRowSelected(func(row *gtk.ListBoxRow) {
-		if row == nil {
+		if row == nil || ctrl.suppressChatSelection {
 			return
 		}
 		idx := row.Index()
 		if idx >= 0 && idx < len(ctrl.chats) {
-			ctrl.selectChat(ctrl.chats[idx])
+			target := ctrl.chats[idx]
+			if ctrl.currentChat != nil && (ctrl.currentChat.JID == target.JID || (ctrl.isSelfJID(ctrl.currentChat.JID) && ctrl.isSelfJID(target.JID))) {
+				return
+			}
+			ctrl.selectChat(target)
 		}
 	})
 	archivedChatsList.ConnectRowSelected(func(row *gtk.ListBoxRow) {
-		if row == nil {
+		if row == nil || ctrl.suppressChatSelection {
 			return
 		}
 		idx := row.Index()
 		if idx >= 0 && idx < len(ctrl.archivedChats) {
-			ctrl.selectChat(ctrl.archivedChats[idx])
+			target := ctrl.archivedChats[idx]
+			if ctrl.currentChat != nil && (ctrl.currentChat.JID == target.JID || (ctrl.isSelfJID(ctrl.currentChat.JID) && ctrl.isSelfJID(target.JID))) {
+				return
+			}
+			ctrl.selectChat(target)
 		}
 	})
 
@@ -477,21 +584,65 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 			ctrl.cancelReply()
 		})
 	}
+	if cancelEditBtn != nil {
+		cancelEditBtn.ConnectClicked(func() {
+			ctrl.cancelEditing()
+		})
+	}
 
 	keyController := gtk.NewEventControllerKey()
 	keyController.ConnectKeyPressed(func(val uint, code uint, state gdk.ModifierType) bool {
-		if val == gdk.KEY_Escape && ctrl.replyingTo != nil {
-			ctrl.cancelReply()
-			return true
+		if val == gdk.KEY_Escape {
+			if ctrl.editingMessage != nil {
+				ctrl.cancelEditing()
+				return true
+			}
+			if ctrl.replyingTo != nil {
+				ctrl.cancelReply()
+				return true
+			}
 		}
 		return false
 	})
 	messageEntry.AddController(keyController)
 
+	messageEntry.ConnectChanged(func() {
+		text := messageEntry.Text()
+
+		// 1. Live preview directly inside message box using Pango attributes
+		if attrs, err := FormatWhatsAppMarkdownForEntry(text); err == nil && attrs != nil {
+			messageEntry.SetAttributes(attrs)
+		} else {
+			messageEntry.SetAttributes(pango.NewAttrList())
+		}
+
+		// 2. Live preview bar above message box
+		if HasWhatsAppMarkdown(text) && strings.TrimSpace(text) != "" {
+			previewMarkup, _ := FormatWhatsAppMarkdownForBubble(text, nil, nil)
+			if ctrl.markdownPreviewLabel != nil {
+				ctrl.markdownPreviewLabel.SetMarkup(previewMarkup)
+			}
+			if ctrl.markdownPreviewBar != nil {
+				ctrl.markdownPreviewBar.SetVisible(true)
+			}
+		} else {
+			if ctrl.markdownPreviewBar != nil {
+				ctrl.markdownPreviewBar.SetVisible(false)
+			}
+		}
+	})
+
 	// Populate chat lists & settings info
 	ctrl.loadChats()
 	ctrl.loadArchivedChats()
 	ctrl.refreshSettingsInfo()
+
+	// Sync stickers used from phone in background
+	go func() {
+		if msgStore != nil {
+			msgStore.importStickersFromChatHistory(context.Background(), waClient)
+		}
+	}()
 
 	return window, nil
 }
@@ -530,6 +681,10 @@ func (c *whatsDownMainController) loadChats() {
 	if msgStore == nil {
 		return
 	}
+	c.suppressChatSelection = true
+	defer func() {
+		c.suppressChatSelection = false
+	}()
 
 	chats, err := msgStore.listChats(context.Background())
 	if err != nil {
@@ -542,7 +697,7 @@ func (c *whatsDownMainController) loadChats() {
 	for _, chat := range chats {
 		row := c.createChatRow(chat, false)
 		c.chatsList.Append(row)
-		if c.currentChat != nil && c.currentChat.JID == chat.JID {
+		if c.currentChat != nil && (c.currentChat.JID == chat.JID || (c.isSelfJID(c.currentChat.JID) && c.isSelfJID(chat.JID))) {
 			c.chatsList.SelectRow(row)
 		}
 	}
@@ -553,6 +708,10 @@ func (c *whatsDownMainController) loadArchivedChats() {
 	if msgStore == nil {
 		return
 	}
+	c.suppressChatSelection = true
+	defer func() {
+		c.suppressChatSelection = false
+	}()
 
 	chats, err := msgStore.listArchivedChats(context.Background())
 	if err != nil {
@@ -588,7 +747,7 @@ func (c *whatsDownMainController) loadArchivedChats() {
 	for _, chat := range chats {
 		row := c.createChatRow(chat, true)
 		c.archivedChatsList.Append(row)
-		if c.currentChat != nil && c.currentChat.JID == chat.JID {
+		if c.currentChat != nil && (c.currentChat.JID == chat.JID || (c.isSelfJID(c.currentChat.JID) && c.isSelfJID(chat.JID))) {
 			c.archivedChatsList.SelectRow(row)
 		}
 	}
@@ -627,6 +786,7 @@ func (c *whatsDownMainController) createChatRow(chat Chat, isArchivedView bool) 
 		subLabel.SetXAlign(0)
 		subLabel.AddCSSClass("chat-row-subtitle")
 		subLabel.SetEllipsize(pango.EllipsizeEnd)
+		subLabel.SetSingleLineMode(true)
 		textBox.Append(subLabel)
 	}
 	mainBox.Append(textBox)
@@ -1401,7 +1561,7 @@ func (c *whatsDownMainController) selectChat(chat Chat) {
 	c.currentChat = &chat
 
 	displayName := formatDisplayName(chat)
-	subtitle := formatChatSubtitle(chat)
+	subtitle := formatTopbarSubtitle(chat)
 
 	c.activeChatBtn.SetSensitive(true)
 	c.activeChatTitle.SetTitle(displayName)
@@ -1425,27 +1585,81 @@ func (c *whatsDownMainController) selectChat(chat Chat) {
 	// Clear active reply when switching chats
 	c.cancelReply()
 
-	// Clear unread count locally and in database
-	if chat.UnreadCount > 0 {
-		chat.UnreadCount = 0
-		if chatJID, err := types.ParseJID(chat.JID); err == nil && msgStore != nil {
-			go func() {
-				_ = msgStore.markChatRead(context.Background(), chatJID)
-				glib.IdleAdd(func() {
-					c.loadChats()
-					c.loadArchivedChats()
-				})
-			}()
+	// Clear unread count locally, dispatch read receipts to WhatsApp, and sync AppState across devices
+	c.markChatRead(chat.JID)
+	glib.IdleAdd(func() {
+		c.loadChats()
+		c.loadArchivedChats()
+	})
+
+	c.loadMessages(chat.JID)
+}
+
+// markChatRead marks all messages in the specified chat as read locally,
+// sends read receipts to WhatsApp for incoming messages, and syncs app state to paired devices.
+func (c *whatsDownMainController) markChatRead(chatJIDStr string) {
+	if chatJIDStr == "" {
+		return
+	}
+	targetJID, err := types.ParseJID(chatJIDStr)
+	if err != nil {
+		return
+	}
+
+	if msgStore != nil {
+		_ = msgStore.markChatRead(context.Background(), targetJID)
+	}
+
+	for i := range c.chats {
+		if c.chats[i].JID == chatJIDStr {
+			c.chats[i].UnreadCount = 0
+			break
+		}
+	}
+	for i := range c.archivedChats {
+		if c.archivedChats[i].JID == chatJIDStr {
+			c.archivedChats[i].UnreadCount = 0
+			break
 		}
 	}
 
-	c.loadMessages(chat.JID)
+	if waClient != nil {
+		go func() {
+			ctx := context.Background()
+			_ = waClient.SendAppState(ctx, appstate.BuildMarkChatAsRead(targetJID, true, time.Now(), nil))
+
+			if msgStore != nil {
+				msgs, err := msgStore.listMessages(ctx, chatJIDStr, time.Time{}, 50)
+				if err == nil {
+					senderMap := make(map[types.JID][]types.MessageID)
+					now := time.Now()
+					for _, m := range msgs {
+						if m.FromMe {
+							continue
+						}
+						sJID, err := types.ParseJID(m.SenderJID)
+						if err != nil {
+							sJID = targetJID
+						}
+						senderMap[sJID] = append(senderMap[sJID], types.MessageID(m.ID))
+					}
+					for sJID, ids := range senderMap {
+						if len(ids) > 0 {
+							_ = waClient.MarkRead(ctx, ids, now, targetJID, sJID)
+						}
+					}
+				}
+			}
+		}()
+	}
 }
 
 // loadMessages fetches recent messages for chatJID and appends bubbles to the
 // message list.
 func (c *whatsDownMainController) loadMessages(chatJID string) {
 	c.messagesList.RemoveAll()
+	c.messageRowMap = make(map[string]*gtk.ListBoxRow)
+	c.messageStatusLabels = make(map[string]*gtk.Label)
 
 	if msgStore == nil {
 		return
@@ -1467,13 +1681,7 @@ func (c *whatsDownMainController) loadMessages(chatJID string) {
 	c.messagesList.InvalidateFilter()
 
 	// Start at the bottom of the conversation as newest messages are at the bottom
-	glib.IdleAdd(func() {
-		c.scrollToBottom()
-		glib.TimeoutAdd(50, func() bool {
-			c.scrollToBottom()
-			return false
-		})
-	})
+	c.scrollToBottomAnimated()
 }
 
 // scrollToBottom smoothly positions the viewport at the newest messages.
@@ -1486,11 +1694,41 @@ func (c *whatsDownMainController) scrollToBottom() {
 		maxVal := adj.Upper() - adj.PageSize()
 		if maxVal > 0 {
 			adj.SetValue(maxVal)
+		} else {
+			adj.SetValue(adj.Upper())
+		}
+	}
+	if ch := c.messagesScrolledWindow.Child(); ch != nil {
+		if vp, ok := ch.(*gtk.Viewport); ok && c.messagesList != nil {
+			if last := c.messagesList.LastChild(); last != nil {
+				vp.ScrollTo(last, nil)
+			}
 		}
 	}
 	if c.scrollToBottomBtn != nil {
 		c.scrollToBottomBtn.SetVisible(false)
 	}
+}
+
+// scrollToBottomAnimated ensures the viewport reaches the bottom reliably across async layout passes.
+func (c *whatsDownMainController) scrollToBottomAnimated() {
+	c.autoScrollBottom = true
+	c.scrollToBottom()
+	glib.IdleAdd(func() {
+		c.scrollToBottom()
+	})
+	glib.TimeoutAdd(40, func() bool {
+		c.scrollToBottom()
+		return false
+	})
+	glib.TimeoutAdd(120, func() bool {
+		c.scrollToBottom()
+		return false
+	})
+	glib.TimeoutAdd(300, func() bool {
+		c.scrollToBottom()
+		return false
+	})
 }
 
 // performMessageSearch searches through messages in current chat and navigates to matching bubbles.
@@ -1761,78 +1999,10 @@ func (c *whatsDownMainController) openUserDetails(targetJID string) {
 	})
 }
 
-// formatMessageTextWithMentions parses @mentions in message text and formats them
-// as clickable Pango markup links targeting user details.
+// formatMessageTextWithMentions parses @mentions and WhatsApp markdown in message text
+// and formats them into Pango markup.
 func formatMessageTextWithMentions(text string, mentionedJIDs []string, resolveName func(jid string) string) (string, bool) {
-	if text == "" {
-		return "", false
-	}
-
-	jidMap := make(map[string]string)
-	for _, jid := range mentionedJIDs {
-		jidMap[jid] = jid
-		user := jid
-		if idx := strings.Index(user, "@"); idx != -1 {
-			user = user[:idx]
-		}
-		if idx := strings.Index(user, ":"); idx != -1 {
-			user = user[:idx]
-		}
-		if user != "" {
-			jidMap[user] = jid
-		}
-	}
-
-	matches := mentionRegex.FindAllStringSubmatchIndex(text, -1)
-	if len(matches) == 0 {
-		return glib.MarkupEscapeText(text), false
-	}
-
-	var sb strings.Builder
-	lastIdx := 0
-	hasMentions := false
-
-	for _, m := range matches {
-		start := m[0]
-		end := m[1]
-		tagStart := m[2]
-		tagEnd := m[3]
-
-		if start > lastIdx {
-			sb.WriteString(glib.MarkupEscapeText(text[lastIdx:start]))
-		}
-
-		tag := text[tagStart:tagEnd]
-		targetJID := tag
-		if mapped, ok := jidMap[tag]; ok {
-			targetJID = mapped
-		} else if !strings.Contains(tag, "@") && isAllDigits(tag) && len(tag) >= 5 {
-			targetJID = tag + "@s.whatsapp.net"
-		}
-
-		label := "@" + tag
-		if resolveName != nil {
-			resolved := resolveName(targetJID)
-			if resolved != "" && resolved != targetJID && !strings.Contains(resolved, "@") {
-				label = "@" + resolved
-			} else if strings.HasPrefix(targetJID, "+") {
-				label = "@" + targetJID
-			} else if isAllDigits(tag) && len(tag) >= 5 {
-				label = "@+" + tag
-			}
-		}
-
-		escapedLabel := glib.MarkupEscapeText(label)
-		sb.WriteString(fmt.Sprintf(`<a href="user:%s"><b>%s</b></a>`, targetJID, escapedLabel))
-		hasMentions = true
-		lastIdx = end
-	}
-
-	if lastIdx < len(text) {
-		sb.WriteString(glib.MarkupEscapeText(text[lastIdx:]))
-	}
-
-	return sb.String(), hasMentions
+	return FormatWhatsAppMarkdownForBubble(text, mentionedJIDs, resolveName)
 }
 
 // extractPollDetails extracts question, options, and selectable count from a raw poll protobuf.
@@ -2038,9 +2208,6 @@ func (c *whatsDownMainController) createMessageBubble(msg StoredMessage) *gtk.Li
 		})
 
 		gesture := gtk.NewGestureClick()
-		gesture.ConnectPressed(func(nPress int, x, y float64) {
-			openMedia(mCopy, nil)
-		})
 
 		overlay := gtk.NewOverlay()
 		overlay.SetChild(pic)
@@ -2088,6 +2255,22 @@ func (c *whatsDownMainController) createMessageBubble(msg StoredMessage) *gtk.Li
 			})
 		})
 		overlay.AddOverlay(openBtn)
+		// The overlay gesture would otherwise also fire when the "View Photo" /
+		// "Play Video" button is clicked, opening the media twice. Ignore presses
+		// that land on the button (it handles those itself) and repeat presses
+		// from a double-click.
+		gesture.ConnectPressed(func(nPress int, x, y float64) {
+			if nPress != 1 {
+				return
+			}
+			if picked := overlay.Pick(x, y, gtk.PickDefault); picked != nil {
+				pw := gtk.BaseWidget(picked)
+				if pw.Native() == gtk.BaseWidget(openBtn).Native() || pw.IsAncestor(openBtn) {
+					return
+				}
+			}
+			openMedia(mCopy, nil)
+		})
 		overlay.AddController(gesture)
 		box.Append(overlay)
 
@@ -2402,6 +2585,70 @@ func (c *whatsDownMainController) createMessageBubble(msg StoredMessage) *gtk.Li
 		pollBox.Append(summaryBox)
 
 		box.Append(pollBox)
+
+	case messageKindSticker:
+		box.AddCSSClass("chat-bubble-sticker")
+
+		stickerW := 140
+		stickerH := 140
+		if waMsg := parseE2EMessage(msg.Raw); waMsg != nil && waMsg.GetStickerMessage() != nil {
+			w := int(waMsg.GetStickerMessage().GetWidth())
+			h := int(waMsg.GetStickerMessage().GetHeight())
+			if w > 0 && h > 0 {
+				if w >= h {
+					stickerH = int(float64(h) * 140.0 / float64(w))
+					stickerW = 140
+				} else {
+					stickerW = int(float64(w) * 140.0 / float64(h))
+					stickerH = 140
+				}
+				if stickerW < 60 {
+					stickerW = 60
+				}
+				if stickerH < 60 {
+					stickerH = 60
+				}
+			}
+		}
+
+		pic := gtk.NewPicture()
+		pic.SetKeepAspectRatio(true)
+		pic.SetCanShrink(true)
+		pic.AddCSSClass("chat-bubble-picture")
+		pic.AddCSSClass("chat-bubble-sticker-picture")
+		pic.SetSizeRequest(stickerW, stickerH)
+		pic.SetCursorFromName("pointer")
+
+		loadMediaPreview(msg, pic, func(tex *gdk.Texture) {
+			if tex != nil {
+				glib.IdleAdd(func() {
+					tw, th := tex.Width(), tex.Height()
+					if tw > 0 && th > 0 {
+						sw, sh := 140, 140
+						if tw >= th {
+							sh = int(float64(th) * 140.0 / float64(tw))
+							sw = 140
+						} else {
+							sw = int(float64(tw) * 140.0 / float64(th))
+							sh = 140
+						}
+						if sw < 60 {
+							sw = 60
+						}
+						if sh < 60 {
+							sh = 60
+						}
+						pic.SetSizeRequest(sw, sh)
+						pic.QueueResize()
+					}
+					c.scrollToBottom()
+				})
+			}
+		})
+
+		c.attachStickerContextMenu(pic, mCopy)
+
+		box.Append(pic)
 	}
 
 	displayText := msg.Text
@@ -2413,10 +2660,16 @@ func (c *whatsDownMainController) createMessageBubble(msg StoredMessage) *gtk.Li
 		textLabel.SetWrap(true)
 		textLabel.SetWrapMode(pango.WrapWordChar)
 		textLabel.SetXAlign(0)
+		textLabel.SetSelectable(true)
 		textLabel.AddCSSClass("chat-bubble-text")
 
-		if hasMentions {
+		if _, _, _, err := pango.ParseMarkup(markup, 0); err == nil {
 			textLabel.SetMarkup(markup)
+		} else {
+			textLabel.SetText(displayText)
+		}
+
+		if hasMentions {
 			textLabel.ConnectActivateLink(func(uri string) bool {
 				if strings.HasPrefix(uri, "user:") {
 					targetJID := strings.TrimPrefix(uri, "user:")
@@ -2425,14 +2678,10 @@ func (c *whatsDownMainController) createMessageBubble(msg StoredMessage) *gtk.Li
 				}
 				return false
 			})
-		} else {
-			textLabel.SetText(displayText)
 		}
 		box.Append(textLabel)
-	} else if msg.Kind != messageKindImage && msg.Kind != messageKindVideo && msg.Kind != messageKindAudio && msg.Kind != messageKindVoice && msg.Kind != messageKindDocument && msg.Kind != messageKindLocation {
+	} else if msg.Kind != messageKindImage && msg.Kind != messageKindVideo && msg.Kind != messageKindAudio && msg.Kind != messageKindVoice && msg.Kind != messageKindDocument && msg.Kind != messageKindLocation && msg.Kind != messageKindSticker {
 		switch msg.Kind {
-		case messageKindSticker:
-			displayText = "🏷️ Sticker"
 		case messageKindPoll:
 			displayText = "📊 Poll"
 		case messageKindDeleted:
@@ -2444,12 +2693,16 @@ func (c *whatsDownMainController) createMessageBubble(msg StoredMessage) *gtk.Li
 		textLabel.SetWrap(true)
 		textLabel.SetWrapMode(pango.WrapWordChar)
 		textLabel.SetXAlign(0)
+		textLabel.SetSelectable(true)
 		textLabel.AddCSSClass("chat-bubble-text")
 		box.Append(textLabel)
 	}
 
 	footerBox := gtk.NewBox(gtk.OrientationHorizontal, 4)
 	footerBox.SetHAlign(gtk.AlignEnd)
+	if msg.Kind == messageKindSticker {
+		footerBox.AddCSSClass("chat-bubble-sticker-footer")
+	}
 
 	if msg.Starred {
 		starIcon := gtk.NewImageFromIconName("starred-symbolic")
@@ -2465,6 +2718,20 @@ func (c *whatsDownMainController) createMessageBubble(msg StoredMessage) *gtk.Li
 	timeLabel.SetXAlign(1)
 	timeLabel.AddCSSClass("chat-bubble-time")
 	footerBox.Append(timeLabel)
+
+	if isOutgoing {
+		status := msg.Status
+		if c.isSelfJID(msg.ChatJID) {
+			status = MessageStatusRead
+		}
+		statusLabel := gtk.NewLabel("")
+		statusLabel.AddCSSClass("chat-bubble-status")
+		c.applyStatusToLabel(statusLabel, status)
+		footerBox.Append(statusLabel)
+		if c.messageStatusLabels != nil {
+			c.messageStatusLabels[msg.ID] = statusLabel
+		}
+	}
 
 	box.Append(footerBox)
 
@@ -2539,6 +2806,46 @@ func (c *whatsDownMainController) attachMessageContextMenu(widget gtk.Widgetter,
 
 	mCopy := msg
 
+	// For stickers, add Save Sticker and Open as Image options at the top of the context menu
+	if mCopy.Kind == messageKindSticker {
+		isSaved := c.isStickerSaved(mCopy)
+		saveBtn := gtk.NewButton()
+		saveBtn.AddCSSClass("flat")
+		saveBtn.AddCSSClass("popover-menu-btn")
+		saveRow := gtk.NewBox(gtk.OrientationHorizontal, 10)
+		if isSaved {
+			saveRow.Append(gtk.NewImageFromIconName("user-trash-symbolic"))
+			saveRow.Append(gtk.NewLabel("Remove from Saved Stickers"))
+			saveBtn.SetChild(saveRow)
+			saveBtn.ConnectClicked(func() {
+				popover.Popdown()
+				c.removeSavedStickerByMessage(mCopy)
+			})
+		} else {
+			saveRow.Append(gtk.NewImageFromIconName("star-new-symbolic"))
+			saveRow.Append(gtk.NewLabel("Save Sticker"))
+			saveBtn.SetChild(saveRow)
+			saveBtn.ConnectClicked(func() {
+				popover.Popdown()
+				c.saveStickerFromMessage(mCopy)
+			})
+		}
+		menuBox.Append(saveBtn)
+
+		openBtn := gtk.NewButton()
+		openBtn.AddCSSClass("flat")
+		openBtn.AddCSSClass("popover-menu-btn")
+		openRow := gtk.NewBox(gtk.OrientationHorizontal, 10)
+		openRow.Append(gtk.NewImageFromIconName("insert-image-symbolic"))
+		openRow.Append(gtk.NewLabel("Open as Image"))
+		openBtn.SetChild(openRow)
+		openBtn.ConnectClicked(func() {
+			popover.Popdown()
+			openMedia(mCopy, nil)
+		})
+		menuBox.Append(openBtn)
+	}
+
 	// 0. Reply
 	if mCopy.Kind != messageKindDeleted {
 		replyBtn := gtk.NewButton()
@@ -2553,6 +2860,38 @@ func (c *whatsDownMainController) attachMessageContextMenu(widget gtk.Widgetter,
 			c.startReply(mCopy)
 		})
 		menuBox.Append(replyBtn)
+	}
+
+	// Edit Message (only for text messages sent by user)
+	if mCopy.FromMe && mCopy.Kind == messageKindText {
+		editBtn := gtk.NewButton()
+		editBtn.AddCSSClass("flat")
+		editBtn.AddCSSClass("popover-menu-btn")
+		eBox := gtk.NewBox(gtk.OrientationHorizontal, 10)
+		eBox.Append(gtk.NewImageFromIconName("document-edit-symbolic"))
+		eBox.Append(gtk.NewLabel("Edit Message"))
+		editBtn.SetChild(eBox)
+		editBtn.ConnectClicked(func() {
+			popover.Popdown()
+			c.startEditing(mCopy)
+		})
+		menuBox.Append(editBtn)
+	}
+
+	// View Edit History (ONLY IF the message has been edited)
+	if mCopy.Edited {
+		historyBtn := gtk.NewButton()
+		historyBtn.AddCSSClass("flat")
+		historyBtn.AddCSSClass("popover-menu-btn")
+		hBox := gtk.NewBox(gtk.OrientationHorizontal, 10)
+		hBox.Append(gtk.NewImageFromIconName("document-revert-symbolic"))
+		hBox.Append(gtk.NewLabel("View Edit History"))
+		historyBtn.SetChild(hBox)
+		historyBtn.ConnectClicked(func() {
+			popover.Popdown()
+			c.showEditHistoryDialog(mCopy)
+		})
+		menuBox.Append(historyBtn)
 	}
 
 	// 1. Star / Unstar
@@ -2624,6 +2963,557 @@ func (c *whatsDownMainController) attachMessageContextMenu(widget gtk.Widgetter,
 		popover.Popup()
 	})
 	w.AddController(gesture)
+}
+
+// attachStickerContextMenu configures left and right click actions on sticker bubbles.
+func (c *whatsDownMainController) attachStickerContextMenu(widget gtk.Widgetter, msg StoredMessage) {
+	w := gtk.BaseWidget(widget)
+	popover := gtk.NewPopover()
+	popover.SetParent(w)
+	popover.SetHasArrow(true)
+	popover.AddCSSClass("popover-menu-box")
+
+	mCopy := msg
+
+	populate := func() {
+		menuBox := gtk.NewBox(gtk.OrientationVertical, 2)
+		menuBox.SetMarginTop(4)
+		menuBox.SetMarginBottom(4)
+		menuBox.SetMarginStart(4)
+		menuBox.SetMarginEnd(4)
+
+		isSaved := c.isStickerSaved(mCopy)
+
+		// 1. Save Sticker / Remove from Saved Stickers
+		saveBtn := gtk.NewButton()
+		saveBtn.AddCSSClass("flat")
+		saveBtn.AddCSSClass("popover-menu-btn")
+		saveRow := gtk.NewBox(gtk.OrientationHorizontal, 10)
+		if isSaved {
+			saveRow.Append(gtk.NewImageFromIconName("user-trash-symbolic"))
+			saveRow.Append(gtk.NewLabel("Remove from Saved Stickers"))
+			saveBtn.SetChild(saveRow)
+			saveBtn.ConnectClicked(func() {
+				popover.Popdown()
+				c.removeSavedStickerByMessage(mCopy)
+			})
+		} else {
+			saveRow.Append(gtk.NewImageFromIconName("star-new-symbolic"))
+			saveRow.Append(gtk.NewLabel("Save Sticker"))
+			saveBtn.SetChild(saveRow)
+			saveBtn.ConnectClicked(func() {
+				popover.Popdown()
+				c.saveStickerFromMessage(mCopy)
+			})
+		}
+		menuBox.Append(saveBtn)
+
+		// 2. Open as Image
+		openBtn := gtk.NewButton()
+		openBtn.AddCSSClass("flat")
+		openBtn.AddCSSClass("popover-menu-btn")
+		openRow := gtk.NewBox(gtk.OrientationHorizontal, 10)
+		openRow.Append(gtk.NewImageFromIconName("insert-image-symbolic"))
+		openRow.Append(gtk.NewLabel("Open as Image"))
+		openBtn.SetChild(openRow)
+		openBtn.ConnectClicked(func() {
+			popover.Popdown()
+			openMedia(mCopy, nil)
+		})
+		menuBox.Append(openBtn)
+
+		// 3. Reply
+		if mCopy.Kind != messageKindDeleted {
+			replyBtn := gtk.NewButton()
+			replyBtn.AddCSSClass("flat")
+			replyBtn.AddCSSClass("popover-menu-btn")
+			rBox := gtk.NewBox(gtk.OrientationHorizontal, 10)
+			rBox.Append(gtk.NewImageFromIconName("mail-reply-sender-symbolic"))
+			rBox.Append(gtk.NewLabel("Reply"))
+			replyBtn.SetChild(rBox)
+			replyBtn.ConnectClicked(func() {
+				popover.Popdown()
+				c.startReply(mCopy)
+			})
+			menuBox.Append(replyBtn)
+		}
+
+		// 4. Star / Unstar
+		starText := "Star Message"
+		starIcon := "starred-symbolic"
+		if mCopy.Starred {
+			starText = "Unstar Message"
+			starIcon = "non-starred-symbolic"
+		}
+		starBtn := gtk.NewButton()
+		starBtn.AddCSSClass("flat")
+		starBtn.AddCSSClass("popover-menu-btn")
+		sBox := gtk.NewBox(gtk.OrientationHorizontal, 10)
+		sBox.Append(gtk.NewImageFromIconName(starIcon))
+		sBox.Append(gtk.NewLabel(starText))
+		starBtn.SetChild(sBox)
+		starBtn.ConnectClicked(func() {
+			popover.Popdown()
+			c.toggleMessageStarred(mCopy)
+		})
+		menuBox.Append(starBtn)
+
+		// 5. Copy Sticker
+		copyBtn := gtk.NewButton()
+		copyBtn.AddCSSClass("flat")
+		copyBtn.AddCSSClass("popover-menu-btn")
+		cBox := gtk.NewBox(gtk.OrientationHorizontal, 10)
+		cBox.Append(gtk.NewImageFromIconName("edit-copy-symbolic"))
+		cBox.Append(gtk.NewLabel("Copy Sticker"))
+		copyBtn.SetChild(cBox)
+		copyBtn.ConnectClicked(func() {
+			popover.Popdown()
+			copyMediaToClipboard(mCopy)
+		})
+		menuBox.Append(copyBtn)
+
+		// 6. Show in File Manager
+		fmBtn := gtk.NewButton()
+		fmBtn.AddCSSClass("flat")
+		fmBtn.AddCSSClass("popover-menu-btn")
+		fBox := gtk.NewBox(gtk.OrientationHorizontal, 10)
+		fBox.Append(gtk.NewImageFromIconName("folder-open-symbolic"))
+		fBox.Append(gtk.NewLabel("Show in File Manager"))
+		fmBtn.SetChild(fBox)
+		fmBtn.ConnectClicked(func() {
+			popover.Popdown()
+			showMediaInFileManager(mCopy)
+		})
+		menuBox.Append(fmBtn)
+
+		popover.SetChild(menuBox)
+	}
+
+	gesture := gtk.NewGestureClick()
+	gesture.SetButton(0)
+	gesture.ConnectPressed(func(nPress int, x, y float64) {
+		populate()
+		rect := gdk.NewRectangle(int(x), int(y), 1, 1)
+		popover.SetPointingTo(&rect)
+		popover.Popup()
+	})
+	w.AddController(gesture)
+}
+
+// isStickerSaved checks if a sticker message has already been saved to the user's collection.
+func (c *whatsDownMainController) isStickerSaved(msg StoredMessage) bool {
+	if c.savedStickerHashes != nil {
+		if c.savedStickerHashes[msg.ID] {
+			return true
+		}
+		localPath := getLocalMediaPath(msg)
+		if fi, err := os.Stat(localPath); err == nil && fi.Size() > 0 {
+			if data, err := os.ReadFile(localPath); err == nil {
+				hash := fmt.Sprintf("%x", sha256.Sum256(data))
+				if c.savedStickerHashes[hash] {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// saveStickerFromMessage saves a sticker from a chat message into the user's personal sticker collection.
+func (c *whatsDownMainController) saveStickerFromMessage(msg StoredMessage) {
+	go func() {
+		localPath, err := downloadMedia(context.Background(), msg)
+		if err != nil {
+			log.Printf("saving sticker: download failed: %v", err)
+			return
+		}
+
+		data, err := os.ReadFile(localPath)
+		if err != nil {
+			log.Printf("saving sticker: reading file failed: %v", err)
+			return
+		}
+
+		hash := fmt.Sprintf("%x", sha256.Sum256(data))
+		destDir := savedStickersDir()
+		destFile := filepath.Join(destDir, hash+".webp")
+		_ = os.WriteFile(destFile, data, 0o600)
+
+		sticker := SavedSticker{
+			ID:       hash,
+			FilePath: destFile,
+			FileHash: hash,
+			Width:    512,
+			Height:   512,
+			SavedAt:  time.Now(),
+		}
+		if waMsg := parseE2EMessage(msg.Raw); waMsg != nil && waMsg.GetStickerMessage() != nil {
+			if w := int(waMsg.GetStickerMessage().GetWidth()); w > 0 {
+				sticker.Width = w
+			}
+			if h := int(waMsg.GetStickerMessage().GetHeight()); h > 0 {
+				sticker.Height = h
+			}
+		}
+
+		if msgStore != nil {
+			_ = msgStore.saveSticker(context.Background(), sticker)
+		}
+
+		glib.IdleAdd(func() {
+			c.loadSavedStickersUI()
+		})
+	}()
+}
+
+// removeSavedStickerByMessage deletes a sticker associated with a message from saved stickers.
+func (c *whatsDownMainController) removeSavedStickerByMessage(msg StoredMessage) {
+	localPath := getLocalMediaPath(msg)
+	var hash string
+	if data, err := os.ReadFile(localPath); err == nil {
+		hash = fmt.Sprintf("%x", sha256.Sum256(data))
+	}
+	if hash != "" {
+		c.removeSavedSticker(hash)
+	}
+	c.removeSavedSticker(msg.ID)
+}
+
+// removeSavedSticker deletes a saved sticker by ID or hash.
+func (c *whatsDownMainController) removeSavedSticker(id string) {
+	if msgStore != nil {
+		_ = msgStore.deleteSavedSticker(context.Background(), id)
+	}
+	glib.IdleAdd(func() {
+		c.loadSavedStickersUI()
+	})
+}
+
+// loadSavedStickersUI populates the sticker popover flowbox with the user's saved stickers.
+func (c *whatsDownMainController) loadSavedStickersUI() {
+	if msgStore == nil || c.stickerFlowbox == nil {
+		return
+	}
+
+	stickers, err := msgStore.listSavedStickers(context.Background())
+	if err != nil {
+		log.Printf("listing saved stickers: %v", err)
+		return
+	}
+
+	c.savedStickers = stickers
+	c.savedStickerHashes = make(map[string]bool)
+	for _, s := range stickers {
+		c.savedStickerHashes[s.ID] = true
+		if s.FileHash != "" {
+			c.savedStickerHashes[s.FileHash] = true
+		}
+	}
+
+	for {
+		ch := c.stickerFlowbox.FirstChild()
+		if ch == nil {
+			break
+		}
+		c.stickerFlowbox.Remove(ch)
+	}
+
+	if len(stickers) == 0 {
+		if c.stickerEmptyBox != nil {
+			c.stickerEmptyBox.SetVisible(true)
+		}
+		if c.stickerScrolledWindow != nil {
+			c.stickerScrolledWindow.SetVisible(false)
+		}
+		return
+	}
+
+	if c.stickerEmptyBox != nil {
+		c.stickerEmptyBox.SetVisible(false)
+	}
+	if c.stickerScrolledWindow != nil {
+		c.stickerScrolledWindow.SetVisible(true)
+	}
+
+	for _, s := range stickers {
+		stk := s
+		btn := gtk.NewButton()
+		btn.AddCSSClass("flat")
+		btn.AddCSSClass("sticker-picker-item")
+		btn.SetCursorFromName("pointer")
+		btn.SetTooltipText("Click to send")
+
+		pic := gtk.NewPicture()
+		pic.SetKeepAspectRatio(true)
+		pic.SetCanShrink(true)
+		pic.SetSizeRequest(64, 64)
+
+		if fi, err := os.Stat(stk.FilePath); err == nil && fi.Size() > 0 {
+			if tex, err := gdk.NewTextureFromFilename(stk.FilePath); err == nil && tex != nil {
+				pic.SetPaintable(tex)
+			}
+		}
+
+		btn.SetChild(pic)
+
+		// Click to send
+		btn.ConnectClicked(func() {
+			if c.stickerPopover != nil {
+				c.stickerPopover.Popdown()
+			}
+			c.sendSticker(stk.FilePath)
+		})
+
+		// Right click on sticker in picker
+		itemPopover := gtk.NewPopover()
+		itemPopover.SetParent(btn)
+		itemPopover.SetHasArrow(true)
+		itemPopover.AddCSSClass("popover-menu-box")
+
+		popBox := gtk.NewBox(gtk.OrientationVertical, 2)
+		popBox.SetMarginTop(4)
+		popBox.SetMarginBottom(4)
+		popBox.SetMarginStart(4)
+		popBox.SetMarginEnd(4)
+
+		sendItem := gtk.NewButton()
+		sendItem.AddCSSClass("flat")
+		sendItem.AddCSSClass("popover-menu-btn")
+		sRow := gtk.NewBox(gtk.OrientationHorizontal, 8)
+		sRow.Append(gtk.NewImageFromIconName("mail-send-symbolic"))
+		sRow.Append(gtk.NewLabel("Send Sticker"))
+		sendItem.SetChild(sRow)
+		sendItem.ConnectClicked(func() {
+			itemPopover.Popdown()
+			if c.stickerPopover != nil {
+				c.stickerPopover.Popdown()
+			}
+			c.sendSticker(stk.FilePath)
+		})
+		popBox.Append(sendItem)
+
+		delItem := gtk.NewButton()
+		delItem.AddCSSClass("flat")
+		delItem.AddCSSClass("popover-menu-btn")
+		dRow := gtk.NewBox(gtk.OrientationHorizontal, 8)
+		dRow.Append(gtk.NewImageFromIconName("user-trash-symbolic"))
+		dRow.Append(gtk.NewLabel("Remove from Saved"))
+		delItem.SetChild(dRow)
+		delItem.ConnectClicked(func() {
+			itemPopover.Popdown()
+			c.removeSavedSticker(stk.ID)
+		})
+		popBox.Append(delItem)
+
+		itemPopover.SetChild(popBox)
+
+		rGesture := gtk.NewGestureClick()
+		rGesture.SetButton(3)
+		rGesture.ConnectPressed(func(nPress int, x, y float64) {
+			rect := gdk.NewRectangle(int(x), int(y), 1, 1)
+			itemPopover.SetPointingTo(&rect)
+			itemPopover.Popup()
+		})
+		btn.AddController(rGesture)
+
+		c.stickerFlowbox.Append(btn)
+	}
+}
+
+// openFileChooserForSticker allows the user to import an image from disk to save as a sticker.
+func (c *whatsDownMainController) openFileChooserForSticker() {
+	title := "Choose Image for Sticker"
+	dialog := gtk.NewFileChooserNative(title, &c.window.Window, gtk.FileChooserActionOpen, "_Select", "_Cancel")
+
+	filter := gtk.NewFileFilter()
+	filter.SetName("Sticker Images (*.webp, *.png, *.jpg, *.jpeg)")
+	filter.AddMIMEType("image/webp")
+	filter.AddMIMEType("image/png")
+	filter.AddMIMEType("image/jpeg")
+	filter.AddPattern("*.webp")
+	filter.AddPattern("*.WEBP")
+	filter.AddPattern("*.png")
+	filter.AddPattern("*.PNG")
+	filter.AddPattern("*.jpg")
+	filter.AddPattern("*.jpeg")
+	filter.AddPattern("*.JPG")
+	filter.AddPattern("*.JPEG")
+	dialog.SetFilter(filter)
+
+	dialog.ConnectResponse(func(responseId int) {
+		if responseId == int(gtk.ResponseAccept) {
+			if file := dialog.File(); file != nil {
+				path := file.Path()
+				if path != "" {
+					c.addNewStickerFromFile(path)
+				}
+			}
+		}
+		dialog.Destroy()
+	})
+	dialog.Show()
+}
+
+// addNewStickerFromFile converts and saves an external image into the user's saved stickers collection.
+func (c *whatsDownMainController) addNewStickerFromFile(filePath string) {
+	go func() {
+		data, err := ensureWebPSticker(filePath)
+		if err != nil {
+			log.Printf("adding sticker from file %s: %v", filePath, err)
+			return
+		}
+
+		hash := fmt.Sprintf("%x", sha256.Sum256(data))
+		destFile := filepath.Join(savedStickersDir(), hash+".webp")
+		_ = os.WriteFile(destFile, data, 0o600)
+
+		sticker := SavedSticker{
+			ID:       hash,
+			FilePath: destFile,
+			FileHash: hash,
+			Width:    512,
+			Height:   512,
+			SavedAt:  time.Now(),
+		}
+
+		if msgStore != nil {
+			_ = msgStore.saveSticker(context.Background(), sticker)
+		}
+
+		glib.IdleAdd(func() {
+			c.loadSavedStickersUI()
+		})
+	}()
+}
+
+// sendSticker sends a sticker to the currently active conversation.
+func (c *whatsDownMainController) sendSticker(filePath string) {
+	if c.currentChat == nil {
+		return
+	}
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		log.Printf("reading sticker file %s: %v", filePath, err)
+		return
+	}
+
+	chatJIDStr := c.currentChat.JID
+	if c.isSelfJID(chatJIDStr) {
+		if canonical := c.getCanonicalSelfJID(); canonical != "" {
+			chatJIDStr = canonical
+		}
+	}
+
+	var ctxInfo *waE2E.ContextInfo
+	if c.replyingTo != nil {
+		ctxInfo = c.buildReplyContextInfo(*c.replyingTo)
+		c.cancelReply()
+	}
+
+	go func() {
+		ctx := context.Background()
+		var msgID string
+		var rawProto []byte
+
+		if waClient != nil {
+			targetJID, err := types.ParseJID(chatJIDStr)
+			if err != nil {
+				log.Printf("parsing JID for sticker send: %v", err)
+				return
+			}
+
+			uploadResp, err := waClient.Upload(ctx, data, whatsmeow.MediaImage)
+			if err != nil {
+				log.Printf("uploading sticker to WhatsApp: %v", err)
+				return
+			}
+
+			fileLength := uint64(len(data))
+			stkMsg := &waE2E.StickerMessage{
+				URL:           &uploadResp.URL,
+				DirectPath:    &uploadResp.DirectPath,
+				MediaKey:      uploadResp.MediaKey,
+				FileEncSHA256: uploadResp.FileEncSHA256,
+				FileSHA256:    uploadResp.FileSHA256,
+				FileLength:    &fileLength,
+				Mimetype:      proto.String("image/webp"),
+				Width:         proto.Uint32(512),
+				Height:        proto.Uint32(512),
+				ContextInfo:   ctxInfo,
+			}
+			var waMsg waE2E.Message
+			waMsg.StickerMessage = stkMsg
+
+			resp, err := waClient.SendMessage(ctx, targetJID, &waMsg)
+			if err != nil {
+				log.Printf("sending sticker message: %v", err)
+				return
+			}
+			msgID = resp.ID
+			rawProto, _ = proto.Marshal(&waMsg)
+		} else {
+			msgID = fmt.Sprintf("dev_sticker_%d", time.Now().UnixNano())
+			var waMsg waE2E.Message
+			waMsg.StickerMessage = &waE2E.StickerMessage{
+				Mimetype:    proto.String("image/webp"),
+				Width:       proto.Uint32(512),
+				Height:      proto.Uint32(512),
+				ContextInfo: ctxInfo,
+			}
+			rawProto, _ = proto.Marshal(&waMsg)
+		}
+
+		initStatus := MessageStatusSent
+		if c.isSelfJID(chatJIDStr) {
+			initStatus = MessageStatusRead
+		}
+
+		sentMsg := StoredMessage{
+			ChatJID:     chatJIDStr,
+			ID:          msgID,
+			SenderJID:   "me",
+			FromMe:      true,
+			Timestamp:   time.Now(),
+			Kind:        messageKindSticker,
+			Text:        "",
+			Raw:         rawProto,
+			Status:      initStatus,
+			SenderSaved: true,
+		}
+		if waClient != nil && waClient.Store != nil && waClient.Store.ID != nil {
+			sentMsg.SenderJID = waClient.Store.ID.ToNonAD().String()
+		}
+
+		destPath := getLocalMediaPath(sentMsg)
+		_ = os.WriteFile(destPath, data, 0o600)
+
+		if msgStore != nil {
+			_, _ = msgStore.db.ExecContext(ctx, `
+				INSERT INTO whatsdown_messages (chat_jid, id, sender_jid, sender_name, from_me, timestamp, kind, text, raw, status)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				ON CONFLICT (chat_jid, id) DO UPDATE SET status = MAX(whatsdown_messages.status, excluded.status)`,
+				sentMsg.ChatJID, sentMsg.ID, sentMsg.SenderJID, "", 1, sentMsg.Timestamp.Unix(), sentMsg.Kind, sentMsg.Text, sentMsg.Raw, sentMsg.Status)
+
+			_, _ = msgStore.db.ExecContext(ctx, `
+				UPDATE whatsdown_chats SET last_message_at = ? WHERE jid = ?`,
+				sentMsg.Timestamp.Unix(), sentMsg.ChatJID)
+
+			glib.IdleAdd(func() {
+				if c.currentChat != nil && (c.currentChat.JID == chatJIDStr || (c.isSelfJID(c.currentChat.JID) && c.isSelfJID(chatJIDStr))) {
+					c.currentMessages = append(c.currentMessages, sentMsg)
+					bubble := c.createMessageBubble(sentMsg)
+					if c.messageRowMap != nil {
+						c.messageRowMap[sentMsg.ID] = bubble
+					}
+					c.messagesList.Append(bubble)
+					c.scrollToBottomAnimated()
+				}
+				c.loadChats()
+				c.loadArchivedChats()
+			})
+		}
+	}()
 }
 
 // toggleMessageStarred flips the starred status of a message and updates the database & WhatsApp.
@@ -2712,6 +3602,189 @@ func (c *whatsDownMainController) cancelReply() {
 	if c.replyPreviewBar != nil {
 		c.replyPreviewBar.SetVisible(false)
 	}
+}
+
+// startEditing populates the messageEntry with the message text and reveals the edit banner.
+func (c *whatsDownMainController) startEditing(msg StoredMessage) {
+	c.cancelReply()
+	mCopy := msg
+	c.editingMessage = &mCopy
+	if c.editBannerText != nil {
+		c.editBannerText.SetText(msg.Text)
+	}
+	if c.editBannerBar != nil {
+		c.editBannerBar.SetVisible(true)
+	}
+	if c.messageEntry != nil {
+		c.messageEntry.SetText(msg.Text)
+		c.messageEntry.SetPosition(len([]rune(msg.Text)))
+		c.messageEntry.GrabFocus()
+	}
+}
+
+// cancelEditing clears the active message editing state and hides the edit banner.
+func (c *whatsDownMainController) cancelEditing() {
+	c.editingMessage = nil
+	if c.editBannerBar != nil {
+		c.editBannerBar.SetVisible(false)
+	}
+	if c.messageEntry != nil {
+		c.messageEntry.SetText("")
+	}
+}
+
+// submitEdit updates the message in local storage and sends the edit protocol message via WhatsApp.
+func (c *whatsDownMainController) submitEdit(msg StoredMessage, newText string) {
+	c.cancelEditing()
+	if strings.TrimSpace(newText) == "" || newText == msg.Text {
+		return
+	}
+
+	// 1. Save edit to local DB (archiving previous version)
+	if msgStore != nil {
+		if err := msgStore.saveMessageEdit(context.Background(), msg.ChatJID, msg.ID, newText); err != nil {
+			log.Printf("saving message edit: %v", err)
+		}
+	}
+
+	// 2. Send edit via WhatsApp if connected
+	if waClient != nil {
+		targetJID, err := types.ParseJID(msg.ChatJID)
+		if err == nil {
+			editMsg := waClient.BuildEdit(targetJID, msg.ID, &waE2E.Message{
+				Conversation: proto.String(newText),
+			})
+			go func() {
+				_, err := waClient.SendMessage(context.Background(), targetJID, editMsg)
+				if err != nil {
+					log.Printf("sending edit message: %v", err)
+				}
+			}()
+		}
+	}
+
+	// 3. Reload active chat messages
+	if c.currentChat != nil && c.currentChat.JID == msg.ChatJID {
+		c.loadMessages(msg.ChatJID)
+	}
+	c.loadChats()
+}
+
+// showEditHistoryDialog displays a modal dialog showing previous versions and the latest edit of a message.
+func (c *whatsDownMainController) showEditHistoryDialog(msg StoredMessage) {
+	var edits []MessageEdit
+	if msgStore != nil {
+		var err error
+		edits, err = msgStore.getMessageEdits(context.Background(), msg.ChatJID, msg.ID)
+		if err != nil {
+			log.Printf("fetching message edits: %v", err)
+		}
+	}
+
+	win := adw.NewWindow()
+	win.SetTransientFor(&c.window.Window)
+	win.SetModal(true)
+	win.SetTitle("Edit History")
+	win.SetDefaultSize(440, 480)
+
+	tbView := adw.NewToolbarView()
+	hb := adw.NewHeaderBar()
+	hb.SetTitleWidget(adw.NewWindowTitle("Edit History", cleanPhoneNumber(msg.ChatJID)))
+	tbView.AddTopBar(hb)
+
+	scrolled := gtk.NewScrolledWindow()
+	scrolled.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+	scrolled.SetVExpand(true)
+
+	mainBox := gtk.NewBox(gtk.OrientationVertical, 12)
+	mainBox.SetMarginTop(16)
+	mainBox.SetMarginBottom(16)
+	mainBox.SetMarginStart(16)
+	mainBox.SetMarginEnd(16)
+
+	// List of historical edits
+	for i, e := range edits {
+		versionLabel := fmt.Sprintf("Edit %d", i+1)
+		if i == 0 {
+			versionLabel = "Original Message"
+		}
+
+		card := gtk.NewBox(gtk.OrientationVertical, 8)
+		card.AddCSSClass("card")
+		card.AddCSSClass("edit-history-card")
+		card.SetMarginBottom(8)
+
+		topRow := gtk.NewBox(gtk.OrientationHorizontal, 8)
+		tag := gtk.NewLabel(versionLabel)
+		tag.AddCSSClass("caption")
+		tag.AddCSSClass("dim-label")
+		tag.SetHExpand(true)
+		tag.SetXAlign(0)
+
+		timeLbl := gtk.NewLabel(e.EditedAt.Format("02 Jan 15:04"))
+		timeLbl.AddCSSClass("caption")
+		timeLbl.AddCSSClass("dim-label")
+		timeLbl.SetXAlign(1)
+
+		topRow.Append(tag)
+		topRow.Append(timeLbl)
+		card.Append(topRow)
+
+		markup, _ := FormatWhatsAppMarkdownForBubble(e.Text, nil, nil)
+		textLbl := gtk.NewLabel("")
+		textLbl.SetWrap(true)
+		textLbl.SetWrapMode(pango.WrapWordChar)
+		textLbl.SetXAlign(0)
+		textLbl.SetSelectable(true)
+		if _, _, _, err := pango.ParseMarkup(markup, 0); err == nil {
+			textLbl.SetMarkup(markup)
+		} else {
+			textLbl.SetText(e.Text)
+		}
+		card.Append(textLbl)
+		mainBox.Append(card)
+	}
+
+	// Current / Latest version
+	currentCard := gtk.NewBox(gtk.OrientationVertical, 8)
+	currentCard.AddCSSClass("card")
+	currentCard.AddCSSClass("edit-history-card")
+	currentCard.AddCSSClass("edit-history-card-latest")
+
+	topRow := gtk.NewBox(gtk.OrientationHorizontal, 8)
+	tag := gtk.NewLabel("Latest Version (Current)")
+	tag.AddCSSClass("caption")
+	tag.AddCSSClass("accent")
+	tag.SetHExpand(true)
+	tag.SetXAlign(0)
+
+	timeLbl := gtk.NewLabel(msg.Timestamp.Format("02 Jan 15:04"))
+	timeLbl.AddCSSClass("caption")
+	timeLbl.AddCSSClass("dim-label")
+	timeLbl.SetXAlign(1)
+
+	topRow.Append(tag)
+	topRow.Append(timeLbl)
+	currentCard.Append(topRow)
+
+	markup, _ := FormatWhatsAppMarkdownForBubble(msg.Text, nil, nil)
+	textLbl := gtk.NewLabel("")
+	textLbl.SetWrap(true)
+	textLbl.SetWrapMode(pango.WrapWordChar)
+	textLbl.SetXAlign(0)
+	textLbl.SetSelectable(true)
+	if _, _, _, err := pango.ParseMarkup(markup, 0); err == nil {
+		textLbl.SetMarkup(markup)
+	} else {
+		textLbl.SetText(msg.Text)
+	}
+	currentCard.Append(textLbl)
+	mainBox.Append(currentCard)
+
+	scrolled.SetChild(mainBox)
+	tbView.SetContent(scrolled)
+	win.SetContent(tbView)
+	win.Present()
 }
 
 // buildReplyContextInfo constructs a waE2E.ContextInfo quoting the specified message.
@@ -2967,6 +4040,16 @@ func (c *whatsDownMainController) sendMessage() {
 		return
 	}
 	c.messageEntry.SetText("")
+	c.messageEntry.SetAttributes(pango.NewAttrList())
+	if c.markdownPreviewBar != nil {
+		c.markdownPreviewBar.SetVisible(false)
+	}
+
+	if c.editingMessage != nil {
+		targetMsg := *c.editingMessage
+		c.submitEdit(targetMsg, text)
+		return
+	}
 
 	var ctxInfo *waE2E.ContextInfo
 	if c.replyingTo != nil {
@@ -3009,6 +4092,10 @@ func (c *whatsDownMainController) sendMessage() {
 		}
 
 		rawProto, _ := proto.Marshal(&waMsg)
+		initStatus := MessageStatusSent
+		if c.isSelfJID(chatJIDStr) {
+			initStatus = MessageStatusRead
+		}
 		if msgStore != nil {
 			sentMsg := StoredMessage{
 				ChatJID:   chatJIDStr,
@@ -3019,12 +4106,13 @@ func (c *whatsDownMainController) sendMessage() {
 				Kind:      messageKindText,
 				Text:      text,
 				Raw:       rawProto,
+				Status:    initStatus,
 			}
 			_, _ = msgStore.db.ExecContext(ctx, `
-				INSERT INTO whatsdown_messages (chat_jid, id, sender_jid, sender_name, from_me, timestamp, kind, text, raw)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-				ON CONFLICT (chat_jid, id) DO NOTHING`,
-				sentMsg.ChatJID, sentMsg.ID, sentMsg.SenderJID, "", 1, sentMsg.Timestamp.Unix(), sentMsg.Kind, sentMsg.Text, sentMsg.Raw)
+				INSERT INTO whatsdown_messages (chat_jid, id, sender_jid, sender_name, from_me, timestamp, kind, text, raw, status)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				ON CONFLICT (chat_jid, id) DO UPDATE SET status = MAX(whatsdown_messages.status, excluded.status)`,
+				sentMsg.ChatJID, sentMsg.ID, sentMsg.SenderJID, "", 1, sentMsg.Timestamp.Unix(), sentMsg.Kind, sentMsg.Text, sentMsg.Raw, sentMsg.Status)
 
 			_, _ = msgStore.db.ExecContext(ctx, `
 				UPDATE whatsdown_chats SET last_message_at = ? WHERE jid = ?`,
@@ -3038,12 +4126,7 @@ func (c *whatsDownMainController) sendMessage() {
 						c.messageRowMap[sentMsg.ID] = bubble
 					}
 					c.messagesList.Append(bubble)
-					c.messagesList.InvalidateFilter()
-					c.scrollToBottom()
-					glib.TimeoutAdd(50, func() bool {
-						c.scrollToBottom()
-						return false
-					})
+					c.scrollToBottomAnimated()
 				}
 				c.loadChats()
 				c.loadArchivedChats()
@@ -3526,6 +4609,10 @@ func (c *whatsDownMainController) sendAttachment(filePath, caption string) {
 			rawProto, _ = proto.Marshal(&waMsg)
 		}
 
+		initStatus := MessageStatusSent
+		if c.isSelfJID(chatJIDStr) {
+			initStatus = MessageStatusRead
+		}
 		sentMsg := StoredMessage{
 			ChatJID:     chatJIDStr,
 			ID:          msgID,
@@ -3536,6 +4623,7 @@ func (c *whatsDownMainController) sendAttachment(filePath, caption string) {
 			Kind:        kind,
 			Text:        caption,
 			Raw:         rawProto,
+			Status:      initStatus,
 			SenderSaved: true,
 		}
 
@@ -3544,10 +4632,10 @@ func (c *whatsDownMainController) sendAttachment(filePath, caption string) {
 
 		if msgStore != nil {
 			_, _ = msgStore.db.ExecContext(ctx, `
-				INSERT INTO whatsdown_messages (chat_jid, id, sender_jid, sender_name, from_me, timestamp, kind, text, raw)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-				ON CONFLICT (chat_jid, id) DO NOTHING`,
-				sentMsg.ChatJID, sentMsg.ID, sentMsg.SenderJID, "", 1, sentMsg.Timestamp.Unix(), sentMsg.Kind, sentMsg.Text, sentMsg.Raw)
+				INSERT INTO whatsdown_messages (chat_jid, id, sender_jid, sender_name, from_me, timestamp, kind, text, raw, status)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				ON CONFLICT (chat_jid, id) DO UPDATE SET status = MAX(whatsdown_messages.status, excluded.status)`,
+				sentMsg.ChatJID, sentMsg.ID, sentMsg.SenderJID, "", 1, sentMsg.Timestamp.Unix(), sentMsg.Kind, sentMsg.Text, sentMsg.Raw, sentMsg.Status)
 
 			_, _ = msgStore.db.ExecContext(ctx, `
 				UPDATE whatsdown_chats SET last_message_at = ? WHERE jid = ?`,
@@ -3561,12 +4649,7 @@ func (c *whatsDownMainController) sendAttachment(filePath, caption string) {
 						c.messageRowMap[sentMsg.ID] = bubble
 					}
 					c.messagesList.Append(bubble)
-					c.messagesList.InvalidateFilter()
-					c.scrollToBottom()
-					glib.TimeoutAdd(50, func() bool {
-						c.scrollToBottom()
-						return false
-					})
+					c.scrollToBottomAnimated()
 				}
 				c.loadChats()
 				c.loadArchivedChats()
@@ -3786,6 +4869,10 @@ func (c *whatsDownMainController) sendPoll(question string, options []string, al
 			ownJID = waClient.Store.ID.ToNonAD().String()
 		}
 
+		initStatus := MessageStatusSent
+		if c.isSelfJID(chatJIDStr) {
+			initStatus = MessageStatusRead
+		}
 		sentMsg := StoredMessage{
 			ChatJID:     chatJIDStr,
 			ID:          msgID,
@@ -3796,15 +4883,16 @@ func (c *whatsDownMainController) sendPoll(question string, options []string, al
 			Kind:        messageKindPoll,
 			Text:        question,
 			Raw:         rawProto,
+			Status:      initStatus,
 			SenderSaved: true,
 		}
 
 		if msgStore != nil {
 			_, _ = msgStore.db.ExecContext(ctx, `
-				INSERT INTO whatsdown_messages (chat_jid, id, sender_jid, sender_name, from_me, timestamp, kind, text, raw)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-				ON CONFLICT (chat_jid, id) DO NOTHING`,
-				sentMsg.ChatJID, sentMsg.ID, sentMsg.SenderJID, "", 1, sentMsg.Timestamp.Unix(), sentMsg.Kind, sentMsg.Text, sentMsg.Raw)
+				INSERT INTO whatsdown_messages (chat_jid, id, sender_jid, sender_name, from_me, timestamp, kind, text, raw, status)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				ON CONFLICT (chat_jid, id) DO UPDATE SET status = MAX(whatsdown_messages.status, excluded.status)`,
+				sentMsg.ChatJID, sentMsg.ID, sentMsg.SenderJID, "", 1, sentMsg.Timestamp.Unix(), sentMsg.Kind, sentMsg.Text, sentMsg.Raw, sentMsg.Status)
 
 			_, _ = msgStore.db.ExecContext(ctx, `
 				UPDATE whatsdown_chats SET last_message_at = ? WHERE jid = ?`,
@@ -3818,12 +4906,7 @@ func (c *whatsDownMainController) sendPoll(question string, options []string, al
 						c.messageRowMap[sentMsg.ID] = bubble
 					}
 					c.messagesList.Append(bubble)
-					c.messagesList.InvalidateFilter()
-					c.scrollToBottom()
-					glib.TimeoutAdd(50, func() bool {
-						c.scrollToBottom()
-						return false
-					})
+					c.scrollToBottomAnimated()
 				}
 				c.loadChats()
 				c.loadArchivedChats()
@@ -4309,14 +5392,28 @@ func (c *whatsDownMainController) handleIncomingLiveMessage(evt *events.Message)
 	isCurrentChat := c.currentChat != nil && (c.currentChat.JID == chatStr || (c.isSelfJID(c.currentChat.JID) && isSelfChat))
 
 	if isCurrentChat {
-		c.loadMessages(c.currentChat.JID)
+		var newMsg *StoredMessage
 		if msgStore != nil {
-			if chatJID, err := types.ParseJID(chatStr); err == nil {
-				go func() {
-					_ = msgStore.markChatRead(context.Background(), chatJID)
-				}()
+			newMsg, _ = msgStore.getMessage(context.Background(), chatStr, evt.Info.ID)
+			if newMsg == nil {
+				newMsg, _ = msgStore.getMessageByID(context.Background(), evt.Info.ID)
 			}
 		}
+
+		if newMsg != nil {
+			if _, exists := c.messageRowMap[newMsg.ID]; !exists {
+				c.currentMessages = append(c.currentMessages, *newMsg)
+				bubble := c.createMessageBubble(*newMsg)
+				if c.messageRowMap != nil {
+					c.messageRowMap[newMsg.ID] = bubble
+				}
+				c.messagesList.Append(bubble)
+				c.scrollToBottomAnimated()
+			}
+		} else {
+			c.loadMessages(c.currentChat.JID)
+		}
+		c.markChatRead(chatStr)
 	}
 
 	c.loadChats()
@@ -4334,6 +5431,79 @@ func (c *whatsDownMainController) handleIncomingLiveMessage(evt *events.Message)
 			title, body := c.formatNotificationContent(evt)
 			dispatchDesktopNotification(title, body)
 		}
+	}
+}
+
+// applyStatusToLabel sets the checkmark text and CSS classes based on message delivery and read status.
+func (c *whatsDownMainController) applyStatusToLabel(lbl *gtk.Label, status int) {
+	if lbl == nil {
+		return
+	}
+	lbl.RemoveCSSClass("chat-bubble-status-sent")
+	lbl.RemoveCSSClass("chat-bubble-status-delivered")
+	lbl.RemoveCSSClass("chat-bubble-status-read")
+
+	switch status {
+	case MessageStatusRead:
+		lbl.SetText("✓✓")
+		lbl.AddCSSClass("chat-bubble-status-read")
+	case MessageStatusDelivered:
+		lbl.SetText("✓✓")
+		lbl.AddCSSClass("chat-bubble-status-delivered")
+	case MessageStatusSent:
+		lbl.SetText("✓")
+		lbl.AddCSSClass("chat-bubble-status-sent")
+	default:
+		lbl.SetText("✓✓")
+		lbl.AddCSSClass("chat-bubble-status-read")
+	}
+}
+
+// handleReceiptUpdate updates the read/delivery ticks on outgoing messages.
+func (c *whatsDownMainController) handleReceiptUpdate(ids []string, status int) {
+	for _, id := range ids {
+		if lbl, ok := c.messageStatusLabels[id]; ok && lbl != nil {
+			c.applyStatusToLabel(lbl, status)
+		}
+		for i := range c.currentMessages {
+			if c.currentMessages[i].ID == id {
+				if status > c.currentMessages[i].Status {
+					c.currentMessages[i].Status = status
+				}
+				break
+			}
+		}
+	}
+}
+
+// insertEmoji inserts the selected emoji into the message entry at the current cursor position.
+func (c *whatsDownMainController) insertEmoji(text string) {
+	if c.messageEntry == nil {
+		return
+	}
+	runes := []rune(c.messageEntry.Text())
+	pos := c.messageEntry.Position()
+	if pos < 0 || pos > len(runes) {
+		pos = len(runes)
+	}
+	newRunes := append(runes[:pos], append([]rune(text), runes[pos:]...)...)
+	c.messageEntry.SetText(string(newRunes))
+	c.messageEntry.SetPosition(pos + len([]rune(text)))
+	c.messageEntry.GrabFocus()
+}
+
+// formatStatusMarkup returns Pango markup representing delivery and read ticks.
+// Uses vertically centered Japanese periods (・) for crisp vertical alignment.
+func formatStatusMarkup(status int) string {
+	switch status {
+	case MessageStatusRead:
+		return `<span foreground="#53bdeb" font_weight="bold">・・</span>`
+	case MessageStatusDelivered:
+		return `<span alpha="85%">・・</span>`
+	case MessageStatusSent:
+		return `<span alpha="70%">・</span>`
+	default:
+		return `<span foreground="#53bdeb" font_weight="bold">・・</span>`
 	}
 }
 
@@ -4443,8 +5613,115 @@ func formatDisplayName(chat Chat) string {
 	return cleanPhoneNumber(chat.JID)
 }
 
+// formatMessagePreview formats a message into a concise single-line preview snippet.
+func formatMessagePreview(kind, text string) string {
+	cleanText := strings.TrimSpace(strings.ReplaceAll(text, "\n", " "))
+	switch kind {
+	case messageKindImage:
+		if cleanText != "" {
+			return "📷 " + cleanText
+		}
+		return "📷 Photo"
+	case messageKindVideo:
+		if cleanText != "" {
+			return "📹 " + cleanText
+		}
+		return "📹 Video"
+	case messageKindAudio:
+		return "🎵 Audio"
+	case messageKindVoice:
+		return "🎤 Voice message"
+	case messageKindDocument:
+		if cleanText != "" {
+			return "📄 " + cleanText
+		}
+		return "📄 Document"
+	case messageKindSticker:
+		return "Sticker"
+	case messageKindLocation:
+		if cleanText != "" {
+			return "📍 " + cleanText
+		}
+		return "📍 Location"
+	case messageKindContact:
+		if cleanText != "" {
+			return "👤 " + cleanText
+		}
+		return "👤 Contact"
+	case messageKindPoll:
+		if cleanText != "" {
+			return "📊 " + cleanText
+		}
+		return "📊 Poll"
+	case messageKindDeleted:
+		return "🚫 This message was deleted"
+	default:
+		if cleanText != "" {
+			return cleanText
+		}
+		return "Message"
+	}
+}
+
 // formatChatSubtitle returns the secondary line for a chat row or dialog.
+// It displays the last message sent in that chat below the user/group name.
 func formatChatSubtitle(chat Chat) string {
+	if chat.LastMessageKind != "" || chat.LastMessageText != "" {
+		preview := formatMessagePreview(chat.LastMessageKind, chat.LastMessageText)
+		isGroup := strings.HasSuffix(chat.JID, "@g.us")
+
+		if isGroup {
+			if chat.LastMessageFromMe {
+				return "You: " + preview
+			}
+			sender := chat.LastMessageSender
+			if sender != "" && !strings.Contains(sender, "@") {
+				return sender + ": " + preview
+			}
+			return preview
+		}
+
+		// 1-on-1 DM:
+		if chat.LastMessageFromMe {
+			return "You: " + preview
+		}
+		return preview
+	}
+
+	displayName := formatDisplayName(chat)
+
+	if strings.HasSuffix(chat.JID, "@g.us") {
+		return "Group"
+	}
+	if strings.HasSuffix(chat.JID, "@broadcast") {
+		return "Status"
+	}
+	if strings.HasSuffix(chat.JID, "@newsletter") {
+		return "Channel"
+	}
+
+	// For phone DMs: show phone number if different from display name
+	if strings.HasSuffix(chat.JID, "@s.whatsapp.net") {
+		phone := cleanPhoneNumber(chat.JID)
+		if phone != "" && phone != displayName {
+			return phone
+		}
+		return ""
+	}
+
+	// For LID DMs: show phone number if resolved from LID mapping
+	if strings.HasSuffix(chat.JID, "@lid") {
+		if strings.HasPrefix(chat.Name, "+") && chat.Name != displayName {
+			return chat.Name
+		}
+		return ""
+	}
+
+	return ""
+}
+
+// formatTopbarSubtitle returns the secondary line for the active conversation header bar.
+func formatTopbarSubtitle(chat Chat) string {
 	displayName := formatDisplayName(chat)
 
 	if strings.HasSuffix(chat.JID, "@g.us") {

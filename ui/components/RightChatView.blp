@@ -1,0 +1,410 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.ToolbarView right_chat_view {
+  [top]
+  Adw.HeaderBar {
+    title-widget: Gtk.Button active_chat_btn {
+      valign: center;
+      styles ["flat", "active-chat-btn"]
+      tooltip-text: _("View contact details and shared media");
+
+      child: Gtk.Box {
+        spacing: 10;
+        valign: center;
+
+        Adw.Avatar active_chat_avatar {
+          size: 34;
+          show-initials: true;
+        }
+
+        Adw.WindowTitle active_chat_title {
+          title: "WhatsDown";
+        }
+
+        Gtk.Image {
+          icon-name: "go-next-symbolic";
+          valign: center;
+          styles ["dim-label", "active-chat-chevron"]
+        }
+      };
+    };
+
+    [end]
+    Gtk.ToggleButton chat_search_btn {
+      icon-name: "edit-find-symbolic";
+      tooltip-text: _("Search messages in this conversation");
+      valign: center;
+    }
+  }
+
+  [top]
+  Gtk.SearchBar chat_search_bar {
+    child: Gtk.Box {
+      orientation: horizontal;
+      spacing: 6;
+
+      Gtk.SearchEntry chat_search_entry {
+        placeholder-text: _("Search in conversation…");
+        hexpand: true;
+      }
+
+      Gtk.Label chat_search_count_label {
+        label: "";
+        styles ["dim-label", "caption"]
+      }
+
+      Gtk.Button chat_search_prev_btn {
+        icon-name: "go-up-symbolic";
+        tooltip-text: _("Previous match");
+        styles ["flat"]
+      }
+
+      Gtk.Button chat_search_next_btn {
+        icon-name: "go-down-symbolic";
+        tooltip-text: _("Next match");
+        styles ["flat"]
+      }
+    };
+  }
+
+  content: Gtk.Stack content_stack {
+    Gtk.StackPage {
+      name: "empty";
+      child: Adw.StatusPage empty_status_page {
+        icon-name: "chat-message-new-symbolic";
+        title: _("No Chat Selected");
+        description: _("Select a chat from the sidebar to view messages.");
+      };
+    }
+
+    Gtk.StackPage {
+      name: "settings";
+      child: Adw.StatusPage settings_status_page {
+        icon-name: "preferences-system-symbolic";
+        title: _("Settings");
+        description: _("Manage your account and preferences.");
+      };
+    }
+
+    Gtk.StackPage {
+      name: "chat";
+      child: Gtk.Box chat_page {
+        orientation: vertical;
+        styles ["chat-page"]
+
+        Gtk.Overlay {
+          vexpand: true;
+          hexpand: true;
+
+          child: Gtk.ScrolledWindow messages_scrolled_window {
+            hscrollbar-policy: never;
+            vscrollbar-policy: automatic;
+            vexpand: true;
+
+            Gtk.ListBox messages_list {
+              selection-mode: none;
+              styles ["chat-messages-list"]
+            }
+          };
+
+          [overlay]
+          Gtk.Button scroll_to_bottom_btn {
+            icon-name: "go-down-symbolic";
+            tooltip-text: _("Scroll to bottom");
+            halign: end;
+            valign: end;
+            margin-end: 14;
+            margin-bottom: 14;
+            visible: false;
+            styles ["circular", "suggested-action", "scroll-bottom-fab"]
+          }
+        }
+
+        Gtk.Box edit_banner_bar {
+          visible: false;
+          orientation: horizontal;
+          spacing: 8;
+          styles ["reply-preview-bar"]
+
+          Gtk.Image {
+            icon-name: "document-edit-symbolic";
+            valign: center;
+            styles ["dim-label"]
+          }
+
+          Gtk.Box {
+            orientation: vertical;
+            spacing: 2;
+            hexpand: true;
+
+            Gtk.Label {
+              label: _("Editing message");
+              xalign: 0;
+              styles ["reply-preview-sender"]
+            }
+
+            Gtk.Label edit_banner_text {
+              xalign: 0;
+              ellipsize: end;
+              max-width-chars: 60;
+              styles ["reply-preview-text"]
+            }
+          }
+
+          Gtk.Button cancel_edit_btn {
+            icon-name: "window-close-symbolic";
+            tooltip-text: _("Cancel editing");
+            valign: center;
+            styles ["flat", "circular", "reply-cancel-btn"]
+          }
+        }
+
+        Gtk.Box reply_preview_bar {
+          visible: false;
+          orientation: horizontal;
+          spacing: 8;
+          styles ["reply-preview-bar"]
+
+          Gtk.Box {
+            orientation: vertical;
+            spacing: 2;
+            hexpand: true;
+
+            Gtk.Label reply_preview_sender {
+              xalign: 0;
+              styles ["reply-preview-sender"]
+            }
+
+            Gtk.Label reply_preview_text {
+              xalign: 0;
+              ellipsize: end;
+              max-width-chars: 60;
+              styles ["reply-preview-text"]
+            }
+          }
+
+          Gtk.Button cancel_reply_btn {
+            icon-name: "window-close-symbolic";
+            tooltip-text: _("Cancel reply");
+            valign: center;
+            styles ["flat", "circular", "reply-cancel-btn"]
+          }
+        }
+
+        Gtk.Box markdown_preview_bar {
+          visible: false;
+          orientation: horizontal;
+          spacing: 8;
+          styles ["markdown-preview-bar"]
+
+          Gtk.Image {
+            icon-name: "format-text-bold-symbolic";
+            valign: center;
+            styles ["dim-label"]
+          }
+
+          Gtk.Label {
+            label: _("Preview:");
+            valign: center;
+            styles ["caption", "dim-label"]
+          }
+
+          Gtk.Label markdown_preview_label {
+            hexpand: true;
+            xalign: 0;
+            wrap: true;
+            wrap-mode: word_char;
+            use-markup: true;
+            styles ["markdown-preview-text"]
+          }
+        }
+
+        Gtk.Box {
+          spacing: 8;
+          styles ["chat-input-bar"]
+
+          Gtk.MenuButton attach_button {
+            icon-name: "mail-attachment-symbolic";
+            tooltip-text: _("Attach");
+            valign: center;
+            styles ["flat", "circular", "chat-attach-btn"]
+
+            popover: Gtk.Popover attach_popover {
+              child: Gtk.Box {
+                orientation: vertical;
+                spacing: 4;
+                margin-top: 6;
+                margin-bottom: 6;
+                margin-start: 6;
+                margin-end: 6;
+
+                Gtk.Button attach_photo_btn {
+                  valign: center;
+                  styles ["flat"]
+                  child: Gtk.Box {
+                    spacing: 10;
+                    Gtk.Image {
+                      icon-name: "insert-image-symbolic";
+                    }
+                    Gtk.Label {
+                      label: _("Photos & Videos");
+                    }
+                  };
+                }
+
+                Gtk.Button attach_doc_btn {
+                  valign: center;
+                  styles ["flat"]
+                  child: Gtk.Box {
+                    spacing: 10;
+                    Gtk.Image {
+                      icon-name: "folder-documents-symbolic";
+                    }
+                    Gtk.Label {
+                      label: _("Document");
+                    }
+                  };
+                }
+
+                Gtk.Button attach_poll_btn {
+                  valign: center;
+                  tooltip-text: _("Create a poll");
+                  styles ["flat"]
+                  child: Gtk.Box {
+                    spacing: 10;
+                    Gtk.Image {
+                      icon-name: "view-list-bullet-symbolic";
+                    }
+                    Gtk.Label {
+                      label: _("Poll");
+                    }
+                  };
+                }
+
+                Gtk.Button attach_location_btn {
+                  valign: center;
+                  sensitive: false;
+                  tooltip-text: _("Location sharing coming soon");
+                  styles ["flat"]
+                  child: Gtk.Box {
+                    spacing: 10;
+                    Gtk.Image {
+                      icon-name: "mark-location-symbolic";
+                    }
+                    Gtk.Label {
+                      label: _("Location");
+                    }
+                  };
+                }
+              };
+            };
+          }
+
+          Gtk.MenuButton emoji_button {
+            icon-name: "face-smile-symbolic";
+            tooltip-text: _("Emojis");
+            valign: center;
+            styles ["flat", "circular", "chat-attach-btn"]
+
+            popover: Gtk.EmojiChooser emoji_chooser {
+            };
+          }
+
+          Gtk.MenuButton sticker_button {
+            icon-name: "image-x-generic-symbolic";
+            tooltip-text: _("Stickers");
+            valign: center;
+            styles ["flat", "circular", "chat-attach-btn"]
+
+            popover: Gtk.Popover sticker_popover {
+              child: Gtk.Box {
+                orientation: vertical;
+                spacing: 8;
+                width-request: 320;
+                height-request: 360;
+                margin-top: 10;
+                margin-bottom: 10;
+                margin-start: 10;
+                margin-end: 10;
+
+                Gtk.Box {
+                  orientation: horizontal;
+                  spacing: 8;
+
+                  Gtk.Label {
+                    label: _("Saved Stickers");
+                    hexpand: true;
+                    xalign: 0;
+                    styles ["heading"]
+                  }
+
+                  Gtk.Button add_sticker_btn {
+                    icon-name: "list-add-symbolic";
+                    tooltip-text: _("Add sticker from file…");
+                    valign: center;
+                    styles ["flat", "circular"]
+                  }
+                }
+
+                Gtk.ScrolledWindow sticker_scrolled_window {
+                  hscrollbar-policy: never;
+                  vscrollbar-policy: automatic;
+                  hexpand: true;
+                  vexpand: true;
+
+                  Gtk.FlowBox sticker_flowbox {
+                    valign: start;
+                    max-children-per-line: 4;
+                    min-children-per-line: 4;
+                    selection-mode: none;
+                    row-spacing: 6;
+                    column-spacing: 6;
+                    styles ["sticker-flowbox"]
+                  }
+                }
+
+                Gtk.Box sticker_empty_box {
+                  orientation: vertical;
+                  spacing: 8;
+                  valign: center;
+                  halign: center;
+                  vexpand: true;
+                  visible: false;
+
+                  Gtk.Image {
+                    icon-name: "image-x-generic-symbolic";
+                    pixel-size: 48;
+                    styles ["dim-label"]
+                  }
+
+                  Gtk.Label {
+                    label: _("No saved stickers");
+                    styles ["heading"]
+                  }
+
+                  Gtk.Label {
+                    label: _("Click on any sticker in chat to save it,\nor click + to add from an image file.");
+                    wrap: true;
+                    justify: center;
+                    styles ["caption", "dim-label"]
+                  }
+                }
+              };
+            };
+          }
+
+          Gtk.Entry message_entry {
+            hexpand: true;
+            placeholder-text: _("Type a message…");
+          }
+
+          Gtk.Button send_button {
+            icon-name: "mail-send-symbolic";
+            styles ["suggested-action"]
+          }
+        }
+      };
+    }
+  };
+}

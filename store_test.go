@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -1137,3 +1138,536 @@ func TestReplyContextAndSummarization(t *testing.T) {
 	}
 }
 
+func TestMessageStatusTracking(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("opening sqlite: %v", err)
+	}
+	defer db.Close()
+
+	store, err := openMessageStore(ctx, db)
+	if err != nil {
+		t.Fatalf("openMessageStore: %v", err)
+	}
+
+	chatJID := types.NewJID("123456789", types.DefaultUserServer)
+	msgID := "test-status-msg-1"
+
+	msg := &events.Message{
+		Info: types.MessageInfo{
+			MessageSource: types.MessageSource{
+				Chat:     chatJID,
+				Sender:   chatJID,
+				IsFromMe: true,
+			},
+			ID:        types.MessageID(msgID),
+			Timestamp: time.Unix(1700000000, 0),
+		},
+		Message: &waE2E.Message{
+			Conversation: proto.String("Outgoing status test"),
+		},
+	}
+
+	inserted, err := store.saveMessageTxWithStar(ctx, store.db, msg, false)
+	if err != nil || !inserted {
+		t.Fatalf("saveMessageTxWithStar failed: inserted=%v, err=%v", inserted, err)
+	}
+
+	stored, err := store.getMessage(ctx, chatJID.String(), msgID)
+	if err != nil {
+		t.Fatalf("getMessage failed: %v", err)
+	}
+	if stored.Status != MessageStatusSent {
+		t.Errorf("expected initial status %d (Sent), got %d", MessageStatusSent, stored.Status)
+	}
+
+	// Update to Delivered (2)
+	if err := store.updateMessageStatuses(ctx, []string{msgID}, MessageStatusDelivered); err != nil {
+		t.Fatalf("updateMessageStatuses to Delivered failed: %v", err)
+	}
+	stored, _ = store.getMessage(ctx, chatJID.String(), msgID)
+	if stored.Status != MessageStatusDelivered {
+		t.Errorf("expected status %d (Delivered), got %d", MessageStatusDelivered, stored.Status)
+	}
+
+	// Update to Read (3)
+	if err := store.updateMessageStatuses(ctx, []string{msgID}, MessageStatusRead); err != nil {
+		t.Fatalf("updateMessageStatuses to Read failed: %v", err)
+	}
+	stored, _ = store.getMessage(ctx, chatJID.String(), msgID)
+	if stored.Status != MessageStatusRead {
+		t.Errorf("expected status %d (Read), got %d", MessageStatusRead, stored.Status)
+	}
+
+	// Test non-regression: try setting Delivered on a Read message
+	if err := store.updateMessageStatuses(ctx, []string{msgID}, MessageStatusDelivered); err != nil {
+		t.Fatalf("updateMessageStatuses regression test failed: %v", err)
+	}
+	stored, _ = store.getMessage(ctx, chatJID.String(), msgID)
+	if stored.Status != MessageStatusRead {
+		t.Errorf("status regressed from Read to %d", stored.Status)
+	}
+
+	// Test listMessages preserves status
+	msgs, err := store.listMessages(ctx, chatJID.String(), time.Time{}, 10)
+	if err != nil || len(msgs) == 0 {
+		t.Fatalf("listMessages failed: %v", err)
+	}
+	if msgs[0].Status != MessageStatusRead {
+		t.Errorf("listMessages expected status %d, got %d", MessageStatusRead, msgs[0].Status)
+	}
+}
+
+func TestFormatStatusMarkup(t *testing.T) {
+	readMarkup := formatStatusMarkup(MessageStatusRead)
+	if !strings.Contains(readMarkup, "#53bdeb") || !strings.Contains(readMarkup, "・・") {
+		t.Errorf("unexpected read markup: %q", readMarkup)
+	}
+
+	delivMarkup := formatStatusMarkup(MessageStatusDelivered)
+	if !strings.Contains(delivMarkup, "・・") || strings.Contains(delivMarkup, "#53bdeb") {
+		t.Errorf("unexpected delivered markup: %q", delivMarkup)
+	}
+
+	sentMarkup := formatStatusMarkup(MessageStatusSent)
+	if !strings.Contains(sentMarkup, "・") || strings.Contains(sentMarkup, "・・") {
+		t.Errorf("unexpected sent markup: %q", sentMarkup)
+	}
+}
+
+func TestStickerMediaHelpers(t *testing.T) {
+	stickerProto := &waE2E.Message{
+		StickerMessage: &waE2E.StickerMessage{
+			URL:          proto.String("https://mmg.whatsapp.net/d/f/sticker.enc"),
+			Mimetype:     proto.String("image/webp"),
+			Width:        proto.Uint32(512),
+			Height:       proto.Uint32(512),
+			PngThumbnail: []byte("fake-png-thumbnail-bytes"),
+		},
+	}
+	raw, err := proto.Marshal(stickerProto)
+	if err != nil {
+		t.Fatalf("marshal sticker: %v", err)
+	}
+
+	txt, kind := summarizeProtoMessage(stickerProto)
+	if txt != "🏷️ Sticker" || kind != messageKindSticker {
+		t.Errorf("summarize sticker expected ('🏷️ Sticker', sticker), got (%q, %q)", txt, kind)
+	}
+
+	msg := StoredMessage{
+		ChatJID: "123456789@s.whatsapp.net",
+		ID:      "TEST_STICKER_MSG_01",
+		Kind:    messageKindSticker,
+		Raw:     raw,
+	}
+
+	mediaPath := getLocalMediaPath(msg)
+	if !strings.HasSuffix(mediaPath, ".webp") {
+		t.Errorf("expected local media path to end in .webp, got %q", mediaPath)
+	}
+
+	thumbPath := getThumbCachePath(msg)
+	if !strings.HasSuffix(thumbPath, ".png") {
+		t.Errorf("expected thumb cache path to end in .png, got %q", thumbPath)
+	}
+}
+
+func TestSavedStickersStore(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("opening sqlite: %v", err)
+	}
+	defer db.Close()
+
+	store, err := openMessageStore(ctx, db)
+	if err != nil {
+		t.Fatalf("openMessageStore: %v", err)
+	}
+
+	// 1. Initial list should be empty
+	stickers, err := store.listSavedStickers(ctx)
+	if err != nil {
+		t.Fatalf("listSavedStickers: %v", err)
+	}
+	if len(stickers) != 0 {
+		t.Errorf("expected 0 saved stickers, got %d", len(stickers))
+	}
+
+	// 2. Save a sticker
+	st1 := SavedSticker{
+		ID:       "hash_abc123",
+		FilePath: "/path/to/stk1.webp",
+		FileHash: "hash_abc123",
+		Width:    512,
+		Height:   512,
+		SavedAt:  time.Now(),
+	}
+	if err := store.saveSticker(ctx, st1); err != nil {
+		t.Fatalf("saveSticker: %v", err)
+	}
+
+	// 3. Verify isStickerSaved by ID and Hash
+	saved, err := store.isStickerSaved(ctx, "hash_abc123")
+	if err != nil || !saved {
+		t.Errorf("expected isStickerSaved=true, got %v (err: %v)", saved, err)
+	}
+
+	notSaved, err := store.isStickerSaved(ctx, "non_existent_hash")
+	if err != nil || notSaved {
+		t.Errorf("expected isStickerSaved=false for nonexistent, got %v", notSaved)
+	}
+
+	// 4. Save a second sticker and check ordering (newest first)
+	st2 := SavedSticker{
+		ID:       "hash_def456",
+		FilePath: "/path/to/stk2.webp",
+		FileHash: "hash_def456",
+		Width:    512,
+		Height:   512,
+		SavedAt:  time.Now().Add(5 * time.Second),
+	}
+	if err := store.saveSticker(ctx, st2); err != nil {
+		t.Fatalf("saveSticker st2: %v", err)
+	}
+
+	stickers, err = store.listSavedStickers(ctx)
+	if err != nil || len(stickers) != 2 {
+		t.Fatalf("expected 2 saved stickers, got %d (err: %v)", len(stickers), err)
+	}
+	if stickers[0].ID != "hash_def456" {
+		t.Errorf("expected newest sticker 'hash_def456' first, got %q", stickers[0].ID)
+	}
+
+	// 5. Delete sticker
+	if err := store.deleteSavedSticker(ctx, "hash_abc123"); err != nil {
+		t.Fatalf("deleteSavedSticker: %v", err)
+	}
+	saved, err = store.isStickerSaved(ctx, "hash_abc123")
+	if err != nil || saved {
+		t.Errorf("expected sticker to be deleted, but isStickerSaved=%v", saved)
+	}
+
+	stickers, err = store.listSavedStickers(ctx)
+	if err != nil || len(stickers) != 1 {
+		t.Errorf("expected 1 sticker remaining, got %d", len(stickers))
+	}
+}
+
+func TestMessageEditStore(t *testing.T) {
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("opening in-memory db: %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	store, err := openMessageStore(ctx, db)
+	if err != nil {
+		t.Fatalf("openMessageStore: %v", err)
+	}
+
+	chatJID := "1234567890@s.whatsapp.net"
+	msgID := "MSG_EDIT_TEST_1"
+
+	// Insert initial message
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO whatsdown_messages (id, chat_jid, sender_jid, timestamp, from_me, text, kind, status)
+		VALUES (?, ?, ?, ?, 1, ?, 'text', 1)
+	`, msgID, chatJID, chatJID, time.Now().Unix(), "Initial original text")
+	if err != nil {
+		t.Fatalf("insert message: %v", err)
+	}
+
+	// 1. Perform first edit
+	if err := store.saveMessageEdit(ctx, chatJID, msgID, "First edit text"); err != nil {
+		t.Fatalf("saveMessageEdit 1: %v", err)
+	}
+
+	// Verify message in whatsdown_messages is updated
+	var currentText string
+	var edited int
+	err = db.QueryRowContext(ctx, `SELECT text, edited FROM whatsdown_messages WHERE chat_jid = ? AND id = ?`, chatJID, msgID).Scan(&currentText, &edited)
+	if err != nil {
+		t.Fatalf("query updated message: %v", err)
+	}
+	if currentText != "First edit text" || edited != 1 {
+		t.Errorf("expected updated message text 'First edit text' and edited=1, got %q, %d", currentText, edited)
+	}
+
+	// Verify edit history has the original version
+	edits, err := store.getMessageEdits(ctx, chatJID, msgID)
+	if err != nil {
+		t.Fatalf("getMessageEdits: %v", err)
+	}
+	if len(edits) != 1 {
+		t.Fatalf("expected 1 edit in history, got %d", len(edits))
+	}
+	if edits[0].Text != "Initial original text" {
+		t.Errorf("expected history text 'Initial original text', got %q", edits[0].Text)
+	}
+
+	// 2. Perform second edit
+	if err := store.saveMessageEdit(ctx, chatJID, msgID, "Second edit text (latest)"); err != nil {
+		t.Fatalf("saveMessageEdit 2: %v", err)
+	}
+
+	edits, err = store.getMessageEdits(ctx, chatJID, msgID)
+	if err != nil {
+		t.Fatalf("getMessageEdits 2: %v", err)
+	}
+	if len(edits) != 2 {
+		t.Fatalf("expected 2 edits in history, got %d", len(edits))
+	}
+	if edits[0].Text != "Initial original text" || edits[1].Text != "First edit text" {
+		t.Errorf("unexpected edit history: %+v", edits)
+	}
+}
+
+func TestChatLastMessage(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("opening sqlite: %v", err)
+	}
+	defer db.Close()
+
+	store, err := openMessageStore(ctx, db)
+	if err != nil {
+		t.Fatalf("openMessageStore: %v", err)
+	}
+
+	dmJID := types.NewJID("111222333", types.DefaultUserServer)
+	groupJID := types.NewJID("999888777", types.GroupServer)
+	aliceJID := types.NewJID("444555666", types.DefaultUserServer)
+
+	// 1. Message in DM from other user
+	msg1 := &events.Message{
+		Info: types.MessageInfo{
+			MessageSource: types.MessageSource{
+				Chat:     dmJID,
+				Sender:   dmJID,
+				IsFromMe: false,
+			},
+			ID:        "dm-1",
+			PushName:  "Bob",
+			Timestamp: time.Unix(100, 0),
+		},
+		Message: &waE2E.Message{
+			Conversation: proto.String("Hey there!"),
+		},
+	}
+	if err := store.saveLiveMessage(ctx, msg1); err != nil {
+		t.Fatalf("saveLiveMessage dm1: %v", err)
+	}
+
+	chats, err := store.listChats(ctx)
+	if err != nil || len(chats) != 1 {
+		t.Fatalf("expected 1 chat, got %d, err: %v", len(chats), err)
+	}
+	if chats[0].LastMessageText != "Hey there!" {
+		t.Errorf("expected LastMessageText 'Hey there!', got %q", chats[0].LastMessageText)
+	}
+	if chats[0].LastMessageFromMe {
+		t.Errorf("expected LastMessageFromMe false, got true")
+	}
+	if sub := formatChatSubtitle(chats[0]); sub != "Hey there!" {
+		t.Errorf("expected subtitle 'Hey there!', got %q", sub)
+	}
+
+	// 2. Reply in DM from me
+	msg2 := &events.Message{
+		Info: types.MessageInfo{
+			MessageSource: types.MessageSource{
+				Chat:     dmJID,
+				Sender:   dmJID,
+				IsFromMe: true,
+			},
+			ID:        "dm-2",
+			PushName:  "Me",
+			Timestamp: time.Unix(200, 0),
+		},
+		Message: &waE2E.Message{
+			Conversation: proto.String("I am doing well, thanks!"),
+		},
+	}
+	if err := store.saveLiveMessage(ctx, msg2); err != nil {
+		t.Fatalf("saveLiveMessage dm2: %v", err)
+	}
+
+	chats, _ = store.listChats(ctx)
+	if chats[0].LastMessageText != "I am doing well, thanks!" {
+		t.Errorf("expected latest LastMessageText, got %q", chats[0].LastMessageText)
+	}
+	if !chats[0].LastMessageFromMe {
+		t.Errorf("expected LastMessageFromMe true, got false")
+	}
+	if sub := formatChatSubtitle(chats[0]); sub != "You: I am doing well, thanks!" {
+		t.Errorf("expected subtitle 'You: I am doing well, thanks!', got %q", sub)
+	}
+
+	// 3. Group message from Alice
+	msg3 := &events.Message{
+		Info: types.MessageInfo{
+			MessageSource: types.MessageSource{
+				Chat:     groupJID,
+				Sender:   aliceJID,
+				IsFromMe: false,
+			},
+			ID:        "grp-1",
+			PushName:  "Alice",
+			Timestamp: time.Unix(300, 0),
+		},
+		Message: &waE2E.Message{
+			Conversation: proto.String("Meeting at 5pm"),
+		},
+	}
+	if err := store.saveLiveMessage(ctx, msg3); err != nil {
+		t.Fatalf("saveLiveMessage grp1: %v", err)
+	}
+
+	grpChat, err := store.getChatOrContact(ctx, groupJID.String())
+	if err != nil {
+		t.Fatalf("getChatOrContact: %v", err)
+	}
+	if grpChat.LastMessageText != "Meeting at 5pm" {
+		t.Errorf("expected group LastMessageText 'Meeting at 5pm', got %q", grpChat.LastMessageText)
+	}
+	if grpChat.LastMessageSender != "Alice" {
+		t.Errorf("expected group LastMessageSender 'Alice', got %q", grpChat.LastMessageSender)
+	}
+	if sub := formatChatSubtitle(grpChat); sub != "Alice: Meeting at 5pm" {
+		t.Errorf("expected group subtitle 'Alice: Meeting at 5pm', got %q", sub)
+	}
+
+	// 4. Group message from me
+	msg4 := &events.Message{
+		Info: types.MessageInfo{
+			MessageSource: types.MessageSource{
+				Chat:     groupJID,
+				Sender:   aliceJID,
+				IsFromMe: true,
+			},
+			ID:        "grp-2",
+			PushName:  "Me",
+			Timestamp: time.Unix(400, 0),
+		},
+		Message: &waE2E.Message{
+			Conversation: proto.String("I will be there!"),
+		},
+	}
+	if err := store.saveLiveMessage(ctx, msg4); err != nil {
+		t.Fatalf("saveLiveMessage grp2: %v", err)
+	}
+
+	grpChat, _ = store.getChatOrContact(ctx, groupJID.String())
+	if sub := formatChatSubtitle(grpChat); sub != "You: I will be there!" {
+		t.Errorf("expected group subtitle 'You: I will be there!', got %q", sub)
+	}
+
+	// 5. Media message preview (Photo)
+	msg5 := &events.Message{
+		Info: types.MessageInfo{
+			MessageSource: types.MessageSource{
+				Chat:     dmJID,
+				Sender:   dmJID,
+				IsFromMe: false,
+			},
+			ID:        "dm-3",
+			PushName:  "Bob",
+			Timestamp: time.Unix(500, 0),
+		},
+		Message: &waE2E.Message{
+			ImageMessage: &waE2E.ImageMessage{
+				Caption: proto.String("Check this sunset!"),
+			},
+		},
+	}
+	if err := store.saveLiveMessage(ctx, msg5); err != nil {
+		t.Fatalf("saveLiveMessage dm3: %v", err)
+	}
+	chats, _ = store.listChats(ctx)
+	// Find dmJID chat
+	for _, c := range chats {
+		if c.JID == dmJID.String() {
+			if sub := formatChatSubtitle(c); sub != "📷 Check this sunset!" {
+				t.Errorf("expected image subtitle '📷 Check this sunset!', got %q", sub)
+			}
+			break
+		}
+	}
+}
+
+func TestImportStickersFromChatHistory(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("opening sqlite: %v", err)
+	}
+	defer db.Close()
+
+	store, err := openMessageStore(ctx, db)
+	if err != nil {
+		t.Fatalf("openMessageStore: %v", err)
+	}
+
+	chatJID := types.NewJID("123456789", types.DefaultUserServer)
+
+	// Create dummy sticker data and file
+	sha := []byte("12345678901234567890123456789012")
+	hash := "3132333435363738393031323334353637383930313233343536373839303132"
+	destDir := savedStickersDir()
+	destFile := destDir + "/" + hash + ".webp"
+	_ = os.WriteFile(destFile, []byte("fake-webp-data"), 0o600)
+	defer os.Remove(destFile)
+
+	stickerMsg := &events.Message{
+		Info: types.MessageInfo{
+			MessageSource: types.MessageSource{
+				Chat:     chatJID,
+				Sender:   chatJID,
+				IsFromMe: true,
+			},
+			ID:        "msg-sticker-1",
+			Timestamp: time.Unix(1700000000, 0),
+		},
+		Message: &waE2E.Message{
+			StickerMessage: &waE2E.StickerMessage{
+				URL:        proto.String("https://example.com/sticker"),
+				FileSHA256: sha,
+				Width:      proto.Uint32(512),
+				Height:     proto.Uint32(512),
+			},
+		},
+	}
+
+	if err := store.saveLiveMessage(ctx, stickerMsg); err != nil {
+		t.Fatalf("saveLiveMessage: %v", err)
+	}
+
+	imported := store.importStickersFromChatHistory(ctx, nil)
+	if imported != 1 {
+		t.Fatalf("expected 1 imported sticker, got %d", imported)
+	}
+
+	saved, err := store.isStickerSaved(ctx, hash)
+	if err != nil || !saved {
+		t.Fatalf("expected sticker %s to be saved, saved=%v, err=%v", hash, saved, err)
+	}
+
+	stickers, err := store.listSavedStickers(ctx)
+	if err != nil || len(stickers) != 1 {
+		t.Fatalf("expected 1 saved sticker in DB, got %d (err: %v)", len(stickers), err)
+	}
+	if stickers[0].Width != 512 || stickers[0].Height != 512 {
+		t.Errorf("expected 512x512, got %dx%d", stickers[0].Width, stickers[0].Height)
+	}
+
+	// Running import again should skip already saved sticker
+	importedAgain := store.importStickersFromChatHistory(ctx, nil)
+	if importedAgain != 0 {
+		t.Errorf("expected 0 imported on re-run, got %d", importedAgain)
+	}
+}

@@ -68,6 +68,18 @@
   font-size: 11pt;
 }
 
+.chat-bubble-outgoing label selection,
+.chat-bubble-outgoing label:selected {
+  background-color: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+}
+
+.chat-bubble-incoming label selection,
+.chat-bubble-incoming label:selected {
+  background-color: @accent_bg_color;
+  color: @accent_fg_color;
+}
+
 .chat-bubble-time {
   font-size: 8pt;
   margin-top: 4px;
@@ -175,6 +187,30 @@
   border-radius: 10px;
   margin-top: 4px;
   margin-bottom: 4px;
+}
+
+.chat-bubble.chat-bubble-sticker {
+  background-color: transparent !important;
+  color: inherit !important;
+  box-shadow: none !important;
+  border: none !important;
+  padding: 2px 4px;
+}
+
+.chat-bubble-sticker .chat-bubble-sticker-picture {
+  border-radius: 8px;
+}
+
+.chat-bubble-sticker .chat-bubble-sticker-footer {
+  margin-top: 2px;
+}
+
+.chat-bubble-sticker .chat-bubble-time,
+.chat-bubble-sticker .chat-bubble-status {
+  background-color: alpha(currentColor, 0.12);
+  border-radius: 6px;
+  padding: 1px 5px;
+  font-size: 8pt;
 }
 
 .media-gallery-flowbox {
@@ -450,7 +486,7 @@
 }
 
 .chat-bubble-outgoing .chat-bubble-quote-sender {
-  color: rgba(255, 255, 255, 0.95) !important;
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .chat-bubble-outgoing .chat-bubble-quote-text {
@@ -459,9 +495,61 @@
 
 /* Flash highlight when jumping to a message */
 .message-highlight .chat-bubble {
-  background-color: alpha(#3584e4, 0.4) !important;
+  background-color: alpha(#3584e4, 0.4);
   transition: background-color 0.8s ease-out;
 }
 
+.chat-bubble-status {
+  font-size: 8.5pt;
+  margin-left: 3px;
+}
 
+.chat-bubble-status-sent {
+  color: rgba(255, 255, 255, 0.65);
+}
 
+.chat-bubble-status-delivered {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.chat-bubble-status-read {
+  color: #53bdeb;
+  font-weight: 700;
+}
+
+.sticker-flowbox {
+  background-color: transparent;
+}
+
+.sticker-picker-item {
+  padding: 6px;
+  border-radius: 8px;
+  min-width: 68px;
+  min-height: 68px;
+  transition: background-color 100ms ease;
+}
+
+.sticker-picker-item:hover {
+  background-color: alpha(currentColor, 0.08);
+}
+
+.markdown-preview-bar {
+  padding: 6px 14px;
+  background-color: alpha(@view_bg_color, 0.9);
+  border-top: 1px solid alpha(@borders, 0.4);
+  border-bottom: 1px solid alpha(@borders, 0.2);
+}
+
+.markdown-preview-text {
+  font-size: 13px;
+}
+
+.edit-history-card {
+  padding: 12px 16px;
+  border-radius: 12px;
+}
+
+.edit-history-card-latest {
+  border: 1px solid alpha(@accent_color, 0.35);
+  background-color: alpha(@accent_color, 0.06);
+}

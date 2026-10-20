@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
@@ -36,7 +37,41 @@ func mediaCacheDir() string {
 	return dir
 }
 
-// parseE2EMessage parses a raw protobuf byte slice into a waE2E.Message.
+// savedStickersDir returns the directory path where personal saved stickers are stored.
+func savedStickersDir() string {
+	dir := filepath.Join(glib.GetUserDataDir(), "whatsdown", "stickers")
+	_ = os.MkdirAll(dir, 0o700)
+	return dir
+}
+
+// ensureWebPSticker reads an image and converts it into a WebP byte slice suitable for stickers.
+func ensureWebPSticker(inputPath string) ([]byte, error) {
+	ext := strings.ToLower(filepath.Ext(inputPath))
+	if ext == ".webp" {
+		return os.ReadFile(inputPath)
+	}
+
+	// Try converting to webp via magick
+	out, err := exec.Command("magick", inputPath, "-resize", "512x512>", "webp:-").Output()
+	if err == nil && len(out) > 0 {
+		return out, nil
+	}
+
+	// Fallback to ffmpeg
+	tmpOut := filepath.Join(os.TempDir(), fmt.Sprintf("stk_conv_%d.webp", time.Now().UnixNano()))
+	defer os.Remove(tmpOut)
+	cmd := exec.Command("ffmpeg", "-y", "-i", inputPath, "-vf", "scale='min(512,iw)':min'(512,ih)':force_original_aspect_ratio=decrease", tmpOut)
+	if err := cmd.Run(); err == nil {
+		if b, err := os.ReadFile(tmpOut); err == nil && len(b) > 0 {
+			return b, nil
+		}
+	}
+
+	return os.ReadFile(inputPath)
+}
+
+// parseE2EMessage parses a raw protobuf byte slice into a waE2E.Message, unwrapping
+// ephemeral and view-once wrappers if present.
 func parseE2EMessage(raw []byte) *waE2E.Message {
 	if len(raw) == 0 {
 		return nil
@@ -45,7 +80,29 @@ func parseE2EMessage(raw []byte) *waE2E.Message {
 	if err := proto.Unmarshal(raw, &msg); err != nil {
 		return nil
 	}
-	return &msg
+	return unwrapE2EMessage(&msg)
+}
+
+func unwrapE2EMessage(msg *waE2E.Message) *waE2E.Message {
+	if msg == nil {
+		return nil
+	}
+	if ephem := msg.GetEphemeralMessage(); ephem != nil && ephem.GetMessage() != nil {
+		return unwrapE2EMessage(ephem.GetMessage())
+	}
+	if vo := msg.GetViewOnceMessage(); vo != nil && vo.GetMessage() != nil {
+		return unwrapE2EMessage(vo.GetMessage())
+	}
+	if vo2 := msg.GetViewOnceMessageV2(); vo2 != nil && vo2.GetMessage() != nil {
+		return unwrapE2EMessage(vo2.GetMessage())
+	}
+	if vo2Ext := msg.GetViewOnceMessageV2Extension(); vo2Ext != nil && vo2Ext.GetMessage() != nil {
+		return unwrapE2EMessage(vo2Ext.GetMessage())
+	}
+	if docCap := msg.GetDocumentWithCaptionMessage(); docCap != nil && docCap.GetMessage() != nil {
+		return unwrapE2EMessage(docCap.GetMessage())
+	}
+	return msg
 }
 
 // extractContextInfo returns the waE2E.ContextInfo for a raw protobuf message if present.
@@ -163,7 +220,11 @@ func extractMentionedJIDs(raw []byte) []string {
 
 // getThumbCachePath computes the local file path for caching a media thumbnail.
 func getThumbCachePath(msg StoredMessage) string {
-	filename := fmt.Sprintf("thumb_%s_%s.jpg", sanitizeJIDFilename(msg.ChatJID), sanitizeJIDFilename(msg.ID))
+	ext := ".jpg"
+	if waMsg := parseE2EMessage(msg.Raw); waMsg != nil && waMsg.GetStickerMessage() != nil {
+		ext = ".png"
+	}
+	filename := fmt.Sprintf("thumb_%s_%s%s", sanitizeJIDFilename(msg.ChatJID), sanitizeJIDFilename(msg.ID), ext)
 	return filepath.Join(mediaCacheDir(), filename)
 }
 
@@ -177,44 +238,7 @@ func getMediaThumbnailTexture(msg StoredMessage) *gdk.Texture {
 	}
 	mediaTextureMu.RUnlock()
 
-	// 1. Check if thumbnail was already cached on disk
-	thumbPath := getThumbCachePath(msg)
-	if fi, err := os.Stat(thumbPath); err == nil && fi.Size() > 0 {
-		tex, err := gdk.NewTextureFromFilename(thumbPath)
-		if err == nil && tex != nil {
-			mediaTextureMu.Lock()
-			mediaTextureCache[key] = tex
-			mediaTextureMu.Unlock()
-			return tex
-		}
-	}
-
-	// 2. Check if embedded thumbnail bytes exist in protobuf
-	waMsg := parseE2EMessage(msg.Raw)
-	if waMsg != nil {
-		var thumbBytes []byte
-		switch {
-		case waMsg.GetImageMessage() != nil:
-			thumbBytes = waMsg.GetImageMessage().GetJPEGThumbnail()
-		case waMsg.GetVideoMessage() != nil:
-			thumbBytes = waMsg.GetVideoMessage().GetJPEGThumbnail()
-		case waMsg.GetDocumentMessage() != nil:
-			thumbBytes = waMsg.GetDocumentMessage().GetJPEGThumbnail()
-		}
-
-		if len(thumbBytes) > 0 {
-			_ = os.WriteFile(thumbPath, thumbBytes, 0o600)
-			tex, err := gdk.NewTextureFromFilename(thumbPath)
-			if err == nil && tex != nil {
-				mediaTextureMu.Lock()
-				mediaTextureCache[key] = tex
-				mediaTextureMu.Unlock()
-				return tex
-			}
-		}
-	}
-
-	// 3. Check if full media file is already cached on disk
+	// 1. Check if full media file is already cached on disk (highest quality)
 	localPath := getLocalMediaPath(msg)
 	if localPath != "" {
 		if fi, err := os.Stat(localPath); err == nil && fi.Size() > 0 {
@@ -241,6 +265,45 @@ func getMediaThumbnailTexture(msg StoredMessage) *gdk.Texture {
 					mediaTextureMu.Unlock()
 					return tex
 				}
+			}
+		}
+	}
+
+	// 2. Check if thumbnail was already cached on disk
+	thumbPath := getThumbCachePath(msg)
+	if fi, err := os.Stat(thumbPath); err == nil && fi.Size() > 0 {
+		tex, err := gdk.NewTextureFromFilename(thumbPath)
+		if err == nil && tex != nil {
+			mediaTextureMu.Lock()
+			mediaTextureCache[key] = tex
+			mediaTextureMu.Unlock()
+			return tex
+		}
+	}
+
+	// 3. Check if embedded thumbnail bytes exist in protobuf
+	waMsg := parseE2EMessage(msg.Raw)
+	if waMsg != nil {
+		var thumbBytes []byte
+		switch {
+		case waMsg.GetImageMessage() != nil:
+			thumbBytes = waMsg.GetImageMessage().GetJPEGThumbnail()
+		case waMsg.GetVideoMessage() != nil:
+			thumbBytes = waMsg.GetVideoMessage().GetJPEGThumbnail()
+		case waMsg.GetDocumentMessage() != nil:
+			thumbBytes = waMsg.GetDocumentMessage().GetJPEGThumbnail()
+		case waMsg.GetStickerMessage() != nil:
+			thumbBytes = waMsg.GetStickerMessage().GetPngThumbnail()
+		}
+
+		if len(thumbBytes) > 0 {
+			_ = os.WriteFile(thumbPath, thumbBytes, 0o600)
+			tex, err := gdk.NewTextureFromFilename(thumbPath)
+			if err == nil && tex != nil {
+				mediaTextureMu.Lock()
+				mediaTextureCache[key] = tex
+				mediaTextureMu.Unlock()
+				return tex
 			}
 		}
 	}
@@ -450,7 +513,7 @@ func loadMediaPreview(msg StoredMessage, picture *gtk.Picture, onLoaded func(tex
 	}
 
 	waMsg := parseE2EMessage(msg.Raw)
-	if waMsg == nil || (waMsg.GetImageMessage() == nil && waMsg.GetVideoMessage() == nil && waMsg.GetDocumentMessage() == nil) {
+	if waMsg == nil || (waMsg.GetImageMessage() == nil && waMsg.GetVideoMessage() == nil && waMsg.GetDocumentMessage() == nil && waMsg.GetStickerMessage() == nil) {
 		return
 	}
 
