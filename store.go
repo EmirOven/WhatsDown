@@ -175,6 +175,21 @@ var migrations = []string{
 	);
 	CREATE INDEX IF NOT EXISTS idx_whatsdown_calls_time ON whatsdown_calls (timestamp DESC);
 	`,
+
+	// 13: reactions support
+	`
+	CREATE TABLE IF NOT EXISTS whatsdown_reactions (
+		chat_jid    TEXT NOT NULL,
+		message_id  TEXT NOT NULL,
+		sender_jid  TEXT NOT NULL,
+		sender_name TEXT NOT NULL DEFAULT '',
+		emoji       TEXT NOT NULL,
+		from_me     INTEGER NOT NULL DEFAULT 0,
+		timestamp   INTEGER NOT NULL DEFAULT 0,
+		PRIMARY KEY (chat_jid, message_id, sender_jid)
+	);
+	CREATE INDEX IF NOT EXISTS idx_whatsdown_reactions_msg ON whatsdown_reactions (chat_jid, message_id);
+	`,
 }
 
 // Delivery / read status of outgoing messages.
@@ -461,6 +476,7 @@ func (s *messageStore) saveMessageTxWithStar(ctx context.Context, tx execer, evt
 			_, err := tx.ExecContext(ctx,
 				`UPDATE whatsdown_messages SET kind = ?, text = '', raw = NULL WHERE chat_jid = ? AND id = ?`,
 				messageKindDeleted, chat, targetID)
+			_, _ = tx.ExecContext(ctx, `DELETE FROM whatsdown_reactions WHERE chat_jid = ? AND message_id = ?`, chat, targetID)
 			return false, err
 		case waE2E.ProtocolMessage_MESSAGE_EDIT:
 			if _, text, ok := describeMessage(pm.GetEditedMessage()); ok {
@@ -474,6 +490,41 @@ func (s *messageStore) saveMessageTxWithStar(ctx context.Context, tx execer, evt
 					`UPDATE whatsdown_messages SET text = ?, raw = ?, edited = 1 WHERE chat_jid = ? AND id = ?`,
 					text, raw, chat, targetID)
 				return false, err
+			}
+		}
+		return false, nil
+	}
+
+	var rm *waE2E.ReactionMessage
+	if evt.Message != nil {
+		rm = evt.Message.GetReactionMessage()
+	}
+	if rm != nil && rm.GetKey() != nil {
+		targetID := rm.GetKey().GetID()
+		if targetID != "" {
+			emoji := rm.GetText()
+			senderJID := evt.Info.Sender.ToNonAD().String()
+			if senderJID == "" {
+				senderJID = chat
+			}
+			senderName := evt.Info.PushName
+			fromMeVal := 0
+			if evt.Info.IsFromMe {
+				fromMeVal = 1
+			}
+			ts := evt.Info.Timestamp.Unix()
+			if ts <= 0 {
+				ts = time.Now().Unix()
+			}
+			if emoji == "" {
+				_, _ = tx.ExecContext(ctx, `DELETE FROM whatsdown_reactions WHERE chat_jid = ? AND message_id = ? AND sender_jid = ?`, chat, targetID, senderJID)
+			} else {
+				_, _ = tx.ExecContext(ctx, `
+					INSERT INTO whatsdown_reactions (chat_jid, message_id, sender_jid, sender_name, emoji, from_me, timestamp)
+					VALUES (?, ?, ?, ?, ?, ?, ?)
+					ON CONFLICT(chat_jid, message_id, sender_jid)
+					DO UPDATE SET emoji = excluded.emoji, sender_name = excluded.sender_name, from_me = excluded.from_me, timestamp = excluded.timestamp`,
+					chat, targetID, senderJID, senderName, emoji, fromMeVal, ts)
 			}
 		}
 		return false, nil
@@ -684,6 +735,17 @@ type Chat struct {
 	LastMessageStatus int
 }
 
+// Reaction represents an emoji reaction on a message.
+type Reaction struct {
+	ChatJID    string    `json:"chat_jid"`
+	MessageID  string    `json:"message_id"`
+	SenderJID  string    `json:"sender_jid"`
+	SenderName string    `json:"sender_name"`
+	Emoji      string    `json:"emoji"`
+	FromMe     bool      `json:"from_me"`
+	Timestamp  time.Time `json:"timestamp"`
+}
+
 // StoredMessage is a row of whatsdown_messages (without the raw protobuf).
 type StoredMessage struct {
 	ChatJID     string
@@ -699,6 +761,7 @@ type StoredMessage struct {
 	Starred     bool
 	Status      int
 	SenderSaved bool
+	Reactions   []Reaction
 }
 
 // listChats returns all unarchived chats, pinned first, then most recently active.
@@ -1237,13 +1300,34 @@ func (s *messageStore) cleanupSelfChats(ctx context.Context) {
 	`, pnNonAD)
 }
 
-// toggleMessageStarred updates the starred status of a message.
+// resolveLIDtoPN maps a LID JID to a phone number JID if present in whatsmeow_lid_map.
+func (s *messageStore) resolveLIDtoPN(ctx context.Context, jid string) string {
+	if !strings.HasSuffix(jid, "@lid") {
+		return jid
+	}
+	clean := strings.TrimSuffix(jid, "@lid")
+	clean = strings.Split(clean, ":")[0]
+	var pn string
+	err := s.db.QueryRowContext(ctx, `SELECT pn FROM whatsmeow_lid_map WHERE lid = ? LIMIT 1`, clean).Scan(&pn)
+	if err == nil && pn != "" {
+		return pn + "@s.whatsapp.net"
+	}
+	return jid
+}
+
+// toggleMessageStarred updates the starred status of a message, handling both LID and phone number JIDs.
 func (s *messageStore) toggleMessageStarred(ctx context.Context, chatJID, id string, starred bool) error {
 	starredInt := 0
 	if starred {
 		starredInt = 1
 	}
-	_, err := s.db.ExecContext(ctx, `UPDATE whatsdown_messages SET starred = ? WHERE chat_jid = ? AND id = ?`, starredInt, chatJID, id)
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE whatsdown_messages SET starred = ?
+		WHERE id = ? AND (
+			chat_jid = ?
+			OR chat_jid IN (SELECT lid || '@lid' FROM whatsmeow_lid_map WHERE (pn || '@s.whatsapp.net') = ?)
+			OR chat_jid IN (SELECT pn || '@s.whatsapp.net' FROM whatsmeow_lid_map WHERE (lid || '@lid') = ?)
+		)`, starredInt, id, chatJID, chatJID, chatJID)
 	return err
 }
 
@@ -1421,7 +1505,20 @@ func (s *messageStore) listMessages(ctx context.Context, chatJID string, before 
 	if err != nil {
 		return nil, err
 	}
-	return scanStoredMessages(rows)
+	msgs, err := scanStoredMessages(rows)
+	if err != nil {
+		return nil, err
+	}
+	if len(msgs) > 0 {
+		if rMap, err := s.getReactionsForChat(ctx, chatJID); err == nil {
+			for i := range msgs {
+				if rList, ok := rMap[msgs[i].ID]; ok {
+					msgs[i].Reactions = rList
+				}
+			}
+		}
+	}
+	return msgs, nil
 }
 
 // getMessage returns a single stored message by chat JID and message ID.
@@ -1441,6 +1538,9 @@ func (s *messageStore) getMessage(ctx context.Context, chatJID, id string) (*Sto
 	m.Starred = starred != 0
 	m.SenderSaved = senderSaved != 0
 	m.Timestamp = time.Unix(ts, 0)
+	if rList, err := s.getReactionsForMessage(ctx, m.ChatJID, m.ID); err == nil {
+		m.Reactions = rList
+	}
 	return &m, nil
 }
 
@@ -1461,7 +1561,101 @@ func (s *messageStore) getMessageByID(ctx context.Context, id string) (*StoredMe
 	m.Starred = starred != 0
 	m.SenderSaved = senderSaved != 0
 	m.Timestamp = time.Unix(ts, 0)
+	if rList, err := s.getReactionsForMessage(ctx, m.ChatJID, m.ID); err == nil {
+		m.Reactions = rList
+	}
 	return &m, nil
+}
+
+// getReactionsForChat loads all reactions for a given chat, grouped by message ID.
+func (s *messageStore) getReactionsForChat(ctx context.Context, chatJID string) (map[string][]Reaction, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT chat_jid, message_id, sender_jid, sender_name, emoji, from_me, timestamp
+		FROM whatsdown_reactions
+		WHERE chat_jid = ?
+		ORDER BY timestamp ASC`, chatJID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	res := make(map[string][]Reaction)
+	for rows.Next() {
+		var r Reaction
+		var ts int64
+		var fromMeInt int
+		if err := rows.Scan(&r.ChatJID, &r.MessageID, &r.SenderJID, &r.SenderName, &r.Emoji, &fromMeInt, &ts); err != nil {
+			return nil, err
+		}
+		r.FromMe = fromMeInt != 0
+		r.Timestamp = time.Unix(ts, 0)
+		res[r.MessageID] = append(res[r.MessageID], r)
+	}
+	return res, rows.Err()
+}
+
+// getReactionsForMessage loads all reactions for a specific message.
+func (s *messageStore) getReactionsForMessage(ctx context.Context, chatJID, messageID string) ([]Reaction, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT chat_jid, message_id, sender_jid, sender_name, emoji, from_me, timestamp
+		FROM whatsdown_reactions
+		WHERE chat_jid = ? AND message_id = ?
+		ORDER BY timestamp ASC`, chatJID, messageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var reactions []Reaction
+	for rows.Next() {
+		var r Reaction
+		var ts int64
+		var fromMeInt int
+		if err := rows.Scan(&r.ChatJID, &r.MessageID, &r.SenderJID, &r.SenderName, &r.Emoji, &fromMeInt, &ts); err != nil {
+			return nil, err
+		}
+		r.FromMe = fromMeInt != 0
+		r.Timestamp = time.Unix(ts, 0)
+		reactions = append(reactions, r)
+	}
+	return reactions, rows.Err()
+}
+
+// saveReaction inserts or updates a reaction on a message.
+func (s *messageStore) saveReaction(ctx context.Context, r Reaction) error {
+	fromMeInt := 0
+	if r.FromMe {
+		fromMeInt = 1
+	}
+	ts := r.Timestamp.Unix()
+	if ts <= 0 {
+		ts = time.Now().Unix()
+	}
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO whatsdown_reactions (chat_jid, message_id, sender_jid, sender_name, emoji, from_me, timestamp)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(chat_jid, message_id, sender_jid)
+		DO UPDATE SET emoji = excluded.emoji, sender_name = excluded.sender_name, from_me = excluded.from_me, timestamp = excluded.timestamp`,
+		r.ChatJID, r.MessageID, r.SenderJID, r.SenderName, r.Emoji, fromMeInt, ts)
+	return err
+}
+
+// removeReaction deletes a reaction from a message by sender.
+func (s *messageStore) removeReaction(ctx context.Context, chatJID, messageID, senderJID string) error {
+	_, err := s.db.ExecContext(ctx, `
+		DELETE FROM whatsdown_reactions
+		WHERE chat_jid = ? AND message_id = ? AND sender_jid = ?`,
+		chatJID, messageID, senderJID)
+	return err
+}
+
+// removeMyReaction deletes the current user's reaction from a message.
+func (s *messageStore) removeMyReaction(ctx context.Context, chatJID, messageID string) error {
+	_, err := s.db.ExecContext(ctx, `
+		DELETE FROM whatsdown_reactions
+		WHERE chat_jid = ? AND message_id = ? AND from_me = 1`,
+		chatJID, messageID)
+	return err
 }
 
 // updateMessageStatuses updates the delivery/read status of outgoing messages.

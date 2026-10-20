@@ -331,7 +331,7 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                               <object class="GtkMenuButton" id="attach_button">
                                 <property name="icon-name">mail-attachment-symbolic</property>
                                 <property name="tooltip-text" translatable="yes">Attach</property>
-                                <property name="valign">3</property>
+                                <property name="valign">2</property>
                                 <style>
                                   <class name="flat"/>
                                   <class name="circular"/>
@@ -452,7 +452,7 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                               <object class="GtkMenuButton" id="emoji_button">
                                 <property name="icon-name">face-smile-symbolic</property>
                                 <property name="tooltip-text" translatable="yes">Emojis</property>
-                                <property name="valign">3</property>
+                                <property name="valign">2</property>
                                 <style>
                                   <class name="flat"/>
                                   <class name="circular"/>
@@ -467,7 +467,7 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                               <object class="GtkMenuButton" id="sticker_button">
                                 <property name="icon-name">image-x-generic-symbolic</property>
                                 <property name="tooltip-text" translatable="yes">Stickers</property>
-                                <property name="valign">3</property>
+                                <property name="valign">2</property>
                                 <style>
                                   <class name="flat"/>
                                   <class name="circular"/>
@@ -579,16 +579,54 @@ or click + to add from an image file.</property>
                               </object>
                             </child>
                             <child>
-                              <object class="GtkEntry" id="message_entry">
+                              <object class="GtkOverlay" id="message_entry_overlay">
                                 <property name="hexpand">true</property>
-                                <property name="placeholder-text" translatable="yes">Type a message…</property>
+                                <property name="valign">2</property>
+                                <property name="child">
+                                  <object class="GtkScrolledWindow" id="message_entry_scrolled">
+                                    <property name="hexpand">true</property>
+                                    <property name="vscrollbar-policy">2</property>
+                                    <property name="hscrollbar-policy">2</property>
+                                    <property name="propagate-natural-height">false</property>
+                                    <property name="height-request">34</property>
+                                    <style>
+                                      <class name="message-entry-container"/>
+                                    </style>
+                                    <child>
+                                      <object class="GtkTextView" id="message_entry">
+                                        <property name="wrap-mode">3</property>
+                                        <property name="accepts-tab">false</property>
+                                        <property name="left-margin">12</property>
+                                        <property name="right-margin">12</property>
+                                        <property name="top-margin">6</property>
+                                        <property name="bottom-margin">6</property>
+                                        <style>
+                                          <class name="message-text-view"/>
+                                        </style>
+                                      </object>
+                                    </child>
+                                  </object>
+                                </property>
+                                <child type="overlay">
+                                  <object class="GtkLabel" id="message_placeholder">
+                                    <property name="label" translatable="yes">Type a message…</property>
+                                    <property name="halign">1</property>
+                                    <property name="valign">3</property>
+                                    <property name="margin-start">12</property>
+                                    <property name="can-target">false</property>
+                                    <style>
+                                      <class name="dim-label"/>
+                                      <class name="message-placeholder"/>
+                                    </style>
+                                  </object>
+                                </child>
                               </object>
                             </child>
                             <child>
                               <object class="GtkButton" id="voice_record_btn">
                                 <property name="icon-name">audio-input-microphone-symbolic</property>
                                 <property name="tooltip-text" translatable="yes">Record voice message</property>
-                                <property name="valign">3</property>
+                                <property name="valign">2</property>
                                 <style>
                                   <class name="flat"/>
                                   <class name="circular"/>
@@ -599,8 +637,11 @@ or click + to add from an image file.</property>
                             <child>
                               <object class="GtkButton" id="send_button">
                                 <property name="icon-name">mail-send-symbolic</property>
+                                <property name="valign">2</property>
                                 <style>
                                   <class name="suggested-action"/>
+                                  <class name="circular"/>
+                                  <class name="chat-send-btn"/>
                                 </style>
                               </object>
                             </child>

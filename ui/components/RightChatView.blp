@@ -232,7 +232,7 @@ Adw.ToolbarView right_chat_view {
               Gtk.MenuButton attach_button {
                 icon-name: "mail-attachment-symbolic";
                 tooltip-text: _("Attach");
-                valign: center;
+                valign: end;
                 styles ["flat", "circular", "chat-attach-btn"]
 
                 popover: Gtk.Popover attach_popover {
@@ -309,7 +309,7 @@ Adw.ToolbarView right_chat_view {
               Gtk.MenuButton emoji_button {
                 icon-name: "face-smile-symbolic";
                 tooltip-text: _("Emojis");
-                valign: center;
+                valign: end;
                 styles ["flat", "circular", "chat-attach-btn"]
 
                 popover: Gtk.EmojiChooser emoji_chooser {
@@ -319,7 +319,7 @@ Adw.ToolbarView right_chat_view {
               Gtk.MenuButton sticker_button {
                 icon-name: "image-x-generic-symbolic";
                 tooltip-text: _("Stickers");
-                valign: center;
+                valign: end;
                 styles ["flat", "circular", "chat-attach-btn"]
 
                 popover: Gtk.Popover sticker_popover {
@@ -399,21 +399,51 @@ Adw.ToolbarView right_chat_view {
                 };
               }
 
-              Gtk.Entry message_entry {
+              Gtk.Overlay message_entry_overlay {
                 hexpand: true;
-                placeholder-text: _("Type a message…");
+                valign: end;
+
+                child: Gtk.ScrolledWindow message_entry_scrolled {
+                  hexpand: true;
+                  vscrollbar-policy: never;
+                  hscrollbar-policy: never;
+                  propagate-natural-height: false;
+                  height-request: 34;
+                  styles ["message-entry-container"]
+
+                  Gtk.TextView message_entry {
+                    wrap-mode: word_char;
+                    accepts-tab: false;
+                    left-margin: 12;
+                    right-margin: 12;
+                    top-margin: 6;
+                    bottom-margin: 6;
+                    styles ["message-text-view"]
+                  }
+                };
+
+                [overlay]
+                Gtk.Label message_placeholder {
+                  label: _("Type a message…");
+                  halign: start;
+                  valign: center;
+                  margin-start: 12;
+                  can-target: false;
+                  styles ["dim-label", "message-placeholder"]
+                }
               }
 
               Gtk.Button voice_record_btn {
                 icon-name: "audio-input-microphone-symbolic";
                 tooltip-text: _("Record voice message");
-                valign: center;
+                valign: end;
                 styles ["flat", "circular", "chat-attach-btn"]
               }
 
               Gtk.Button send_button {
                 icon-name: "mail-send-symbolic";
-                styles ["suggested-action"]
+                valign: end;
+                styles ["suggested-action", "circular", "chat-send-btn"]
               }
             };
           }

@@ -69,7 +69,9 @@ type whatsDownMainController struct {
 	scrollToBottomBtn      *gtk.Button
 	messagesScrolledWindow *gtk.ScrolledWindow
 	messagesList           *gtk.ListBox
-	messageEntry           *gtk.Entry
+	messageEntry           *gtk.TextView
+	messageEntryScrolled   *gtk.ScrolledWindow
+	messagePlaceholder     *gtk.Label
 	sendButton             *gtk.Button
 	attachButton           *gtk.MenuButton
 	attachPopover          *gtk.Popover
@@ -161,7 +163,9 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 	activeChatAvatar, ok5 := castObject[*adw.Avatar](builder, "active_chat_avatar")
 	activeChatTitle, ok6 := castObject[*adw.WindowTitle](builder, "active_chat_title")
 	messagesList, ok7 := castObject[*gtk.ListBox](builder, "messages_list")
-	messageEntry, ok8 := castObject[*gtk.Entry](builder, "message_entry")
+	messageEntry, ok8 := castObject[*gtk.TextView](builder, "message_entry")
+	messageEntryScrolled, _ := castObject[*gtk.ScrolledWindow](builder, "message_entry_scrolled")
+	messagePlaceholder, _ := castObject[*gtk.Label](builder, "message_placeholder")
 	sendButton, ok9 := castObject[*gtk.Button](builder, "send_button")
 	chatsNavBtn, ok10 := castObject[*gtk.Button](builder, "chats_nav_btn")
 	archivedNavBtn, ok11 := castObject[*gtk.Button](builder, "archived_nav_btn")
@@ -283,6 +287,8 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 		messagesScrolledWindow: messagesScrolledWindow,
 		messagesList:           messagesList,
 		messageEntry:           messageEntry,
+		messageEntryScrolled:   messageEntryScrolled,
+		messagePlaceholder:     messagePlaceholder,
 		sendButton:             sendButton,
 		attachButton:           attachButton,
 		attachPopover:          attachPopover,
@@ -445,7 +451,11 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 			adj.ConnectValueChanged(func() {
 				maxVal := adj.Upper() - adj.PageSize()
 				isAtBottom := maxVal <= 10 || adj.Value() >= maxVal-60
-				ctrl.autoScrollBottom = isAtBottom
+				if maxVal > 10 && adj.Value() < maxVal-120 {
+					ctrl.autoScrollBottom = false
+				} else if isAtBottom {
+					ctrl.autoScrollBottom = true
+				}
 				if scrollToBottomBtn != nil {
 					scrollToBottomBtn.SetVisible(!isAtBottom)
 				}
@@ -666,9 +676,6 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 	sendButton.ConnectClicked(func() {
 		ctrl.sendMessage()
 	})
-	messageEntry.ConnectActivate(func() {
-		ctrl.sendMessage()
-	})
 
 	if cancelReplyBtn != nil {
 		cancelReplyBtn.ConnectClicked(func() {
@@ -693,6 +700,24 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 				ctrl.cancelReply()
 				return true
 			}
+		}
+
+		// Return / Enter handling:
+		// Enter without Ctrl/Shift sends the message.
+		// Ctrl+Enter or Shift+Enter inserts a new line.
+		if val == gdk.KEY_Return || val == gdk.KEY_KP_Enter || val == gdk.KEY_ISO_Enter {
+			isCtrl := state&gdk.ControlMask != 0
+			isShift := state&gdk.ShiftMask != 0
+			if isCtrl || isShift {
+				if ctrl.messageEntry != nil {
+					if buf := ctrl.messageEntry.Buffer(); buf != nil {
+						buf.InsertAtCursor("\n")
+					}
+				}
+				return true
+			}
+			ctrl.sendMessage()
+			return true
 		}
 
 		// Check for Ctrl+V or Shift+Insert for media/file paste
@@ -736,7 +761,7 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 							} else {
 								glib.IdleAdd(func() {
 									messageEntry.GrabFocus()
-									messageEntry.SetText(txt)
+									ctrl.setMessageText(txt)
 								})
 							}
 						})
@@ -777,40 +802,42 @@ func setupMainWindow(builder *gtk.Builder) (*adw.ApplicationWindow, error) {
 	}
 	messageEntry.AddController(createFileDropTarget())
 
-	messageEntry.ConnectChanged(func() {
-		text := messageEntry.Text()
+	if buf := messageEntry.Buffer(); buf != nil {
+		buf.ConnectChanged(func() {
+			text := ctrl.getMessageText()
 
-		// If user pasted a file path / URI into the message box, immediately clear and open attachment preview
-		if targetPath, ok := parseFilePathFromText(text); ok {
-			messageEntry.SetText("")
-			glib.IdleAdd(func() {
-				ctrl.showSendAttachmentDialog(targetPath)
-			})
-			return
-		}
+			if ctrl.messagePlaceholder != nil {
+				ctrl.messagePlaceholder.SetVisible(text == "")
+			}
 
-		// 1. Live preview directly inside message box using Pango attributes
-		if attrs, err := FormatWhatsAppMarkdownForEntry(text); err == nil && attrs != nil {
-			messageEntry.SetAttributes(attrs)
-		} else {
-			messageEntry.SetAttributes(pango.NewAttrList())
-		}
+			ctrl.updateMessageEntryHeight()
 
-		// 2. Live preview bar above message box
-		if HasWhatsAppMarkdown(text) && strings.TrimSpace(text) != "" {
-			previewMarkup, _ := FormatWhatsAppMarkdownForBubble(text, nil, nil)
-			if ctrl.markdownPreviewLabel != nil {
-				ctrl.markdownPreviewLabel.SetMarkup(previewMarkup)
+			// If user pasted a file path / URI into the message box, immediately clear and open attachment preview
+			if targetPath, ok := parseFilePathFromText(text); ok {
+				ctrl.clearMessageText()
+				glib.IdleAdd(func() {
+					ctrl.showSendAttachmentDialog(targetPath)
+				})
+				return
 			}
-			if ctrl.markdownPreviewBar != nil {
-				ctrl.markdownPreviewBar.SetVisible(true)
+
+			// Live preview bar above message box
+			if HasWhatsAppMarkdown(text) && strings.TrimSpace(text) != "" {
+				previewMarkup, _ := FormatWhatsAppMarkdownForBubble(text, nil, nil)
+				if ctrl.markdownPreviewLabel != nil {
+					ctrl.markdownPreviewLabel.SetMarkup(previewMarkup)
+				}
+				if ctrl.markdownPreviewBar != nil {
+					ctrl.markdownPreviewBar.SetVisible(true)
+				}
+			} else {
+				if ctrl.markdownPreviewBar != nil {
+					ctrl.markdownPreviewBar.SetVisible(false)
+				}
 			}
-		} else {
-			if ctrl.markdownPreviewBar != nil {
-				ctrl.markdownPreviewBar.SetVisible(false)
-			}
-		}
-	})
+		})
+	}
+	ctrl.updateMessageEntryHeight()
 
 	// Populate chat lists & settings info
 	ctrl.setupVoiceRecording()
@@ -1068,7 +1095,7 @@ func (c *whatsDownMainController) renderChatList(chats []Chat, isArchived bool) 
 						communityJID:      item.JID,
 						chat:              child,
 					})
-					if c.currentChat != nil && (c.currentChat.JID == child.JID || (c.isSelfJID(c.currentChat.JID) && c.isSelfJID(child.JID))) {
+					if c.currentChat != nil && c.isSameChat(c.currentChat.JID, child.JID) {
 						listBox.SelectRow(childRow)
 					}
 				}
@@ -1083,7 +1110,7 @@ func (c *whatsDownMainController) renderChatList(chats []Chat, isArchived bool) 
 				isCommunityHeader: false,
 				chat:              *item,
 			})
-			if c.currentChat != nil && (c.currentChat.JID == item.JID || (c.isSelfJID(c.currentChat.JID) && c.isSelfJID(item.JID))) {
+			if c.currentChat != nil && c.isSameChat(c.currentChat.JID, item.JID) {
 				listBox.SelectRow(row)
 			}
 		}
@@ -1600,7 +1627,11 @@ func (c *whatsDownMainController) togglePin(chat Chat) {
 			return
 		}
 		if waClient != nil {
-			if targetJID, err := types.ParseJID(chat.JID); err == nil {
+			targetStr := chat.JID
+			if strings.HasSuffix(targetStr, "@lid") && msgStore != nil {
+				targetStr = msgStore.resolveLIDtoPN(context.Background(), targetStr)
+			}
+			if targetJID, err := types.ParseJID(targetStr); err == nil {
 				if err := waClient.SendAppState(context.Background(), appstate.BuildPin(targetJID, newPinned)); err != nil {
 					log.Printf("syncing pin to WhatsApp: %v", err)
 				}
@@ -1625,7 +1656,11 @@ func (c *whatsDownMainController) toggleMute(chat Chat) {
 			return
 		}
 		if waClient != nil {
-			if targetJID, err := types.ParseJID(chat.JID); err == nil {
+			targetStr := chat.JID
+			if strings.HasSuffix(targetStr, "@lid") && msgStore != nil {
+				targetStr = msgStore.resolveLIDtoPN(context.Background(), targetStr)
+			}
+			if targetJID, err := types.ParseJID(targetStr); err == nil {
 				if err := waClient.SendAppState(context.Background(), appstate.BuildMute(targetJID, newMuted, 0)); err != nil {
 					log.Printf("syncing mute to WhatsApp: %v", err)
 				}
@@ -1650,7 +1685,11 @@ func (c *whatsDownMainController) toggleArchive(chat Chat) {
 			return
 		}
 		if waClient != nil {
-			if targetJID, err := types.ParseJID(chat.JID); err == nil {
+			targetStr := chat.JID
+			if strings.HasSuffix(targetStr, "@lid") && msgStore != nil {
+				targetStr = msgStore.resolveLIDtoPN(context.Background(), targetStr)
+			}
+			if targetJID, err := types.ParseJID(targetStr); err == nil {
 				if err := waClient.SendAppState(context.Background(), appstate.BuildArchive(targetJID, newArchived, time.Time{}, nil)); err != nil {
 					log.Printf("syncing archive to WhatsApp: %v", err)
 				}
@@ -2261,7 +2300,13 @@ func (c *whatsDownMainController) markChatRead(chatJIDStr string) {
 	if waClient != nil {
 		go func() {
 			ctx := context.Background()
-			_ = waClient.SendAppState(ctx, appstate.BuildMarkChatAsRead(targetJID, true, time.Now(), nil))
+			targetAppJID := targetJID
+			if strings.HasSuffix(targetAppJID.String(), "@lid") && msgStore != nil {
+				if pnJID, err := types.ParseJID(msgStore.resolveLIDtoPN(ctx, targetAppJID.String())); err == nil {
+					targetAppJID = pnJID
+				}
+			}
+			_ = waClient.SendAppState(ctx, appstate.BuildMarkChatAsRead(targetAppJID, true, time.Now(), nil))
 
 			if msgStore != nil {
 				msgs, err := msgStore.listMessages(ctx, chatJIDStr, time.Time{}, 50)
@@ -2330,14 +2375,7 @@ func (c *whatsDownMainController) scrollToBottom() {
 		if maxVal > 0 {
 			adj.SetValue(maxVal)
 		} else {
-			adj.SetValue(adj.Upper())
-		}
-	}
-	if ch := c.messagesScrolledWindow.Child(); ch != nil {
-		if vp, ok := ch.(*gtk.Viewport); ok && c.messagesList != nil {
-			if last := c.messagesList.LastChild(); last != nil {
-				vp.ScrollTo(last, nil)
-			}
+			adj.SetValue(0)
 		}
 	}
 	if c.scrollToBottomBtn != nil {
@@ -2350,19 +2388,92 @@ func (c *whatsDownMainController) scrollToBottomAnimated() {
 	c.autoScrollBottom = true
 	c.scrollToBottom()
 	glib.IdleAdd(func() {
-		c.scrollToBottom()
+		if c.autoScrollBottom {
+			c.scrollToBottom()
+		}
 	})
-	glib.TimeoutAdd(40, func() bool {
-		c.scrollToBottom()
-		return false
-	})
-	glib.TimeoutAdd(120, func() bool {
-		c.scrollToBottom()
-		return false
-	})
-	glib.TimeoutAdd(300, func() bool {
-		c.scrollToBottom()
-		return false
+	delays := []uint{30, 80, 150, 300, 500, 800}
+	for _, d := range delays {
+		delay := d
+		glib.TimeoutAdd(delay, func() bool {
+			if c.autoScrollBottom {
+				c.scrollToBottom()
+			}
+			return false
+		})
+	}
+}
+
+// getMessageText returns the raw text currently inside the message input view.
+func (c *whatsDownMainController) getMessageText() string {
+	if c.messageEntry == nil {
+		return ""
+	}
+	buf := c.messageEntry.Buffer()
+	if buf == nil {
+		return ""
+	}
+	return buf.Text(buf.StartIter(), buf.EndIter(), true)
+}
+
+// setMessageText replaces the text inside the message input view and updates the placeholder.
+func (c *whatsDownMainController) setMessageText(text string) {
+	if c.messageEntry == nil {
+		return
+	}
+	buf := c.messageEntry.Buffer()
+	if buf == nil {
+		return
+	}
+	buf.SetText(text)
+	buf.PlaceCursor(buf.EndIter())
+	if c.messagePlaceholder != nil {
+		c.messagePlaceholder.SetVisible(text == "")
+	}
+	c.updateMessageEntryHeight()
+}
+
+// clearMessageText resets the message input view to empty.
+func (c *whatsDownMainController) clearMessageText() {
+	c.setMessageText("")
+}
+
+// updateMessageEntryHeight dynamically sizes the message text box between 1 and 6 lines,
+// making it scrollable if the text exceeds 6 lines.
+func (c *whatsDownMainController) updateMessageEntryHeight() {
+	if c.messageEntry == nil || c.messageEntryScrolled == nil {
+		return
+	}
+	glib.IdleAdd(func() {
+		if c.messageEntry == nil || c.messageEntryScrolled == nil {
+			return
+		}
+		buf := c.messageEntry.Buffer()
+		if buf == nil {
+			return
+		}
+		endIter := buf.EndIter()
+		yEnd, hEnd := c.messageEntry.LineYrange(endIter)
+		if hEnd <= 0 {
+			hEnd = 18
+		}
+		contentH := yEnd + hEnd + c.messageEntry.TopMargin() + c.messageEntry.BottomMargin() + 4
+
+		singleLineH := 34
+		max6LinesH := 126
+
+		targetH := contentH
+		if targetH < singleLineH {
+			targetH = singleLineH
+		}
+		if targetH > max6LinesH {
+			targetH = max6LinesH
+			c.messageEntryScrolled.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+		} else {
+			c.messageEntryScrolled.SetPolicy(gtk.PolicyNever, gtk.PolicyNever)
+		}
+		c.messageEntryScrolled.SetSizeRequest(-1, targetH)
+		c.messageEntry.ScrollToMark(buf.GetInsert(), 0, false, 0, 0)
 	})
 }
 
@@ -3381,6 +3492,26 @@ func (c *whatsDownMainController) createMessageBubble(msg StoredMessage) *gtk.Li
 	rowBox := gtk.NewBox(gtk.OrientationHorizontal, 6)
 	rowBox.AddCSSClass("message-row-box")
 
+	bubbleContainer := gtk.NewBox(gtk.OrientationVertical, 0)
+	bubbleContainer.Append(box)
+
+	if len(msg.Reactions) > 0 {
+		reactionPill := c.buildReactionPill(msg)
+		if reactionPill != nil {
+			reactionWrapper := gtk.NewBox(gtk.OrientationHorizontal, 0)
+			reactionWrapper.AddCSSClass("reaction-pill-wrapper")
+			if isOutgoing {
+				reactionWrapper.SetHAlign(gtk.AlignEnd)
+				reactionWrapper.SetMarginEnd(18)
+			} else {
+				reactionWrapper.SetHAlign(gtk.AlignStart)
+				reactionWrapper.SetMarginStart(18)
+			}
+			reactionWrapper.Append(reactionPill)
+			bubbleContainer.Append(reactionWrapper)
+		}
+	}
+
 	if msg.Kind != messageKindDeleted {
 		replyBtn := gtk.NewButton()
 		replyBtn.AddCSSClass("flat")
@@ -3411,10 +3542,10 @@ func (c *whatsDownMainController) createMessageBubble(msg StoredMessage) *gtk.Li
 		if isOutgoing {
 			rowBox.SetHAlign(gtk.AlignEnd)
 			rowBox.Append(replyBtn)
-			rowBox.Append(box)
+			rowBox.Append(bubbleContainer)
 		} else {
 			rowBox.SetHAlign(gtk.AlignStart)
-			rowBox.Append(box)
+			rowBox.Append(bubbleContainer)
 			rowBox.Append(replyBtn)
 		}
 	} else {
@@ -3423,7 +3554,7 @@ func (c *whatsDownMainController) createMessageBubble(msg StoredMessage) *gtk.Li
 		} else {
 			rowBox.SetHAlign(gtk.AlignStart)
 		}
-		rowBox.Append(box)
+		rowBox.Append(bubbleContainer)
 	}
 
 	row.SetChild(rowBox)
@@ -3445,6 +3576,15 @@ func (c *whatsDownMainController) attachMessageContextMenu(widget gtk.Widgetter,
 	menuBox.SetMarginEnd(4)
 
 	mCopy := msg
+
+	// Reactions quick bar at top of context menu
+	if mCopy.Kind != messageKindDeleted {
+		menuBox.Append(c.createReactionsBar(mCopy, popover, widget))
+		sep := gtk.NewSeparator(gtk.OrientationHorizontal)
+		sep.SetMarginTop(2)
+		sep.SetMarginBottom(4)
+		menuBox.Append(sep)
+	}
 
 	// For stickers, add Save Sticker and Open as Image options at the top of the context menu
 	if mCopy.Kind == messageKindSticker {
@@ -3622,6 +3762,13 @@ func (c *whatsDownMainController) attachStickerContextMenu(widget gtk.Widgetter,
 		menuBox.SetMarginStart(4)
 		menuBox.SetMarginEnd(4)
 
+		// Reactions bar at top of sticker context menu
+		menuBox.Append(c.createReactionsBar(mCopy, popover, widget))
+		sep := gtk.NewSeparator(gtk.OrientationHorizontal)
+		sep.SetMarginTop(2)
+		sep.SetMarginBottom(4)
+		menuBox.Append(sep)
+
 		isSaved := c.isStickerSaved(mCopy)
 
 		// 1. Save Sticker / Remove from Saved Stickers
@@ -3738,6 +3885,458 @@ func (c *whatsDownMainController) attachStickerContextMenu(widget gtk.Widgetter,
 		popover.Popup()
 	})
 	w.AddController(gesture)
+}
+
+// createReactionsBar creates the horizontal quick reactions emoji bar for the context menu.
+func (c *whatsDownMainController) createReactionsBar(msg StoredMessage, parentPopover *gtk.Popover, anchorWidget gtk.Widgetter) *gtk.Box {
+	bar := gtk.NewBox(gtk.OrientationHorizontal, 4)
+	bar.AddCSSClass("context-reactions-bar")
+	bar.SetHAlign(gtk.AlignCenter)
+
+	commonEmojis := []string{"👍", "❤️", "😂", "😮", "😢", "🙏"}
+
+	ourJID := ""
+	if waClient != nil && waClient.Store != nil && waClient.Store.ID != nil {
+		ourJID = waClient.Store.ID.ToNonAD().String()
+	}
+
+	var myReaction string
+	for _, r := range msg.Reactions {
+		if r.FromMe || (ourJID != "" && r.SenderJID == ourJID) || c.isSelfJID(r.SenderJID) {
+			myReaction = r.Emoji
+			break
+		}
+	}
+
+	mCopy := msg
+	for _, emoji := range commonEmojis {
+		e := emoji
+		btn := gtk.NewButton()
+		btn.AddCSSClass("flat")
+		btn.AddCSSClass("circular")
+		btn.AddCSSClass("reaction-quick-btn")
+		lbl := gtk.NewLabel(e)
+		lbl.SetHAlign(gtk.AlignCenter)
+		lbl.SetVAlign(gtk.AlignCenter)
+		btn.SetChild(lbl)
+		if e == myReaction {
+			btn.AddCSSClass("active")
+		}
+
+		btn.ConnectClicked(func() {
+			parentPopover.Popdown()
+			c.sendReaction(mCopy, e)
+		})
+		bar.Append(btn)
+	}
+
+	// "+" button to open the full emoji picker
+	moreBtn := gtk.NewButton()
+	moreBtn.AddCSSClass("flat")
+	moreBtn.AddCSSClass("circular")
+	moreBtn.AddCSSClass("reaction-quick-btn")
+	moreBtnIcon := gtk.NewImageFromIconName("list-add-symbolic")
+	moreBtnIcon.SetHAlign(gtk.AlignCenter)
+	moreBtnIcon.SetVAlign(gtk.AlignCenter)
+	moreBtn.SetChild(moreBtnIcon)
+	moreBtn.SetTooltipText("More emojis")
+
+	moreBtn.ConnectClicked(func() {
+		parentPopover.Popdown()
+		w := gtk.BaseWidget(anchorWidget)
+		chooser := gtk.NewEmojiChooser()
+		chooser.SetParent(w)
+		chooser.SetHasArrow(true)
+		chooser.ConnectEmojiPicked(func(text string) {
+			chooser.Popdown()
+			c.sendReaction(mCopy, text)
+		})
+		chooser.Popup()
+	})
+	bar.Append(moreBtn)
+
+	return bar
+}
+
+// sendReaction sends or removes a reaction on a message.
+func (c *whatsDownMainController) sendReaction(msg StoredMessage, emoji string) {
+	chatJID := msg.ChatJID
+	if chatJID == "" && c.currentChat != nil {
+		chatJID = c.currentChat.JID
+	}
+	if chatJID == "" {
+		return
+	}
+
+	ourJID := ""
+	if waClient != nil && waClient.Store != nil && waClient.Store.ID != nil {
+		ourJID = waClient.Store.ID.ToNonAD().String()
+	}
+
+	// Check if already reacted with this exact emoji
+	var myCurrentReaction string
+	for _, r := range msg.Reactions {
+		if r.FromMe || (ourJID != "" && r.SenderJID == ourJID) || c.isSelfJID(r.SenderJID) {
+			myCurrentReaction = r.Emoji
+			break
+		}
+	}
+
+	targetEmoji := emoji
+	if emoji != "" && emoji == myCurrentReaction {
+		targetEmoji = "" // Toggle off
+	}
+
+	// 1. Update database
+	if targetEmoji == "" {
+		if ourJID != "" {
+			_ = msgStore.removeReaction(context.Background(), chatJID, msg.ID, ourJID)
+		}
+		_ = msgStore.removeMyReaction(context.Background(), chatJID, msg.ID)
+	} else {
+		_ = msgStore.saveReaction(context.Background(), Reaction{
+			ChatJID:    chatJID,
+			MessageID:  msg.ID,
+			SenderJID:  ourJID,
+			SenderName: "You",
+			Emoji:      targetEmoji,
+			FromMe:     true,
+			Timestamp:  time.Now(),
+		})
+	}
+
+	// 2. Send over WhatsApp network if connected
+	if waClient != nil && waClient.IsConnected() {
+		cChat, err1 := types.ParseJID(chatJID)
+		cSender, err2 := types.ParseJID(msg.SenderJID)
+		if err1 == nil {
+			if msg.FromMe && waClient.Store.ID != nil {
+				cSender = waClient.Store.ID.ToNonAD()
+			}
+			if err2 != nil || cSender.IsEmpty() {
+				cSender = cChat
+			}
+			reactionMsg := waClient.BuildReaction(cChat, cSender, msg.ID, targetEmoji)
+			go func() {
+				_, err := waClient.SendMessage(context.Background(), cChat, reactionMsg)
+				if err != nil {
+					log.Printf("error sending reaction: %v", err)
+				}
+			}()
+		}
+	}
+
+	// 3. Update UI on main thread
+	glib.IdleAdd(func() {
+		c.updateMessageReactions(chatJID, msg.ID)
+	})
+}
+
+// isSameChat checks if two JIDs refer to the same conversation, taking into account self-chat and LID mappings.
+func (c *whatsDownMainController) isSameChat(jidA, jidB string) bool {
+	if jidA == "" || jidB == "" {
+		return false
+	}
+	if jidA == jidB {
+		return true
+	}
+	if c.isSelfJID(jidA) && c.isSelfJID(jidB) {
+		return true
+	}
+	if msgStore != nil {
+		ctx := context.Background()
+		pnA := msgStore.resolveLIDtoPN(ctx, jidA)
+		pnB := msgStore.resolveLIDtoPN(ctx, jidB)
+		if pnA != "" && pnB != "" && pnA == pnB {
+			return true
+		}
+	}
+	return false
+}
+
+// updateSingleMessageRow refreshes a single message bubble in place without reloading the entire chat.
+func (c *whatsDownMainController) updateSingleMessageRow(messageID string) {
+	if c.messageRowMap == nil || messageID == "" {
+		return
+	}
+	row, ok := c.messageRowMap[messageID]
+	if !ok || row == nil {
+		return
+	}
+
+	var updatedMsg *StoredMessage
+	if msgStore != nil {
+		updatedMsg, _ = msgStore.getMessageByID(context.Background(), messageID)
+	}
+	if updatedMsg == nil {
+		return
+	}
+
+	for i := range c.currentMessages {
+		if c.currentMessages[i].ID == messageID {
+			c.currentMessages[i] = *updatedMsg
+			break
+		}
+	}
+
+	newRow := c.createMessageBubble(*updatedMsg)
+	if child := newRow.Child(); child != nil {
+		newRow.SetChild(nil)
+		row.SetChild(child)
+	}
+}
+
+// updateMessageReactions refreshes the reaction pill and bubble for a message in the active chat.
+func (c *whatsDownMainController) updateMessageReactions(chatJID, messageID string) {
+	if c.currentChat == nil || !c.isSameChat(c.currentChat.JID, chatJID) {
+		return
+	}
+	c.updateSingleMessageRow(messageID)
+}
+
+// buildReactionPill builds the small reaction pill that sits at the bottom corner of a message bubble.
+func (c *whatsDownMainController) buildReactionPill(msg StoredMessage) *gtk.Button {
+	if len(msg.Reactions) == 0 {
+		return nil
+	}
+
+	btn := gtk.NewButton()
+	btn.AddCSSClass("flat")
+	btn.AddCSSClass("reaction-pill")
+	btn.SetHAlign(gtk.AlignCenter)
+	btn.SetVAlign(gtk.AlignCenter)
+
+	hasMine := false
+	emojiCounts := make(map[string]int)
+	var distinctEmojis []string
+	for _, r := range msg.Reactions {
+		if r.FromMe || c.isSelfJID(r.SenderJID) {
+			hasMine = true
+		}
+		if emojiCounts[r.Emoji] == 0 {
+			distinctEmojis = append(distinctEmojis, r.Emoji)
+		}
+		emojiCounts[r.Emoji]++
+	}
+
+	if hasMine {
+		btn.AddCSSClass("reaction-pill-mine")
+	}
+
+	pillBox := gtk.NewBox(gtk.OrientationHorizontal, 3)
+	pillBox.SetHAlign(gtk.AlignCenter)
+	pillBox.SetVAlign(gtk.AlignCenter)
+
+	emojiDisplay := ""
+	for i, e := range distinctEmojis {
+		if i >= 3 {
+			break
+		}
+		emojiDisplay += e
+	}
+	emojiLabel := gtk.NewLabel(emojiDisplay)
+	emojiLabel.AddCSSClass("reaction-pill-emojis")
+	emojiLabel.SetHAlign(gtk.AlignCenter)
+	emojiLabel.SetVAlign(gtk.AlignCenter)
+	pillBox.Append(emojiLabel)
+
+	totalCount := len(msg.Reactions)
+	if totalCount > 1 {
+		countLabel := gtk.NewLabel(fmt.Sprintf("%d", totalCount))
+		countLabel.AddCSSClass("reaction-pill-count")
+		countLabel.SetHAlign(gtk.AlignCenter)
+		countLabel.SetVAlign(gtk.AlignCenter)
+		pillBox.Append(countLabel)
+	}
+
+	btn.SetChild(pillBox)
+
+	var tooltipNames []string
+	for _, r := range msg.Reactions {
+		name := "You"
+		if !r.FromMe && !c.isSelfJID(r.SenderJID) {
+			name = c.resolveContactName(r.SenderJID)
+			if name == "" {
+				name = r.SenderName
+			}
+		}
+		tooltipNames = append(tooltipNames, fmt.Sprintf("%s (%s)", name, r.Emoji))
+	}
+	btn.SetTooltipText(strings.Join(tooltipNames, ", "))
+
+	mCopy := msg
+	btn.ConnectClicked(func() {
+		c.showReactionsListPopover(btn, mCopy)
+	})
+
+	return btn
+}
+
+// showReactionsListPopover displays a popover with the list of who gave which reaction to the message.
+func (c *whatsDownMainController) showReactionsListPopover(parent gtk.Widgetter, msg StoredMessage) {
+	w := gtk.BaseWidget(parent)
+	popover := gtk.NewPopover()
+	popover.SetParent(w)
+	popover.SetHasArrow(true)
+	popover.AddCSSClass("reactions-popover")
+
+	mainBox := gtk.NewBox(gtk.OrientationVertical, 6)
+	mainBox.SetMarginTop(8)
+	mainBox.SetMarginBottom(8)
+	mainBox.SetMarginStart(10)
+	mainBox.SetMarginEnd(10)
+
+	// Header
+	headerBox := gtk.NewBox(gtk.OrientationHorizontal, 8)
+	titleLabel := gtk.NewLabel("Reactions")
+	titleLabel.AddCSSClass("heading")
+	titleLabel.SetHAlign(gtk.AlignStart)
+	titleLabel.SetHExpand(true)
+	headerBox.Append(titleLabel)
+	mainBox.Append(headerBox)
+
+	// Emoji filter chips if more than 1 distinct emoji
+	emojiCounts := make(map[string]int)
+	var distinctEmojis []string
+	for _, r := range msg.Reactions {
+		if emojiCounts[r.Emoji] == 0 {
+			distinctEmojis = append(distinctEmojis, r.Emoji)
+		}
+		emojiCounts[r.Emoji]++
+	}
+
+	listBox := gtk.NewListBox()
+	listBox.SetSelectionMode(gtk.SelectionNone)
+	listBox.AddCSSClass("boxed-list")
+	listBox.AddCSSClass("reactions-list")
+
+	populateList := func(filterEmoji string) {
+		for {
+			row := listBox.RowAtIndex(0)
+			if row == nil {
+				break
+			}
+			listBox.Remove(row)
+		}
+
+		for _, r := range msg.Reactions {
+			if filterEmoji != "" && r.Emoji != filterEmoji {
+				continue
+			}
+
+			rCopy := r
+			row := gtk.NewListBoxRow()
+			row.SetSelectable(false)
+			row.AddCSSClass("reactions-list-row")
+
+			rowBox := gtk.NewBox(gtk.OrientationHorizontal, 10)
+			rowBox.SetMarginTop(6)
+			rowBox.SetMarginBottom(6)
+			rowBox.SetMarginStart(8)
+			rowBox.SetMarginEnd(8)
+			rowBox.SetVAlign(gtk.AlignCenter)
+
+			isMine := rCopy.FromMe || c.isSelfJID(rCopy.SenderJID)
+			name := "You"
+			if !isMine {
+				name = c.resolveContactName(rCopy.SenderJID)
+				if name == "" {
+					name = rCopy.SenderName
+				}
+			}
+
+			avatar := adw.NewAvatar(32, name, true)
+			rowBox.Append(avatar)
+
+			nameBox := gtk.NewBox(gtk.OrientationVertical, 2)
+			nameBox.SetHExpand(true)
+			nameLabel := gtk.NewLabel(name)
+			nameLabel.SetXAlign(0)
+			nameLabel.AddCSSClass("bold")
+			nameBox.Append(nameLabel)
+
+			if isMine {
+				subLabel := gtk.NewLabel("Click to remove")
+				subLabel.SetXAlign(0)
+				subLabel.AddCSSClass("dim-label")
+				subLabel.AddCSSClass("caption")
+				nameBox.Append(subLabel)
+			}
+			rowBox.Append(nameBox)
+
+			emojiLbl := gtk.NewLabel(rCopy.Emoji)
+			emojiLbl.AddCSSClass("reaction-list-emoji")
+			emojiLbl.SetVAlign(gtk.AlignCenter)
+			rowBox.Append(emojiLbl)
+
+			row.SetChild(rowBox)
+
+			if isMine {
+				clickGesture := gtk.NewGestureClick()
+				clickGesture.ConnectPressed(func(nPress int, x, y float64) {
+					popover.Popdown()
+					c.sendReaction(msg, "")
+				})
+				row.AddController(clickGesture)
+			}
+
+			listBox.Append(row)
+		}
+	}
+
+	if len(distinctEmojis) > 1 {
+		chipsBox := gtk.NewBox(gtk.OrientationHorizontal, 4)
+		chipsBox.SetMarginBottom(4)
+
+		allBtn := gtk.NewButtonWithLabel(fmt.Sprintf("All %d", len(msg.Reactions)))
+		allBtn.AddCSSClass("flat")
+		allBtn.AddCSSClass("circular")
+		allBtn.AddCSSClass("active")
+		chipsBox.Append(allBtn)
+
+		var chipBtns []*gtk.Button
+		chipBtns = append(chipBtns, allBtn)
+
+		allBtn.ConnectClicked(func() {
+			for _, b := range chipBtns {
+				b.RemoveCSSClass("active")
+			}
+			allBtn.AddCSSClass("active")
+			populateList("")
+		})
+
+		for _, e := range distinctEmojis {
+			eCopy := e
+			count := emojiCounts[eCopy]
+			chipBtn := gtk.NewButtonWithLabel(fmt.Sprintf("%s %d", eCopy, count))
+			chipBtn.AddCSSClass("flat")
+			chipBtn.AddCSSClass("circular")
+			chipsBox.Append(chipBtn)
+			chipBtns = append(chipBtns, chipBtn)
+
+			chipBtn.ConnectClicked(func() {
+				for _, b := range chipBtns {
+					b.RemoveCSSClass("active")
+				}
+				chipBtn.AddCSSClass("active")
+				populateList(eCopy)
+			})
+		}
+
+		mainBox.Append(chipsBox)
+	}
+
+	populateList("")
+
+	scrolled := gtk.NewScrolledWindow()
+	scrolled.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+	scrolled.SetPropagateNaturalHeight(true)
+	scrolled.SetMaxContentHeight(260)
+	scrolled.SetChild(listBox)
+
+	mainBox.Append(scrolled)
+	popover.SetChild(mainBox)
+	popover.Popup()
 }
 
 // isStickerSaved checks if a sticker message has already been saved to the user's collection.
@@ -4140,13 +4739,15 @@ func (c *whatsDownMainController) sendSticker(filePath string) {
 				sentMsg.Timestamp.Unix(), sentMsg.ChatJID)
 
 			glib.IdleAdd(func() {
-				if c.currentChat != nil && (c.currentChat.JID == chatJIDStr || (c.isSelfJID(c.currentChat.JID) && c.isSelfJID(chatJIDStr))) {
-					c.currentMessages = append(c.currentMessages, sentMsg)
-					bubble := c.createMessageBubble(sentMsg)
-					if c.messageRowMap != nil {
-						c.messageRowMap[sentMsg.ID] = bubble
+				if c.currentChat != nil && c.isSameChat(c.currentChat.JID, chatJIDStr) {
+					if _, exists := c.messageRowMap[sentMsg.ID]; !exists {
+						c.currentMessages = append(c.currentMessages, sentMsg)
+						bubble := c.createMessageBubble(sentMsg)
+						if c.messageRowMap != nil {
+							c.messageRowMap[sentMsg.ID] = bubble
+						}
+						c.messagesList.Append(bubble)
 					}
-					c.messagesList.Append(bubble)
 					c.scrollToBottomAnimated()
 				}
 				c.loadChats()
@@ -4163,17 +4764,39 @@ func (c *whatsDownMainController) toggleMessageStarred(msg StoredMessage) {
 	}
 	newStarred := !msg.Starred
 	go func() {
-		_ = msgStore.toggleMessageStarred(context.Background(), msg.ChatJID, msg.ID, newStarred)
-		if waClient != nil {
-			chatJID, err1 := types.ParseJID(msg.ChatJID)
-			senderJID, err2 := types.ParseJID(msg.SenderJID)
-			if err1 == nil && err2 == nil {
-				_ = waClient.SendAppState(context.Background(), appstate.BuildStar(chatJID, senderJID, types.MessageID(msg.ID), msg.FromMe, newStarred))
+		ctx := context.Background()
+		_ = msgStore.toggleMessageStarred(ctx, msg.ChatJID, msg.ID, newStarred)
+
+		chatJIDStr := msg.ChatJID
+		if strings.HasSuffix(chatJIDStr, "@lid") && msgStore != nil {
+			chatJIDStr = msgStore.resolveLIDtoPN(ctx, chatJIDStr)
+		}
+
+		if waClient != nil && waClient.IsConnected() {
+			chatJID, err1 := types.ParseJID(chatJIDStr)
+			if err1 == nil {
+				var senderJID types.JID
+				if strings.HasSuffix(chatJIDStr, "@g.us") {
+					senderJIDStr := msg.SenderJID
+					if strings.HasSuffix(senderJIDStr, "@lid") && msgStore != nil {
+						senderJIDStr = msgStore.resolveLIDtoPN(ctx, senderJIDStr)
+					}
+					senderJID, _ = types.ParseJID(senderJIDStr)
+				} else {
+					// In direct chats, WhatsApp AppState requires senderJID index to be "0".
+					// In whatsmeow BuildStar, setting sender.User == target.User produces senderJID = "0".
+					senderJID = chatJID
+				}
+				if err := waClient.SendAppState(ctx, appstate.BuildStar(chatJID, senderJID, types.MessageID(msg.ID), msg.FromMe, newStarred)); err != nil {
+					log.Printf("SendAppState BuildStar failed for %s (%s): %v", chatJIDStr, msg.ID, err)
+				}
 			}
 		}
+
+		msgID := msg.ID
 		glib.IdleAdd(func() {
-			if c.currentChat != nil && c.currentChat.JID == msg.ChatJID {
-				c.loadMessages(msg.ChatJID)
+			if c.currentChat != nil && c.isSameChat(c.currentChat.JID, msg.ChatJID) {
+				c.updateSingleMessageRow(msgID)
 			}
 		})
 	}()
@@ -4256,8 +4879,7 @@ func (c *whatsDownMainController) startEditing(msg StoredMessage) {
 		c.editBannerBar.SetVisible(true)
 	}
 	if c.messageEntry != nil {
-		c.messageEntry.SetText(msg.Text)
-		c.messageEntry.SetPosition(len([]rune(msg.Text)))
+		c.setMessageText(msg.Text)
 		c.messageEntry.GrabFocus()
 	}
 }
@@ -4268,9 +4890,7 @@ func (c *whatsDownMainController) cancelEditing() {
 	if c.editBannerBar != nil {
 		c.editBannerBar.SetVisible(false)
 	}
-	if c.messageEntry != nil {
-		c.messageEntry.SetText("")
-	}
+	c.clearMessageText()
 }
 
 // submitEdit updates the message in local storage and sends the edit protocol message via WhatsApp.
@@ -4303,9 +4923,9 @@ func (c *whatsDownMainController) submitEdit(msg StoredMessage, newText string) 
 		}
 	}
 
-	// 3. Reload active chat messages
-	if c.currentChat != nil && c.currentChat.JID == msg.ChatJID {
-		c.loadMessages(msg.ChatJID)
+	// 3. Update single message row in active chat
+	if c.currentChat != nil && c.isSameChat(c.currentChat.JID, msg.ChatJID) {
+		c.updateSingleMessageRow(msg.ID)
 	}
 	c.loadChats()
 }
@@ -4675,12 +5295,11 @@ func (c *whatsDownMainController) sendMessage() {
 		return
 	}
 
-	text := c.messageEntry.Text()
+	text := strings.TrimSpace(c.getMessageText())
 	if text == "" {
 		return
 	}
-	c.messageEntry.SetText("")
-	c.messageEntry.SetAttributes(pango.NewAttrList())
+	c.clearMessageText()
 	if c.markdownPreviewBar != nil {
 		c.markdownPreviewBar.SetVisible(false)
 	}
@@ -4709,6 +5328,8 @@ func (c *whatsDownMainController) sendMessage() {
 			chatJIDStr = canonical
 		}
 	}
+	c.autoScrollBottom = true
+	c.scrollToBottomAnimated()
 	go func() {
 		ctx := context.Background()
 		var waMsg waE2E.Message
@@ -4759,13 +5380,15 @@ func (c *whatsDownMainController) sendMessage() {
 				sentMsg.Timestamp.Unix(), sentMsg.ChatJID)
 
 			glib.IdleAdd(func() {
-				if c.currentChat != nil && (c.currentChat.JID == chatJIDStr || (c.isSelfJID(c.currentChat.JID) && c.isSelfJID(chatJIDStr))) {
-					c.currentMessages = append(c.currentMessages, sentMsg)
-					bubble := c.createMessageBubble(sentMsg)
-					if c.messageRowMap != nil {
-						c.messageRowMap[sentMsg.ID] = bubble
+				if c.currentChat != nil && c.isSameChat(c.currentChat.JID, chatJIDStr) {
+					if _, exists := c.messageRowMap[sentMsg.ID]; !exists {
+						c.currentMessages = append(c.currentMessages, sentMsg)
+						bubble := c.createMessageBubble(sentMsg)
+						if c.messageRowMap != nil {
+							c.messageRowMap[sentMsg.ID] = bubble
+						}
+						c.messagesList.Append(bubble)
 					}
-					c.messagesList.Append(bubble)
 					c.scrollToBottomAnimated()
 				}
 				c.loadChats()
@@ -5069,8 +5692,8 @@ func (c *whatsDownMainController) showSendAttachmentDialog(filePath string) {
 	captionEntry := gtk.NewEntry()
 	captionEntry.SetPlaceholderText("Add a caption…")
 	captionEntry.SetHExpand(true)
-	if c.messageEntry != nil && strings.TrimSpace(c.messageEntry.Text()) != "" {
-		captionEntry.SetText(strings.TrimSpace(c.messageEntry.Text()))
+	if c.messageEntry != nil && strings.TrimSpace(c.getMessageText()) != "" {
+		captionEntry.SetText(strings.TrimSpace(c.getMessageText()))
 	}
 	mainBox.Append(captionEntry)
 
@@ -5078,10 +5701,7 @@ func (c *whatsDownMainController) showSendAttachmentDialog(filePath string) {
 		stopCurrentAudio()
 		capText := captionEntry.Text()
 		dialog.Close()
-		if c.messageEntry != nil {
-			c.messageEntry.SetText("")
-			c.messageEntry.SetAttributes(pango.NewAttrList())
-		}
+		c.clearMessageText()
 		c.sendAttachment(filePath, capText)
 	}
 
@@ -5456,13 +6076,15 @@ func (c *whatsDownMainController) sendAttachment(filePath, caption string) {
 				sentMsg.Timestamp.Unix(), sentMsg.ChatJID)
 
 			glib.IdleAdd(func() {
-				if c.currentChat != nil && c.currentChat.JID == chatJIDStr {
-					c.currentMessages = append(c.currentMessages, sentMsg)
-					bubble := c.createMessageBubble(sentMsg)
-					if c.messageRowMap != nil {
-						c.messageRowMap[sentMsg.ID] = bubble
+				if c.currentChat != nil && c.isSameChat(c.currentChat.JID, chatJIDStr) {
+					if _, exists := c.messageRowMap[sentMsg.ID]; !exists {
+						c.currentMessages = append(c.currentMessages, sentMsg)
+						bubble := c.createMessageBubble(sentMsg)
+						if c.messageRowMap != nil {
+							c.messageRowMap[sentMsg.ID] = bubble
+						}
+						c.messagesList.Append(bubble)
 					}
-					c.messagesList.Append(bubble)
 					c.scrollToBottomAnimated()
 				}
 				c.loadChats()
@@ -5879,13 +6501,15 @@ func (c *whatsDownMainController) sendVoiceMessage(filePath string, duration tim
 				sentMsg.Timestamp.Unix(), sentMsg.ChatJID)
 
 			glib.IdleAdd(func() {
-				if c.currentChat != nil && c.currentChat.JID == chatJIDStr {
-					c.currentMessages = append(c.currentMessages, sentMsg)
-					bubble := c.createMessageBubble(sentMsg)
-					if c.messageRowMap != nil {
-						c.messageRowMap[sentMsg.ID] = bubble
+				if c.currentChat != nil && c.isSameChat(c.currentChat.JID, chatJIDStr) {
+					if _, exists := c.messageRowMap[sentMsg.ID]; !exists {
+						c.currentMessages = append(c.currentMessages, sentMsg)
+						bubble := c.createMessageBubble(sentMsg)
+						if c.messageRowMap != nil {
+							c.messageRowMap[sentMsg.ID] = bubble
+						}
+						c.messagesList.Append(bubble)
 					}
-					c.messagesList.Append(bubble)
 					c.scrollToBottomAnimated()
 				}
 				c.loadChats()
@@ -6220,13 +6844,15 @@ func (c *whatsDownMainController) sendPoll(question string, options []string, al
 				sentMsg.Timestamp.Unix(), sentMsg.ChatJID)
 
 			glib.IdleAdd(func() {
-				if c.currentChat != nil && c.currentChat.JID == chatJIDStr {
-					c.currentMessages = append(c.currentMessages, sentMsg)
-					bubble := c.createMessageBubble(sentMsg)
-					if c.messageRowMap != nil {
-						c.messageRowMap[sentMsg.ID] = bubble
+				if c.currentChat != nil && c.isSameChat(c.currentChat.JID, chatJIDStr) {
+					if _, exists := c.messageRowMap[sentMsg.ID]; !exists {
+						c.currentMessages = append(c.currentMessages, sentMsg)
+						bubble := c.createMessageBubble(sentMsg)
+						if c.messageRowMap != nil {
+							c.messageRowMap[sentMsg.ID] = bubble
+						}
+						c.messagesList.Append(bubble)
 					}
-					c.messagesList.Append(bubble)
 					c.scrollToBottomAnimated()
 				}
 				c.loadChats()
@@ -6243,12 +6869,12 @@ type pollOptWidget struct {
 	progressBar *gtk.ProgressBar
 }
 
-// reloadPollBubble refreshes the messages list if the currently viewed chat matches.
+// reloadPollBubble refreshes the specific poll bubble in the active chat.
 func (c *whatsDownMainController) reloadPollBubble(pollID string) {
 	if c.currentChat == nil {
 		return
 	}
-	c.loadMessages(c.currentChat.JID)
+	c.updateSingleMessageRow(pollID)
 }
 
 // showPollVotesDialog opens a dialog displaying who voted for each option in a poll.
@@ -6679,19 +7305,31 @@ func (c *whatsDownMainController) handleIncomingLiveMessage(evt *events.Message)
 		return
 	}
 
+	// Check if this is a protocol message (like an edit or revoke)
+	if pm := evt.Message.GetProtocolMessage(); pm != nil {
+		targetID := pm.GetKey().GetID()
+		if targetID != "" {
+			c.updateSingleMessageRow(targetID)
+			return
+		}
+	}
+
 	chatStr := evt.Info.Chat.ToNonAD().String()
-	isSelfChat := c.isSelfJID(chatStr)
-	if isSelfChat {
+	if c.isSelfJID(chatStr) {
 		if canonical := c.getCanonicalSelfJID(); canonical != "" {
 			chatStr = canonical
 		}
 	}
-	isCurrentChat := c.currentChat != nil && (c.currentChat.JID == chatStr || (c.isSelfJID(c.currentChat.JID) && isSelfChat))
+
+	isCurrentChat := c.currentChat != nil && c.isSameChat(c.currentChat.JID, chatStr)
 
 	if isCurrentChat {
 		var newMsg *StoredMessage
 		if msgStore != nil {
 			newMsg, _ = msgStore.getMessage(context.Background(), chatStr, evt.Info.ID)
+			if newMsg == nil && c.currentChat != nil {
+				newMsg, _ = msgStore.getMessage(context.Background(), c.currentChat.JID, evt.Info.ID)
+			}
 			if newMsg == nil {
 				newMsg, _ = msgStore.getMessageByID(context.Background(), evt.Info.ID)
 			}
@@ -6706,9 +7344,9 @@ func (c *whatsDownMainController) handleIncomingLiveMessage(evt *events.Message)
 				}
 				c.messagesList.Append(bubble)
 				c.scrollToBottomAnimated()
+			} else {
+				c.updateSingleMessageRow(newMsg.ID)
 			}
-		} else {
-			c.loadMessages(c.currentChat.JID)
 		}
 		c.markChatRead(chatStr)
 	}
@@ -6716,7 +7354,7 @@ func (c *whatsDownMainController) handleIncomingLiveMessage(evt *events.Message)
 	c.loadChats()
 	c.loadArchivedChats()
 
-	if !evt.Info.IsFromMe && !isSelfChat {
+	if !evt.Info.IsFromMe && !c.isSelfJID(chatStr) {
 		isMuted := false
 		if msgStore != nil {
 			if ch, err := msgStore.getChatOrContact(context.Background(), chatStr); err == nil {
@@ -6777,15 +7415,14 @@ func (c *whatsDownMainController) insertEmoji(text string) {
 	if c.messageEntry == nil {
 		return
 	}
-	runes := []rune(c.messageEntry.Text())
-	pos := c.messageEntry.Position()
-	if pos < 0 || pos > len(runes) {
-		pos = len(runes)
+	buf := c.messageEntry.Buffer()
+	if buf != nil {
+		buf.InsertAtCursor(text)
 	}
-	newRunes := append(runes[:pos], append([]rune(text), runes[pos:]...)...)
-	c.messageEntry.SetText(string(newRunes))
-	c.messageEntry.SetPosition(pos + len([]rune(text)))
 	c.messageEntry.GrabFocus()
+	if c.messagePlaceholder != nil {
+		c.messagePlaceholder.SetVisible(c.getMessageText() == "")
+	}
 }
 
 // formatStatusMarkup returns Pango markup representing delivery and read ticks.

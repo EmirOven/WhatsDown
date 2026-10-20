@@ -168,6 +168,49 @@ func TestBuildMainWindow(t *testing.T) {
 			t.Errorf("expected handleClipboardMediaPaste to return false for empty/text clipboard")
 		}
 
+		// Test multiline message entry and helper methods
+		if activeMainWindow.messageEntry == nil {
+			t.Errorf("expected messageEntry to not be nil")
+		}
+		if activeMainWindow.messageEntryScrolled == nil {
+			t.Errorf("expected messageEntryScrolled to not be nil")
+		}
+		if activeMainWindow.sendButton != nil && activeMainWindow.sendButton.VAlign() != gtk.AlignEnd {
+			t.Errorf("expected sendButton VAlign to be AlignEnd, got %v", activeMainWindow.sendButton.VAlign())
+		}
+		if activeMainWindow.attachButton != nil && activeMainWindow.attachButton.VAlign() != gtk.AlignEnd {
+			t.Errorf("expected attachButton VAlign to be AlignEnd, got %v", activeMainWindow.attachButton.VAlign())
+		}
+		if activeMainWindow.emojiButton != nil && activeMainWindow.emojiButton.VAlign() != gtk.AlignEnd {
+			t.Errorf("expected emojiButton VAlign to be AlignEnd, got %v", activeMainWindow.emojiButton.VAlign())
+		}
+		if activeMainWindow.stickerButton != nil && activeMainWindow.stickerButton.VAlign() != gtk.AlignEnd {
+			t.Errorf("expected stickerButton VAlign to be AlignEnd, got %v", activeMainWindow.stickerButton.VAlign())
+		}
+		if text := activeMainWindow.getMessageText(); text != "" {
+			t.Errorf("expected empty initial message text, got '%s'", text)
+		}
+		multilineMsg := "Hello world\nThis is line 2\nAnd line 3!"
+		activeMainWindow.setMessageText(multilineMsg)
+		if text := activeMainWindow.getMessageText(); text != multilineMsg {
+			t.Errorf("expected '%s', got '%s'", multilineMsg, text)
+		}
+		if activeMainWindow.messagePlaceholder != nil && activeMainWindow.messagePlaceholder.Visible() {
+			t.Errorf("expected placeholder to be hidden when message text is non-empty")
+		}
+		activeMainWindow.clearMessageText()
+		if text := activeMainWindow.getMessageText(); text != "" {
+			t.Errorf("expected empty message text after clear, got '%s'", text)
+		}
+		if activeMainWindow.messagePlaceholder != nil && !activeMainWindow.messagePlaceholder.Visible() {
+			t.Errorf("expected placeholder to be visible when message text is empty")
+		}
+		activeMainWindow.insertEmoji("🚀")
+		if text := activeMainWindow.getMessageText(); text != "🚀" {
+			t.Errorf("expected emoji '🚀', got '%s'", text)
+		}
+		activeMainWindow.clearMessageText()
+
 		app.Quit()
 	})
 

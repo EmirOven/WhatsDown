@@ -504,6 +504,37 @@ func TestStarredAndTabbedMessages(t *testing.T) {
 	if err != nil || len(starred) != 1 || starred[0].ID != "m-img" {
 		t.Fatalf("expected 1 starred message (m-img), got %d (%v)", len(starred), err)
 	}
+
+	// Test LID <-> PN toggleMessageStarred and resolveLIDtoPN
+	_, _ = db.ExecContext(ctx, `INSERT INTO whatsmeow_lid_map (lid, pn) VALUES ('220212351746073', '393478485526')`)
+	if resolved := store.resolveLIDtoPN(ctx, "220212351746073@lid"); resolved != "393478485526@s.whatsapp.net" {
+		t.Fatalf("expected resolved PN JID, got %s", resolved)
+	}
+
+	lidChat := "220212351746073@lid"
+	_, _ = db.ExecContext(ctx, `
+		INSERT INTO whatsdown_messages (chat_jid, id, sender_jid, sender_name, from_me, timestamp, kind, text, raw, starred, status)
+		VALUES (?, 'm-lid-1', ?, 'User', 0, 1005, 'text', 'hello', x'', 1, 0)
+	`, lidChat, lidChat)
+
+	// Unstar using PN JID when stored as LID
+	if err := store.toggleMessageStarred(ctx, "393478485526@s.whatsapp.net", "m-lid-1", false); err != nil {
+		t.Fatalf("toggleMessageStarred with PN for LID message: %v", err)
+	}
+	var starredVal int
+	_ = db.QueryRowContext(ctx, `SELECT starred FROM whatsdown_messages WHERE id = 'm-lid-1'`).Scan(&starredVal)
+	if starredVal != 0 {
+		t.Fatalf("expected message to be unstarred (0), got %d", starredVal)
+	}
+
+	// Re-star using PN JID
+	if err := store.toggleMessageStarred(ctx, "393478485526@s.whatsapp.net", "m-lid-1", true); err != nil {
+		t.Fatalf("toggleMessageStarred re-star: %v", err)
+	}
+	_ = db.QueryRowContext(ctx, `SELECT starred FROM whatsdown_messages WHERE id = 'm-lid-1'`).Scan(&starredVal)
+	if starredVal != 1 {
+		t.Fatalf("expected message to be starred (1), got %d", starredVal)
+	}
 }
 
 func TestGroupSenderResolution(t *testing.T) {
@@ -1921,5 +1952,168 @@ func TestCallHistory(t *testing.T) {
 	callsCleared, _ := store.listCalls(ctx, "")
 	if len(callsCleared) != 0 {
 		t.Errorf("expected 0 calls after clearCalls, got %d", len(callsCleared))
+	}
+}
+
+func TestReactionsStore(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("opening sqlite: %v", err)
+	}
+	defer db.Close()
+
+	store, err := openMessageStore(ctx, db)
+	if err != nil {
+		t.Fatalf("openMessageStore: %v", err)
+	}
+
+	chatJID := "testchat@s.whatsapp.net"
+	msgID := "msg-react-1"
+
+	// 1. Initial reactions should be empty
+	reacts, err := store.getReactionsForMessage(ctx, chatJID, msgID)
+	if err != nil {
+		t.Fatalf("getReactionsForMessage failed: %v", err)
+	}
+	if len(reacts) != 0 {
+		t.Errorf("expected 0 reactions, got %d", len(reacts))
+	}
+
+	// 2. Add reaction from contact
+	r1 := Reaction{
+		ChatJID:    chatJID,
+		MessageID:  msgID,
+		SenderJID:  "alice@s.whatsapp.net",
+		SenderName: "Alice",
+		Emoji:      "❤️",
+		FromMe:     false,
+		Timestamp:  time.Now(),
+	}
+	if err := store.saveReaction(ctx, r1); err != nil {
+		t.Fatalf("saveReaction r1 failed: %v", err)
+	}
+
+	// 3. Add reaction from self
+	r2 := Reaction{
+		ChatJID:    chatJID,
+		MessageID:  msgID,
+		SenderJID:  "me@s.whatsapp.net",
+		SenderName: "You",
+		Emoji:      "👍",
+		FromMe:     true,
+		Timestamp:  time.Now(),
+	}
+	if err := store.saveReaction(ctx, r2); err != nil {
+		t.Fatalf("saveReaction r2 failed: %v", err)
+	}
+
+	// 4. Verify getReactionsForMessage
+	reacts, err = store.getReactionsForMessage(ctx, chatJID, msgID)
+	if err != nil || len(reacts) != 2 {
+		t.Fatalf("expected 2 reactions, got %d (err: %v)", len(reacts), err)
+	}
+
+	// 5. Verify getReactionsForChat
+	rMap, err := store.getReactionsForChat(ctx, chatJID)
+	if err != nil || len(rMap[msgID]) != 2 {
+		t.Fatalf("expected 2 reactions in getReactionsForChat, got %d", len(rMap[msgID]))
+	}
+
+	// 6. Update reaction (Alice changes ❤️ to 😂)
+	r1Updated := r1
+	r1Updated.Emoji = "😂"
+	if err := store.saveReaction(ctx, r1Updated); err != nil {
+		t.Fatalf("saveReaction update failed: %v", err)
+	}
+	reacts, err = store.getReactionsForMessage(ctx, chatJID, msgID)
+	if err != nil || len(reacts) != 2 {
+		t.Fatalf("expected still 2 reactions after update, got %d", len(reacts))
+	}
+	var foundAliceEmoji string
+	for _, r := range reacts {
+		if r.SenderJID == "alice@s.whatsapp.net" {
+			foundAliceEmoji = r.Emoji
+		}
+	}
+	if foundAliceEmoji != "😂" {
+		t.Errorf("expected Alice emoji to be 😂, got %s", foundAliceEmoji)
+	}
+
+	// 7. Remove my reaction
+	if err := store.removeMyReaction(ctx, chatJID, msgID); err != nil {
+		t.Fatalf("removeMyReaction failed: %v", err)
+	}
+	reacts, _ = store.getReactionsForMessage(ctx, chatJID, msgID)
+	if len(reacts) != 1 || reacts[0].SenderJID != "alice@s.whatsapp.net" {
+		t.Errorf("expected 1 reaction left from Alice, got %+v", reacts)
+	}
+
+	// 8. Remove Alice reaction
+	if err := store.removeReaction(ctx, chatJID, msgID, "alice@s.whatsapp.net"); err != nil {
+		t.Fatalf("removeReaction failed: %v", err)
+	}
+	reacts, _ = store.getReactionsForMessage(ctx, chatJID, msgID)
+	if len(reacts) != 0 {
+		t.Errorf("expected 0 reactions after removal, got %d", len(reacts))
+	}
+
+	// 9. Test saveLiveMessage with waE2E.ReactionMessage
+	cTargetJID := types.NewJID("testchat", types.DefaultUserServer)
+	cBobJID := types.NewJID("bob", types.DefaultUserServer)
+
+	// First insert target text message
+	targetMsgEvt := &events.Message{
+		Info: types.MessageInfo{
+			MessageSource: types.MessageSource{
+				Chat:     cTargetJID,
+				Sender:   cTargetJID,
+				IsFromMe: false,
+			},
+			ID:        "target-msg-99",
+			PushName:  "Test",
+			Timestamp: time.Now(),
+		},
+		Message: &waE2E.Message{
+			Conversation: proto.String("Target Message"),
+		},
+	}
+	if err := store.saveLiveMessage(ctx, targetMsgEvt); err != nil {
+		t.Fatalf("saving target message failed: %v", err)
+	}
+
+	// Now Bob sends a reaction event
+	reactionEvt := &events.Message{
+		Info: types.MessageInfo{
+			MessageSource: types.MessageSource{
+				Chat:     cTargetJID,
+				Sender:   cBobJID,
+				IsFromMe: false,
+			},
+			ID:        "reaction-msg-1",
+			PushName:  "Bob",
+			Timestamp: time.Now(),
+		},
+		Message: &waE2E.Message{
+			ReactionMessage: &waE2E.ReactionMessage{
+				Key: &waCommon.MessageKey{
+					ID:        proto.String("target-msg-99"),
+					RemoteJID: proto.String(cTargetJID.String()),
+				},
+				Text: proto.String("🎉"),
+			},
+		},
+	}
+	if err := store.saveLiveMessage(ctx, reactionEvt); err != nil {
+		t.Fatalf("saving reaction event failed: %v", err)
+	}
+
+	// Check target message via listMessages
+	msgs, err := store.listMessages(ctx, cTargetJID.String(), time.Time{}, 10)
+	if err != nil || len(msgs) != 1 {
+		t.Fatalf("expected 1 message in listMessages, got %d", len(msgs))
+	}
+	if len(msgs[0].Reactions) != 1 || msgs[0].Reactions[0].Emoji != "🎉" {
+		t.Errorf("expected 1 reaction with 🎉 on target message, got %+v", msgs[0].Reactions)
 	}
 }

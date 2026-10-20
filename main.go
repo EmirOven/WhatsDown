@@ -24,6 +24,7 @@ import (
 	"github.com/skip2/go-qrcode"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
+	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -619,6 +620,18 @@ func handleWhatsAppEvent(evt any) {
 
 	case *events.Message:
 		go func() {
+			if e.Message != nil && waClient != nil && msgStore != nil {
+				var rm *waE2E.ReactionMessage
+				if e.Message.GetReactionMessage() != nil {
+					rm = e.Message.GetReactionMessage()
+				} else if e.Message.GetEncReactionMessage() != nil {
+					rm, _ = waClient.DecryptReaction(context.Background(), e)
+				}
+				if rm != nil {
+					handleIncomingReaction(e, rm)
+					return
+				}
+			}
 			if e.Message != nil && e.Message.GetPollUpdateMessage() != nil && waClient != nil && msgStore != nil {
 				handleIncomingPollUpdate(e)
 			}
@@ -849,10 +862,13 @@ func handleWhatsAppEvent(evt any) {
 			starred := e.Action.GetStarred()
 			msgID := e.MessageID
 			go func() {
-				_ = msgStore.toggleMessageStarred(context.Background(), chatJID, msgID, starred)
+				ctx := context.Background()
+				_ = msgStore.toggleMessageStarred(ctx, chatJID, msgID, starred)
 				glib.IdleAdd(func() {
-					if activeMainWindow != nil && activeMainWindow.currentChat != nil && activeMainWindow.currentChat.JID == chatJID {
-						activeMainWindow.loadMessages(chatJID)
+					if activeMainWindow != nil && activeMainWindow.currentChat != nil {
+						if activeMainWindow.isSameChat(activeMainWindow.currentChat.JID, chatJID) {
+							activeMainWindow.updateSingleMessageRow(msgID)
+						}
 					}
 				})
 			}()
@@ -1024,6 +1040,52 @@ func handleIncomingPollUpdate(evt *events.Message) {
 			if activeMainWindow.currentChat.JID == chatJID || activeMainWindow.currentChat.JID == origMsg.ChatJID {
 				activeMainWindow.reloadPollBubble(pollID)
 			}
+		}
+	})
+}
+
+// handleIncomingReaction records an incoming reaction from WhatsApp and updates UI.
+func handleIncomingReaction(evt *events.Message, rm *waE2E.ReactionMessage) {
+	if msgStore == nil || rm == nil || rm.GetKey() == nil {
+		return
+	}
+	targetID := rm.GetKey().GetID()
+	if targetID == "" {
+		return
+	}
+	chatJID := evt.Info.Chat.ToNonAD().String()
+	if msgStore.isSelfJID(context.Background(), chatJID) {
+		if canonical := msgStore.getCanonicalSelfJID(context.Background()); canonical != "" {
+			chatJID = canonical
+		}
+	}
+	senderJID := evt.Info.Sender.ToNonAD().String()
+	if senderJID == "" {
+		senderJID = chatJID
+	}
+	emoji := rm.GetText()
+	senderName := evt.Info.PushName
+
+	if emoji == "" {
+		_ = msgStore.removeReaction(context.Background(), chatJID, targetID, senderJID)
+		if evt.Info.IsFromMe {
+			_ = msgStore.removeMyReaction(context.Background(), chatJID, targetID)
+		}
+	} else {
+		_ = msgStore.saveReaction(context.Background(), Reaction{
+			ChatJID:    chatJID,
+			MessageID:  targetID,
+			SenderJID:  senderJID,
+			SenderName: senderName,
+			Emoji:      emoji,
+			FromMe:     evt.Info.IsFromMe,
+			Timestamp:  evt.Info.Timestamp,
+		})
+	}
+
+	glib.IdleAdd(func() {
+		if activeMainWindow != nil {
+			activeMainWindow.updateMessageReactions(chatJID, targetID)
 		}
 	})
 }

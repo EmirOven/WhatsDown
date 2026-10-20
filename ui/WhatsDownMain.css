@@ -186,6 +186,49 @@
   background-color: var(--window-bg-color);
 }
 
+/* Multiline message input container */
+.message-entry-container {
+  border-radius: 17px;
+  background-color: alpha(currentColor, 0.06);
+  border: 1px solid alpha(currentColor, 0.14);
+  transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+}
+
+.message-entry-container:focus-within {
+  border-color: @accent_color;
+  background-color: alpha(currentColor, 0.08);
+  box-shadow: 0 0 0 1px @accent_color;
+}
+
+.message-entry-container scrollbar,
+.message-entry-container scrollbar slider {
+  min-height: 12px;
+  min-width: 6px;
+}
+
+.message-text-view {
+  background-color: transparent;
+  color: currentColor;
+  font-size: 14px;
+}
+
+.message-text-view text {
+  background-color: transparent;
+}
+
+.message-placeholder {
+  font-size: 14px;
+  opacity: 0.55;
+  padding: 0;
+}
+
+.chat-send-btn {
+  min-width: 36px;
+  min-height: 36px;
+  border-radius: 9999px;
+  padding: 0;
+}
+
 .navigation-rail {
   background-color: alpha(currentColor, 0.04);
   padding: 12px 4px;
@@ -752,4 +795,105 @@ tabbar:drop(active) {
   outline: 2px dashed @accent_color !important;
   outline-offset: -4px;
   background-color: alpha(@accent_color, 0.06);
+}
+
+/* Reactions quick bar on context menu */
+.context-reactions-bar {
+  padding: 6px 8px;
+}
+
+.reaction-quick-btn {
+  min-width: 38px;
+  min-height: 38px;
+  padding: 0;
+  border-radius: 9999px;
+  font-size: 20px;
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+
+.reaction-quick-btn label {
+  margin: 0;
+  padding: 0;
+  line-height: 1;
+}
+
+.reaction-quick-btn image {
+  margin: 0;
+  padding: 0;
+}
+
+.reaction-quick-btn:hover {
+  transform: scale(1.22);
+  background-color: alpha(currentColor, 0.12);
+}
+
+.reaction-quick-btn.active {
+  background-color: alpha(@accent_color, 0.22);
+  border: 1.5px solid @accent_color;
+}
+
+/* Reaction pill on message bubble */
+.reaction-pill-wrapper {
+  margin-top: -12px;
+  margin-bottom: 4px;
+}
+
+.reaction-pill {
+  border-radius: 9999px;
+  background-color: @card_bg_color;
+  border: 1.5px solid alpha(currentColor, 0.24);
+  padding: 2px 8px;
+  min-height: 24px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.22), 0 1px 3px rgba(0, 0, 0, 0.12);
+  transition: transform 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.reaction-pill label {
+  margin: 0;
+  padding: 0;
+  line-height: 1;
+}
+
+.reaction-pill:hover {
+  background-color: alpha(currentColor, 0.1);
+  transform: scale(1.08);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.28), 0 2px 4px rgba(0, 0, 0, 0.16);
+}
+
+.reaction-pill-mine {
+  border: 1.5px solid @accent_color;
+  background-color: alpha(@accent_color, 0.16);
+}
+
+.reaction-pill-mine:hover {
+  background-color: alpha(@accent_color, 0.24);
+}
+
+.reaction-pill-emojis {
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+
+.reaction-pill-count {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.9;
+  margin-left: 2px;
+}
+
+/* Reactions list popover */
+.reactions-popover {
+  min-width: 270px;
+}
+
+.reactions-list-row {
+  border-radius: 8px;
+}
+
+.reactions-list-row:hover {
+  background-color: alpha(currentColor, 0.06);
+}
+
+.reaction-list-emoji {
+  font-size: 20px;
 }

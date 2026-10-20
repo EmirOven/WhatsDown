@@ -49,7 +49,7 @@ func loadAvatar(jid string, displayName string, avatar *adw.Avatar) {
 	avatar.SetText(displayName)
 	avatar.SetShowInitials(true)
 
-	if jid == "" {
+	if jid == "" || jid == "0@s.whatsapp.net" || strings.HasPrefix(jid, "0@") {
 		avatar.SetCustomImage(nil)
 		return
 	}
