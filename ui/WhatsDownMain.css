@@ -986,6 +986,12 @@ tabbar:drop(active) {
   border-color: transparent !important;
 }
 
+.chat-page,
+.chat-page scrolledwindow,
+.chat-page scrolledwindow viewport {
+  background-color: transparent;
+  background-image: none;
+}
 .chat-page:drop(active),
 .chat-messages-list:drop(active) {
   outline: 2px dashed @accent_color !important;
