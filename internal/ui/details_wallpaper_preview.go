@@ -66,7 +66,7 @@ func (pw *wallpaperPreviewWidgets) update(wp store.ChatWallpaper) {
 
 	pw.cssProvider.LoadFromData(fmt.Sprintf(`
 		.wallpaper-preview-box { %s }
-		.wallpaper-preview-incoming { background-color: %s !important; color: %s !important; }
-		.wallpaper-preview-incoming label { color: %s !important; }
+		.wallpaper-preview-incoming { background-color: %s; color: %s; }
+		.wallpaper-preview-incoming label { color: %s; }
 	`, bgStyle, bubbleBg, bubbleFg, bubbleFg))
 }

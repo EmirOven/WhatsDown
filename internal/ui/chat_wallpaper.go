@@ -43,15 +43,15 @@ func buildWallpaperCSS(wp store.ChatWallpaper) string {
   %s
 }
 .chat-page .chat-bubble-incoming {
-  background-color: %s !important;
-  color: %s !important;
+  background-color: %s;
+  color: %s;
 }
 .chat-page .chat-bubble-incoming label,
 .chat-page .chat-bubble-incoming .chat-bubble-text,
 .chat-page .chat-bubble-incoming .chat-bubble-time,
 .chat-page .chat-bubble-incoming .chat-bubble-status,
 .chat-page .chat-bubble-incoming .pin-indicator {
-  color: %s !important;
+  color: %s;
 }
 `, bgCSS, bubbleBg, bubbleFg, bubbleFg)
 }
