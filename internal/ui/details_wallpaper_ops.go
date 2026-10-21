@@ -17,8 +17,7 @@ func (c *MainController) initWallpaperUI(wp store.ChatWallpaper, typeRow *adw.Co
 	case "color":
 		typeRow.SetSelected(1)
 		if wp.Value != "" {
-			var rgba gdk.RGBA
-			if rgba.Parse(wp.Value) {
+			if rgba, ok := parseHexColor(wp.Value); ok {
 				colorBtn.SetRGBA(&rgba)
 			}
 		}

@@ -29,17 +29,6 @@ func (c *MainController) buildBubbleRowBox(row *gtk.ListBoxRow, box *gtk.Box, ms
 	}
 
 	if msg.Kind != store.MessageKindDeleted {
-		mCopy := msg
-		doubleClick := gtk.NewGestureClick()
-		doubleClick.SetButton(1)
-		doubleClick.SetPropagationPhase(gtk.PhaseCapture)
-		doubleClick.ConnectPressed(func(nPress int, x, y float64) {
-			if nPress == 2 {
-				c.startReply(mCopy)
-			}
-		})
-		box.AddController(doubleClick)
-
 		replyBtn := gtk.NewButton()
 		addCSSClasses(replyBtn, "flat", "circular", "message-reply-btn")
 		replyBtn.SetIconName("mail-reply-sender-symbolic")
@@ -48,17 +37,7 @@ func (c *MainController) buildBubbleRowBox(row *gtk.ListBoxRow, box *gtk.Box, ms
 		replyBtn.SetCanFocus(false)
 		replyBtn.SetOpacity(0.0)
 
-		replyBtn.ConnectClicked(func() {
-			if replyBtn.Opacity() < 0.2 {
-				return
-			}
-			c.startReply(mCopy)
-		})
-
-		motion := gtk.NewEventControllerMotion()
-		motion.ConnectEnter(func(x, y float64) { replyBtn.SetOpacity(1.0) })
-		motion.ConnectLeave(func() { replyBtn.SetOpacity(0.0) })
-		row.AddController(motion)
+		c.attachReplyMotion(row, box, replyBtn, msg)
 
 		if isOutgoing {
 			rowBox.SetHAlign(gtk.AlignEnd)
