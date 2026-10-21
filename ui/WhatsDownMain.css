@@ -1108,3 +1108,34 @@ tabbar:drop(active) {
 .reaction-list-emoji {
   font-size: 20px;
 }
+
+/* Chat Wallpaper Preview in details dialog */
+.wallpaper-preview-box {
+  border-radius: 12px;
+  padding: 14px 16px;
+  min-height: 110px;
+  border: 1px solid alpha(currentColor, 0.12);
+  background-color: var(--view-bg-color);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.wallpaper-preview-incoming {
+  padding: 6px 10px;
+  border-radius: 12px;
+  border-bottom-left-radius: 2px;
+  font-size: 9.5pt;
+  max-width: 200px;
+  background-color: alpha(currentColor, 0.08);
+}
+
+.wallpaper-preview-outgoing {
+  padding: 6px 10px;
+  border-radius: 12px;
+  border-bottom-right-radius: 2px;
+  font-size: 9.5pt;
+  max-width: 200px;
+  background-color: var(--accent-bg-color);
+  color: var(--accent-fg-color);
+}

@@ -15,6 +15,14 @@ func (c *MainController) buildDetailsWallpaperGroup(dialog *adw.Dialog, chat sto
 
 	wp, _ := c.store.GetChatWallpaper(context.Background(), chat.JID)
 
+	previewBox, pw := c.buildWallpaperPreview()
+	pw.update(wp)
+	previewRow := adw.NewActionRow()
+	previewRow.SetTitle("Preview")
+	previewRow.SetActivatable(false)
+	previewRow.SetChild(previewBox)
+	group.Add(previewRow)
+
 	typeRow := adw.NewComboRow()
 	typeRow.SetTitle("Background Type")
 	typeRow.SetModel(gtk.NewStringList([]string{"Default (None)", "Solid Color", "Custom Image"}))
@@ -34,15 +42,15 @@ func (c *MainController) buildDetailsWallpaperGroup(dialog *adw.Dialog, chat sto
 	c.initWallpaperUI(wp, typeRow, colorBtn, imageRow)
 
 	typeRow.Connect("notify::selected", func() {
-		c.handleWallpaperTypeChange(chat, typeRow, colorRow, imageRow, colorBtn)
+		c.handleWallpaperTypeChange(chat, typeRow, colorRow, imageRow, colorBtn, pw)
 	})
 
 	colorBtn.NotifyProperty("rgba", func() {
-		c.handleWallpaperColorChange(chat, colorBtn)
+		c.handleWallpaperColorChange(chat, colorBtn, pw)
 	})
 
 	chooseImgBtn.ConnectClicked(func() {
-		c.openWallpaperImageChooser(chat, imageRow)
+		c.openWallpaperImageChooser(chat, imageRow, pw)
 	})
 
 	group.Add(typeRow)
@@ -56,6 +64,7 @@ func (c *MainController) handleWallpaperTypeChange(
 	typeRow *adw.ComboRow,
 	colorRow, imageRow *adw.ActionRow,
 	colorBtn *gtk.ColorDialogButton,
+	pw *wallpaperPreviewWidgets,
 ) {
 	sel := typeRow.Selected()
 	colorRow.SetVisible(sel == 1)
@@ -65,6 +74,7 @@ func (c *MainController) handleWallpaperTypeChange(
 	case 0:
 		_ = c.store.SetChatWallpaper(context.Background(), chat.JID, "none", "")
 		c.applyChatWallpaper(chat.JID)
+		pw.update(store.ChatWallpaper{ChatJID: chat.JID, Kind: "none"})
 	case 1:
 		colStr := "#1e1e1e"
 		if rgba := colorBtn.RGBA(); rgba != nil {
@@ -72,7 +82,8 @@ func (c *MainController) handleWallpaperTypeChange(
 		}
 		_ = c.store.SetChatWallpaper(context.Background(), chat.JID, "color", colStr)
 		c.applyChatWallpaper(chat.JID)
+		pw.update(store.ChatWallpaper{ChatJID: chat.JID, Kind: "color", Value: colStr})
 	case 2:
-		c.openWallpaperImageChooser(chat, imageRow)
+		c.openWallpaperImageChooser(chat, imageRow, pw)
 	}
 }

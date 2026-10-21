@@ -33,15 +33,16 @@ func (c *MainController) initWallpaperUI(wp store.ChatWallpaper, typeRow *adw.Co
 	}
 }
 
-func (c *MainController) handleWallpaperColorChange(chat store.Chat, colorBtn *gtk.ColorDialogButton) {
+func (c *MainController) handleWallpaperColorChange(chat store.Chat, colorBtn *gtk.ColorDialogButton, pw *wallpaperPreviewWidgets) {
 	if rgba := colorBtn.RGBA(); rgba != nil {
 		colStr := rgbaToHex(rgba)
 		_ = c.store.SetChatWallpaper(context.Background(), chat.JID, "color", colStr)
 		c.applyChatWallpaper(chat.JID)
+		pw.update(store.ChatWallpaper{ChatJID: chat.JID, Kind: "color", Value: colStr})
 	}
 }
 
-func (c *MainController) openWallpaperImageChooser(chat store.Chat, imageRow *adw.ActionRow) {
+func (c *MainController) openWallpaperImageChooser(chat store.Chat, imageRow *adw.ActionRow, pw *wallpaperPreviewWidgets) {
 	chooser := gtk.NewFileChooserNative("Choose Chat Background Image", &c.window.Window, gtk.FileChooserActionOpen, "_Select", "_Cancel")
 	filter := gtk.NewFileFilter()
 	filter.SetName("Images")
@@ -61,6 +62,7 @@ func (c *MainController) openWallpaperImageChooser(chat store.Chat, imageRow *ad
 					glib.IdleAdd(func() {
 						imageRow.SetSubtitle(filepath.Base(path))
 						c.applyChatWallpaper(chat.JID)
+						pw.update(store.ChatWallpaper{ChatJID: chat.JID, Kind: "image", Value: path})
 					})
 				}
 			}
