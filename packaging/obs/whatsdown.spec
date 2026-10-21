@@ -34,7 +34,9 @@ WhatsDown is a modern native Linux WhatsApp desktop client built with Go,
 GTK 4, and Libadwaita, utilizing whatsmeow and gotk4.
 
 %prep
-%autosetup -n %{name}-%{version}
+# Copy SCM sources and unpacked obscpio trees from SOURCES into current BUILD directory
+cp -a %{_sourcedir}/* .
+rm -f *.obscpio _scmsync.obsinfo
 
 %build
 # Compile Blueprint UI definitions into XML UI
