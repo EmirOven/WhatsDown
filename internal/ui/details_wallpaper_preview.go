@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"postbetasoftware.com/whatsdown/internal/store"
@@ -21,55 +20,41 @@ func (c *MainController) buildWallpaperPreview() (*gtk.Box, *wallpaperPreviewWid
 	provider := gtk.NewCSSProvider()
 	previewBox.StyleContext().AddProvider(provider, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION+15)
 
-	inBox := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	inBox.AddCSSClass("wallpaper-preview-incoming")
-	inBox.SetHAlign(gtk.AlignStart)
-	inBox.Append(gtk.NewLabel("Hey there! How are you?"))
-	previewBox.Append(inBox)
+	inRow := createPreviewBubble("wallpaper-preview-incoming", gtk.AlignStart, "Hey there! How are you?", "10:42", "")
+	previewBox.Append(inRow)
 
-	outBox := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	outBox.AddCSSClass("wallpaper-preview-outgoing")
-	outBox.SetHAlign(gtk.AlignEnd)
-	outBox.Append(gtk.NewLabel("Doing great, thanks!"))
-	previewBox.Append(outBox)
+	outRow := createPreviewBubble("wallpaper-preview-outgoing", gtk.AlignEnd, "Doing great, thanks!", "10:43", "✓✓")
+	previewBox.Append(outRow)
 
-	pw := &wallpaperPreviewWidgets{container: previewBox, cssProvider: provider}
-	return previewBox, pw
+	return previewBox, &wallpaperPreviewWidgets{container: previewBox, cssProvider: provider}
+}
+
+func createPreviewBubble(cssClass string, align gtk.Align, text, timeStr, statusStr string) *gtk.Box {
+	box := gtk.NewBox(gtk.OrientationVertical, 2)
+	addCSSClasses(box, "wallpaper-preview-bubble", cssClass)
+	box.SetHAlign(align)
+	box.Append(gtk.NewLabel(text))
+
+	footer := gtk.NewBox(gtk.OrientationHorizontal, 4)
+	footer.SetHAlign(gtk.AlignEnd)
+	timeLbl := gtk.NewLabel(timeStr)
+	timeLbl.AddCSSClass("wallpaper-preview-time")
+	footer.Append(timeLbl)
+
+	if statusStr != "" {
+		stLbl := gtk.NewLabel(statusStr)
+		stLbl.AddCSSClass("wallpaper-preview-status")
+		footer.Append(stLbl)
+	}
+	box.Append(footer)
+	return box
 }
 
 func (pw *wallpaperPreviewWidgets) update(wp store.ChatWallpaper) {
 	if pw == nil || pw.cssProvider == nil {
 		return
 	}
-
-	var bgStyle string
-	var isLight bool
-
-	switch wp.Kind {
-	case "color":
-		if wp.Value != "" {
-			bgStyle = fmt.Sprintf("background-color: %s; background-image: none;", wp.Value)
-			if rgba, ok := parseHexColor(wp.Value); ok {
-				isLight = isColorLight(int(rgba.Red()*255), int(rgba.Green()*255), int(rgba.Blue()*255))
-			}
-		}
-	case "image":
-		if wp.Value != "" {
-			urlVal := wp.Value
-			if !strings.HasPrefix(urlVal, "file://") {
-				urlVal = "file://" + urlVal
-			}
-			bgStyle = fmt.Sprintf("background-image: url(\"%s\"); background-size: cover; background-position: center; background-repeat: no-repeat;", urlVal)
-			if r, g, b, ok := computeAverageImageColor(wp.Value); ok {
-				isLight = isColorLight(r, g, b)
-			}
-		}
-	}
-
-	pw.applyStyle(bgStyle, isLight)
-}
-
-func (pw *wallpaperPreviewWidgets) applyStyle(bgStyle string, isLight bool) {
+	bgStyle, isLight := extractWallpaperStyle(wp)
 	if bgStyle == "" {
 		pw.cssProvider.LoadFromData(`
 			.wallpaper-preview-box { background: none; }
@@ -79,11 +64,9 @@ func (pw *wallpaperPreviewWidgets) applyStyle(bgStyle string, isLight bool) {
 		return
 	}
 
-	var bubbleBg, bubbleFg string
+	bubbleBg, bubbleFg := "#ffffff", "#000000"
 	if isLight {
-		bubbleBg, bubbleFg = "rgba(0, 0, 0, 0.72)", "#ffffff"
-	} else {
-		bubbleBg, bubbleFg = "rgba(255, 255, 255, 0.88)", "#000000"
+		bubbleBg, bubbleFg = "#1c1c1e", "#ffffff"
 	}
 
 	pw.cssProvider.LoadFromData(fmt.Sprintf(`

@@ -1139,3 +1139,14 @@ tabbar:drop(active) {
   background-color: var(--accent-bg-color);
   color: var(--accent-fg-color);
 }
+
+.wallpaper-preview-time {
+  font-size: 7.5pt;
+  opacity: 0.65;
+}
+
+.wallpaper-preview-status {
+  font-size: 8pt;
+  color: #53bdeb;
+}
+

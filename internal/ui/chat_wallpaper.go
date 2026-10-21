@@ -3,7 +3,6 @@ package ui
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -34,41 +33,14 @@ func (c *MainController) applyChatWallpaper(chatJID string) {
 }
 
 func buildWallpaperCSS(wp store.ChatWallpaper) string {
-	var bgCSS string
-	var isLight bool
-
-	switch wp.Kind {
-	case "color":
-		if wp.Value != "" {
-			bgCSS = fmt.Sprintf("background-color: %s; background-image: none;", wp.Value)
-			if rgba, ok := parseHexColor(wp.Value); ok {
-				isLight = isColorLight(int(rgba.Red()*255), int(rgba.Green()*255), int(rgba.Blue()*255))
-			}
-		}
-	case "image":
-		if wp.Value != "" {
-			urlVal := wp.Value
-			if !strings.HasPrefix(urlVal, "file://") {
-				urlVal = "file://" + urlVal
-			}
-			bgCSS = fmt.Sprintf("background-image: url(\"%s\"); background-size: cover; background-position: center; background-repeat: no-repeat;", urlVal)
-			if r, g, b, ok := computeAverageImageColor(wp.Value); ok {
-				isLight = isColorLight(r, g, b)
-			}
-		}
-	}
-
+	bgCSS, isLight := extractWallpaperStyle(wp)
 	if bgCSS == "" {
 		return `.chat-page { background: none; }`
 	}
 
-	var bubbleBg, bubbleFg string
+	bubbleBg, bubbleFg := "#ffffff", "#000000"
 	if isLight {
-		bubbleBg = "rgba(0, 0, 0, 0.72)"
-		bubbleFg = "#ffffff"
-	} else {
-		bubbleBg = "rgba(255, 255, 255, 0.88)"
-		bubbleFg = "#000000"
+		bubbleBg, bubbleFg = "#1c1c1e", "#ffffff"
 	}
 
 	return fmt.Sprintf(`

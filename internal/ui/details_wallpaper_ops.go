@@ -75,9 +75,5 @@ func rgbaToHex(rgba *gdk.RGBA) string {
 	r := int(rgba.Red() * 255)
 	g := int(rgba.Green() * 255)
 	b := int(rgba.Blue() * 255)
-	a := int(rgba.Alpha() * 255)
-	if a == 255 {
-		return fmt.Sprintf("#%02x%02x%02x", r, g, b)
-	}
-	return fmt.Sprintf("rgba(%d, %d, %d, %.2f)", r, g, b, rgba.Alpha())
+	return fmt.Sprintf("#%02x%02x%02x", r, g, b)
 }
