@@ -36,7 +36,7 @@ blueprint-compiler batch-compile ui ui ui/*.blp ui/components/*.blp
 
 # Build Go binary with release flags
 export CGO_ENABLED=1
-export GOFLAGS="-trimpath -modcacherw"
+export GOFLAGS="-trimpath -mod=vendor -modcacherw"
 go build -ldflags="-s -w" -v -o whatsdown .
 
 %install
