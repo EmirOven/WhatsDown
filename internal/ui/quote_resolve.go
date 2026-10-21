@@ -42,14 +42,23 @@ func (c *MainController) resolveQuotedSender(origMsg *store.StoredMessage, parti
 	return "Message"
 }
 
+func truncatePreviewLines(text string, maxLines int) string {
+	text = strings.TrimSpace(text)
+	lines := strings.Split(text, "\n")
+	if len(lines) > maxLines {
+		return strings.TrimSpace(strings.Join(lines[:maxLines], "\n")) + "…"
+	}
+	return text
+}
+
 func (c *MainController) resolveQuotedSnippet(origMsg *store.StoredMessage, quotedRaw *waE2E.Message) string {
 	if origMsg != nil && origMsg.Text != "" {
-		return origMsg.Text
+		return truncatePreviewLines(origMsg.Text, 3)
 	}
 	if quotedRaw != nil {
 		snippet, _ := media.SummarizeProtoMessage(quotedRaw)
 		if snippet != "" {
-			return snippet
+			return truncatePreviewLines(snippet, 3)
 		}
 	}
 	if origMsg != nil {

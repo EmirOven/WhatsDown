@@ -32,7 +32,7 @@ func (c *MainController) startReply(msg store.StoredMessage) {
 		c.replyPreviewSender.SetText(fmt.Sprintf("Replying to %s", sender))
 	}
 
-	previewText := msg.Text
+	previewText := truncatePreviewLines(msg.Text, 3)
 	if previewText == "" {
 		switch msg.Kind {
 		case store.MessageKindImage:

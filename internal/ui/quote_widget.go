@@ -55,8 +55,10 @@ func (c *MainController) createQuoteWidget(msg store.StoredMessage) *gtk.Box {
 
 	textLabel := gtk.NewLabel(quotedSnippet)
 	textLabel.SetXAlign(0)
+	textLabel.SetWrap(true)
+	textLabel.SetWrapMode(pango.WrapWordChar)
+	textLabel.SetLines(3)
 	textLabel.SetEllipsize(pango.EllipsizeEnd)
-	textLabel.SetMaxWidthChars(36)
 	textLabel.AddCSSClass("chat-bubble-quote-text")
 	contentBox.Append(textLabel)
 

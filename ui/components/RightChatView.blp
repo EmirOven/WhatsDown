@@ -210,8 +210,10 @@ Adw.ToolbarView right_chat_view {
 
             Gtk.Label reply_preview_text {
               xalign: 0;
+              wrap: true;
+              wrap-mode: word_char;
+              lines: 3;
               ellipsize: end;
-              max-width-chars: 60;
               styles ["reply-preview-text"]
             }
           }
