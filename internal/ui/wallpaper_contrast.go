@@ -7,30 +7,42 @@ import (
 )
 
 // wallpaperBubbleColors calculates the incoming bubble background color and text color
-// based on the wallpaper's RGB values.
-// - If any RGB value > 127: shade is 40/256 darker (clamped at 0).
-// - If no RGB value > 127: bubble is made lighter (white).
-// - If any background RGB value > 170: text becomes black (#000000); otherwise white (#ffffff).
+// based on the wallpaper's RGB values:
+// - If any RGB value > 127: bubble is shaded 40 darker than the wallpaper background (clamped at 0).
+// - If no RGB value > 127 (dark background): bubble is shaded 40 lighter than the wallpaper (clamped at 255).
+// - Text color: if bubble background is light (any channel > 170), text is black (#000000); otherwise white (#ffffff).
 func wallpaperBubbleColors(r, g, b int) (bubbleBg, bubbleFg string) {
+	var br, bg, bb int
 	if r > 127 || g > 127 || b > 127 {
-		dr := r - 40
-		if dr < 0 {
-			dr = 0
+		br = r - 40
+		if br < 0 {
+			br = 0
 		}
-		dg := g - 40
-		if dg < 0 {
-			dg = 0
+		bg = g - 40
+		if bg < 0 {
+			bg = 0
 		}
-		db := b - 40
-		if db < 0 {
-			db = 0
+		bb = b - 40
+		if bb < 0 {
+			bb = 0
 		}
-		bubbleBg = fmt.Sprintf("#%02x%02x%02x", dr, dg, db)
 	} else {
-		bubbleBg = "#ffffff"
+		br = r + 40
+		if br > 255 {
+			br = 255
+		}
+		bg = g + 40
+		if bg > 255 {
+			bg = 255
+		}
+		bb = b + 40
+		if bb > 255 {
+			bb = 255
+		}
 	}
+	bubbleBg = fmt.Sprintf("#%02x%02x%02x", br, bg, bb)
 
-	if r > 170 || g > 170 || b > 170 {
+	if br > 170 || bg > 170 || bb > 170 {
 		bubbleFg = "#000000"
 	} else {
 		bubbleFg = "#ffffff"
@@ -66,4 +78,3 @@ func computeAverageImageColor(path string) (r, g, b int, ok bool) {
 
 	return int(sumR / count), int(sumG / count), int(sumB / count), true
 }
-
