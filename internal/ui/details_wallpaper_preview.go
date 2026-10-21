@@ -21,6 +21,7 @@ func (c *MainController) buildWallpaperPreview() (*gtk.Box, *wallpaperPreviewWid
 	previewBox.StyleContext().AddProvider(provider, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION+15)
 
 	inRow := createPreviewBubble("wallpaper-preview-incoming", gtk.AlignStart, "Hey there! How are you?", "10:42", "")
+	inRow.StyleContext().AddProvider(provider, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION+15)
 	previewBox.Append(inRow)
 
 	outRow := createPreviewBubble("wallpaper-preview-outgoing", gtk.AlignEnd, "Doing great, thanks!", "10:43", "✓✓")
