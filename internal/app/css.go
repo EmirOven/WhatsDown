@@ -19,34 +19,22 @@ func newCSSProvider() *gtk.CSSProvider {
 
 func loadCSS(provider *gtk.CSSProvider) {
 	assets := ui.GetAssets()
-	var css string
-	switch currentPage {
-	case pageSyncing:
-		css = assets.SyncingCSS
-	case pageMain:
-		css = assets.MainCSS
-	default:
-		css = assets.InitialPopupCSS
-	}
+	css := assets.InitialPopupCSS + "\n" + assets.SyncingCSS + "\n" + assets.MainCSS
 
 	if devMode {
-		var path string
-		switch currentPage {
-		case pageSyncing:
-			path = syncingCSSPath
-		case pageMain:
-			path = mainCSSPath
-		default:
-			path = initialCSSPath
-		}
-		if data, err := os.ReadFile(path); err == nil {
-			css = string(data)
+		css = ""
+		for _, path := range []string{initialCSSPath, syncingCSSPath, mainCSSPath} {
+			if data, err := os.ReadFile(path); err == nil {
+				css += string(data) + "\n"
+			} else {
+				log.Printf("[CSS] reading %s: %v", path, err)
+			}
 		}
 	}
 
 	if css != "" {
 		provider.LoadFromData(css)
 	} else {
-		log.Printf("[CSS] no stylesheet found for page %v", currentPage)
+		log.Printf("[CSS] no stylesheets loaded")
 	}
 }

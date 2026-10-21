@@ -1,6 +1,6 @@
 # Maintainer: Emir Öven <emiroven@postbetasoftware.com>
 pkgname=whatsdown-git
-pkgver=0.1.0.r14.g10d5311
+pkgver=0.1.0.r30.gce8715b
 pkgrel=1
 pkgdesc="Native Linux WhatsApp client built with GTK 4 and Libadwaita"
 arch=('x86_64' 'aarch64')
@@ -27,23 +27,20 @@ sha256sums=('SKIP')
 
 pkgver() {
     cd "$srcdir/WhatsDown"
-    git describe --long --tags 2>/dev/null | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g' || printf "0.1.0.r%s.g%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
-}
-
-prepare() {
-    cd "$srcdir/WhatsDown"
-    export GOPATH="$srcdir/gopath"
-    go mod download
+    if git describe --long --tags >/dev/null 2>&1; then
+        git describe --long --tags | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
+    else
+        printf "0.1.0.r%s.g%s\n" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
+    fi
 }
 
 build() {
     cd "$srcdir/WhatsDown"
-    export GOPATH="$srcdir/gopath"
     export CGO_CPPFLAGS="${CPPFLAGS}"
     export CGO_CFLAGS="${CFLAGS}"
     export CGO_CXXFLAGS="${CXXFLAGS}"
     export CGO_LDFLAGS="${LDFLAGS}"
-    export GOFLAGS="-buildmode=pie -trimpath -ldflags=-linkmode=external -mod=readonly -modcacherw"
+    export GOFLAGS="-buildmode=pie -trimpath -ldflags=-linkmode=external -mod=vendor"
 
     blueprint-compiler batch-compile ui ui ui/*.blp ui/components/*.blp
     go build -v -o whatsdown .
@@ -51,7 +48,7 @@ build() {
 
 check() {
     cd "$srcdir/WhatsDown"
-    go test -short ./...
+    go test -short -mod=vendor ./...
 }
 
 package() {
