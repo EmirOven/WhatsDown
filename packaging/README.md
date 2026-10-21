@@ -87,7 +87,7 @@ Launchpad builds and hosts Debian packages for Ubuntu distributions (e.g. `noble
    - **Recipe text:**
      ```
      # git-build-recipe format 0.4 deb-version {debversion}+git{revtime}
-     https://github.com/EmirOven/WhatsDown main
+     ~<your-launchpad-username>/+git/whatsdown main
      ```
    - **Target PPA:** `ppa:your-username/whatsdown`
    - **Target series:** `noble` (Ubuntu 24.04), `oracular`, etc.
@@ -115,3 +115,42 @@ sudo add-apt-repository ppa:your-username/whatsdown
 sudo apt update
 sudo apt install whatsdown
 ```
+
+---
+
+## 4. Flatpak & Flathub
+
+Package files: [`packaging/flatpak/com.postbetasoftware.WhatsDown.yml`](flatpak/com.postbetasoftware.WhatsDown.yml) and [`com.postbetasoftware.WhatsDown.metainfo.xml`](../com.postbetasoftware.WhatsDown.metainfo.xml).
+
+Flatpak provides a single sandboxed bundle that works across Arch, Fedora, Ubuntu, Debian, openSUSE, and any Linux distribution.
+
+### Testing Locally:
+1. Install Flatpak and `flatpak-builder`:
+   ```bash
+   # Arch Linux:
+   sudo pacman -S flatpak flatpak-builder
+   # Fedora:
+   sudo dnf install flatpak flatpak-builder
+   # Ubuntu:
+   sudo apt install flatpak flatpak-builder
+   ```
+2. Install the GNOME 47 SDK, Platform, and Go SDK extension:
+   ```bash
+   flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+   flatpak install flathub org.gnome.Platform//47 org.gnome.Sdk//47 org.freedesktop.Sdk.Extension.golang//24.08
+   ```
+3. Build and install locally:
+   ```bash
+   flatpak-builder --user --install --force-clean --share=network build-dir packaging/flatpak/com.postbetasoftware.WhatsDown.yml
+   ```
+4. Run the app:
+   ```bash
+   flatpak run com.postbetasoftware.WhatsDown
+   ```
+
+### Publishing to Flathub:
+1. Fork the official [flathub/flathub](https://github.com/flathub/flathub) repository on GitHub.
+2. Create a new branch named `new-pr/com.postbetasoftware.WhatsDown`.
+3. Add `com.postbetasoftware.WhatsDown.yml` and any supporting files.
+4. Submit a Pull Request to `flathub/flathub`. The automated bot will validate the manifest and test-build the package across x86_64 and aarch64.
+5. Once merged by the Flathub review team, a repository `flathub/com.postbetasoftware.WhatsDown` is automatically created, and your app will be published to Flathub and GNOME Software!

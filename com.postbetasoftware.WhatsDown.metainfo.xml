@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.postbetasoftware.WhatsDown</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>WhatsDown</name>
+  <summary>Native Linux WhatsApp client built with GTK 4 and Libadwaita</summary>
+  
+  <description>
+    <p>
+      WhatsDown is a modern, responsive WhatsApp desktop client crafted specifically for the Linux desktop using Go, GTK 4, and Libadwaita.
+    </p>
+    <p>Key features include:</p>
+    <ul>
+      <li>Native GNOME look and feel with full dark mode support</li>
+      <li>Instant QR-code pairing and live multi-device state synchronization</li>
+      <li>Voice messages with live recording waveform, pause/resume, and playback</li>
+      <li>Interactive WhatsApp polls with live vote percentage bars</li>
+      <li>WhatsApp Community grouping with collapsible server-style channels</li>
+      <li>Full WhatsApp call history (voice, video, incoming, outgoing, missed)</li>
+      <li>Inline emoji autocomplete with fuzzy search and popularity ranking</li>
+      <li>Live typing indicators and real-time online presence status</li>
+      <li>Clipboard image pasting and drag-and-drop file sharing</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">com.postbetasoftware.WhatsDown.desktop</launchable>
+
+  <url type="homepage">https://github.com/EmirOven/WhatsDown</url>
+  <url type="bugtracker">https://github.com/EmirOven/WhatsDown/issues</url>
+  <url type="vcs-browser">https://github.com/EmirOven/WhatsDown</url>
+
+  <developer id="com.postbetasoftware">
+    <name>Emir Öven</name>
+  </developer>
+
+  <provides>
+    <id>com.postbetasoftware.WhatsDown.desktop</id>
+  </provides>
+
+  <content_rating type="oars-1.1">
+    <content_attribute id="social-chat">intense</content_attribute>
+    <content_attribute id="social-audio">intense</content_attribute>
+  </content_rating>
+
+  <releases>
+    <release version="0.1.0" date="2026-10-21">
+      <description>
+        <p>Initial release of WhatsDown with full messaging, voice recordings, polls, communities, and call history.</p>
+      </description>
+    </release>
+  </releases>
+</component>
