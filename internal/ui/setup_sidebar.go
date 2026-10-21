@@ -10,20 +10,15 @@ import (
 func (ctrl *MainController) bindSidebarWidgets(
 	builder *gtk.Builder,
 	splitView *adw.NavigationSplitView,
-	sidebarStack *gtk.Stack,
-	chatsNavBtn *gtk.Button,
-	archivedNavBtn *gtk.Button,
+	sidebarStack *adw.ViewStack,
 	chatsList *gtk.ListBox,
 	archivedChatsList *gtk.ListBox,
 ) {
 	ctrl.splitView = splitView
 	ctrl.sidebarStack = sidebarStack
-	ctrl.chatsNavBtn = chatsNavBtn
-	ctrl.archivedNavBtn = archivedNavBtn
 	ctrl.chatsList = chatsList
 	ctrl.archivedChatsList = archivedChatsList
 
-	ctrl.callsNavBtn, _ = castObject[*gtk.Button](builder, "calls_nav_btn")
 	ctrl.callsPage, _ = castObject[*adw.ToolbarView](builder, "calls_page")
 	ctrl.callsList, _ = castObject[*gtk.ListBox](builder, "calls_list")
 	ctrl.callsSearchEntry, _ = castObject[*gtk.SearchEntry](builder, "calls_search_entry")
@@ -36,16 +31,16 @@ func (ctrl *MainController) bindSidebarWidgets(
 
 	if sidebarStack != nil {
 		if chatsPage != nil && sidebarStack.ChildByName("chats") == nil {
-			sidebarStack.AddTitled(chatsPage, "chats", "Chats")
+			sidebarStack.AddTitledWithIcon(chatsPage, "chats", "Chats", "chat-message-new-symbolic")
 		}
 		if ctrl.callsPage != nil && sidebarStack.ChildByName("calls") == nil {
-			sidebarStack.AddTitled(ctrl.callsPage, "calls", "Calls")
+			sidebarStack.AddTitledWithIcon(ctrl.callsPage, "calls", "Calls", "call-start-symbolic")
 		}
 		if archivedPage != nil && sidebarStack.ChildByName("archived") == nil {
-			sidebarStack.AddTitled(archivedPage, "archived", "Archived")
+			sidebarStack.AddTitledWithIcon(archivedPage, "archived", "Archived", "folder-download-symbolic")
 		}
 		if settingsPage != nil && sidebarStack.ChildByName("settings") == nil {
-			sidebarStack.AddTitled(settingsPage, "settings", "Settings")
+			sidebarStack.AddTitledWithIcon(settingsPage, "settings", "Settings", "preferences-system-symbolic")
 		}
 	}
 
@@ -54,21 +49,17 @@ func (ctrl *MainController) bindSidebarWidgets(
 
 func (ctrl *MainController) bindSidebarNav() {
 	ctrl.sidebarStack.SetVisibleChildName("chats")
-	ctrl.chatsNavBtn.AddCSSClass("active")
-
-	ctrl.chatsNavBtn.ConnectClicked(func() {
-		ctrl.switchSidebarView("chats")
-		ctrl.loadChats()
-	})
-	if ctrl.callsNavBtn != nil {
-		ctrl.callsNavBtn.ConnectClicked(func() {
-			ctrl.switchSidebarView("calls")
+	ctrl.sidebarStack.NotifyProperty("visible-child-name", func() {
+		switch ctrl.sidebarStack.VisibleChildName() {
+		case "chats":
+			ctrl.loadChats()
+		case "calls":
 			ctrl.loadCalls()
-		})
-	}
-	ctrl.archivedNavBtn.ConnectClicked(func() {
-		ctrl.switchSidebarView("archived")
-		ctrl.loadArchivedChats()
+		case "archived":
+			ctrl.loadArchivedChats()
+		case "settings":
+			ctrl.refreshSettingsInfo()
+		}
 	})
 
 	if ctrl.chatsSearchEntry != nil {

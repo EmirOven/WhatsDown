@@ -9,7 +9,7 @@ import (
 
 type sidebarWidgets struct {
 	splitView           *adw.NavigationSplitView
-	sidebarStack        *gtk.Stack
+	sidebarStack        *adw.ViewStack
 	chatsNavBtn         *gtk.Button
 	callsNavBtn         *gtk.Button
 	archivedNavBtn      *gtk.Button

@@ -22,19 +22,7 @@ func (c *MainController) openCallChat(call store.CallRecord) {
 		}
 	}
 	c.selectChat(targetChat)
-
-	c.sidebarStack.SetVisibleChildName("chats")
-	c.chatsNavBtn.AddCSSClass("active")
-	if c.callsNavBtn != nil {
-		c.callsNavBtn.RemoveCSSClass("active")
-	}
-	if c.archivedNavBtn != nil {
-		c.archivedNavBtn.RemoveCSSClass("active")
-	}
-	if c.settingsNavBtn != nil {
-		c.settingsNavBtn.RemoveCSSClass("active")
-	}
-	c.contentStack.SetVisibleChildName("chat")
+	c.switchSidebarView("chats")
 }
 
 func (c *MainController) attachCallContextMenu(row *gtk.ListBoxRow, call store.CallRecord) {

@@ -21,13 +21,10 @@ func SetupMainWindow(builder *gtk.Builder, client *whatsmeow.Client, s *store.Me
 	messagesList, ok7 := castObject[*gtk.ListBox](builder, "messages_list")
 	messageEntry, ok8 := castObject[*gtk.TextView](builder, "message_entry")
 	sendButton, ok9 := castObject[*gtk.Button](builder, "send_button")
-	chatsNavBtn, ok10 := castObject[*gtk.Button](builder, "chats_nav_btn")
-	archivedNavBtn, ok11 := castObject[*gtk.Button](builder, "archived_nav_btn")
-	sidebarStack, ok12 := castObject[*gtk.Stack](builder, "sidebar_stack")
+	sidebarStack, ok12 := castObject[*adw.ViewStack](builder, "sidebar_stack")
 	archivedChatsList, ok13 := castObject[*gtk.ListBox](builder, "archived_chats_list")
-	settingsNavBtn, ok14 := castObject[*gtk.Button](builder, "settings_nav_btn")
 
-	if !ok1 || !ok2 || !ok3 || !ok4 || !okBtn || !ok5 || !ok6 || !ok7 || !ok8 || !ok9 || !ok10 || !ok11 || !ok12 || !ok13 || !ok14 {
+	if !ok1 || !ok2 || !ok3 || !ok4 || !okBtn || !ok5 || !ok6 || !ok7 || !ok8 || !ok9 || !ok12 || !ok13 {
 		return nil, errors.New("WhatsDownMain.ui missing required widgets")
 	}
 
@@ -44,11 +41,11 @@ func SetupMainWindow(builder *gtk.Builder, client *whatsmeow.Client, s *store.Me
 	}
 	activeMainWindow = ctrl
 
-	ctrl.bindSidebarWidgets(builder, splitView, sidebarStack, chatsNavBtn, archivedNavBtn, chatsList, archivedChatsList)
+	ctrl.bindSidebarWidgets(builder, splitView, sidebarStack, chatsList, archivedChatsList)
 	ctrl.bindChatViewWidgets(builder, contentStack, activeChatBtn, activeChatAvatar, activeChatTitle, messagesList)
 	ctrl.bindInputWidgets(builder, messageEntry, sendButton)
 	ctrl.bindPopoverWidgets(builder)
-	ctrl.bindSettingsWidgets(builder, settingsNavBtn)
+	ctrl.bindSettingsWidgets(builder)
 	ctrl.bindShortcutsAndDrops(builder)
 
 	ctrl.setupVoiceRecording()

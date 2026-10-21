@@ -12,8 +12,7 @@ import (
 
 var OnLogoutRequested func()
 
-func (ctrl *MainController) bindSettingsWidgets(builder *gtk.Builder, settingsNavBtn *gtk.Button) {
-	ctrl.settingsNavBtn = settingsNavBtn
+func (ctrl *MainController) bindSettingsWidgets(builder *gtk.Builder) {
 	ctrl.settingsProfileRow, _ = castObject[*adw.ActionRow](builder, "settings_profile_row")
 	ctrl.settingsProfileAvatar, _ = castObject[*adw.Avatar](builder, "settings_profile_avatar")
 	ctrl.settingsResyncBtn, _ = castObject[*gtk.Button](builder, "settings_resync_btn")
@@ -22,11 +21,6 @@ func (ctrl *MainController) bindSettingsWidgets(builder *gtk.Builder, settingsNa
 	ctrl.settingsClearCacheBtn, _ = castObject[*gtk.Button](builder, "settings_clear_cache_btn")
 	ctrl.settingsThemeRow, _ = castObject[*adw.ComboRow](builder, "settings_theme_row")
 	ctrl.settingsLogoutBtn, _ = castObject[*gtk.Button](builder, "settings_logout_btn")
-
-	ctrl.settingsNavBtn.ConnectClicked(func() {
-		ctrl.switchSidebarView("settings")
-		ctrl.refreshSettingsInfo()
-	})
 
 	if ctrl.settingsResyncBtn != nil {
 		ctrl.settingsResyncBtn.ConnectClicked(func() {
