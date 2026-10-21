@@ -3,7 +3,8 @@ using Adw 1;
 
 Adw.ToolbarView right_chat_view {
   [top]
-  Adw.HeaderBar {
+  Adw.HeaderBar right_header_bar {
+    styles ["right-chat-header"]
     title-widget: Gtk.Button active_chat_btn {
       valign: center;
       styles ["flat", "active-chat-btn"]

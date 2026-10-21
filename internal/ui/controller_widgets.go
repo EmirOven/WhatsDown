@@ -39,6 +39,7 @@ type chatViewWidgets struct {
 	messagesList           *gtk.ListBox
 	chatPage               *gtk.Box
 	chatBgCSSProvider      *gtk.CSSProvider
+	tintingEnabled         bool
 }
 
 type inputWidgets struct {
@@ -86,5 +87,6 @@ type settingsWidgets struct {
 	settingsStatsRow      *adw.ActionRow
 	settingsClearCacheBtn *gtk.Button
 	settingsThemeRow      *adw.ComboRow
+	settingsTintingRow    *adw.SwitchRow
 	settingsLogoutBtn     *gtk.Button
 }
