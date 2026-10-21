@@ -52,9 +52,15 @@ func (s *MessageStore) SetChatMuted(ctx context.Context, jid string, muted bool)
 }
 
 func (s *MessageStore) MarkChatRead(ctx context.Context, chat types.JID) error {
+	nonAD := chat.ToNonAD().String()
+	targetJID := nonAD
+	if alt := s.ResolveLIDtoPN(ctx, nonAD); alt != "" {
+		targetJID = alt
+	}
+	altJID := s.ResolvePNtoLID(ctx, targetJID)
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE whatsdown_chats SET unread_count = 0 WHERE jid = ?`,
-		chat.String(),
+		`UPDATE whatsdown_chats SET unread_count = 0 WHERE jid = ? OR (jid = ? AND ? <> '')`,
+		targetJID, altJID, altJID,
 	)
 	return err
 }

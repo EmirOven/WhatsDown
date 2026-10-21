@@ -47,7 +47,7 @@ func (s *MessageStore) handleProtocolMessage(ctx context.Context, tx execer, cha
 	return false, nil
 }
 
-func (s *MessageStore) insertOrUpdateMessage(ctx context.Context, tx execer, chatJID, msgID, senderJID, pushName string, fromMe bool, ts int64, kind, text string, raw []byte, starInt, st int) (bool, error) {
+func (s *MessageStore) insertOrUpdateMessage(ctx context.Context, tx execer, chatJID, msgID, senderJID, pushName string, fromMe bool, ts int64, kind, text string, raw []byte, starInt, st int, incrementUnread bool) (bool, error) {
 	fromMeInt := 0
 	if fromMe {
 		fromMeInt = 1
@@ -71,7 +71,7 @@ func (s *MessageStore) insertOrUpdateMessage(ctx context.Context, tx execer, cha
 	}
 
 	rows, _ := res.RowsAffected()
-	if rows > 0 && !fromMe {
+	if rows > 0 && !fromMe && incrementUnread {
 		_, _ = tx.ExecContext(ctx, `
 			UPDATE whatsdown_chats
 			SET unread_count = unread_count + 1,

@@ -26,12 +26,20 @@ func (s *MessageStore) SaveMessageTx(ctx context.Context, tx execer, evt *events
 }
 
 func (s *MessageStore) SaveMessageTxWithStar(ctx context.Context, tx execer, evt *events.Message, starred bool, initialStatus ...int) (bool, error) {
+	return s.saveMessageTxInternal(ctx, tx, evt, starred, true, initialStatus...)
+}
+
+func (s *MessageStore) SaveHistoryMessageTx(ctx context.Context, tx execer, evt *events.Message, starred bool, initialStatus ...int) (bool, error) {
+	return s.saveMessageTxInternal(ctx, tx, evt, starred, false, initialStatus...)
+}
+
+func (s *MessageStore) saveMessageTxInternal(ctx context.Context, tx execer, evt *events.Message, starred bool, incUnread bool, initialStatus ...int) (bool, error) {
 	if evt.Info.Chat.Server == "broadcast" {
 		return false, nil
 	}
 
-	chatJID := evt.Info.Chat.String()
-	senderJID := evt.Info.Sender.String()
+	chatJID := evt.Info.Chat.ToNonAD().String()
+	senderJID := evt.Info.Sender.ToNonAD().String()
 	ts := evt.Info.Timestamp.Unix()
 	msgID := evt.Info.ID
 
@@ -81,5 +89,5 @@ func (s *MessageStore) SaveMessageTxWithStar(ctx context.Context, tx execer, evt
 		st = initialStatus[0]
 	}
 
-	return s.insertOrUpdateMessage(ctx, tx, chatJID, msgID, senderJID, evt.Info.PushName, evt.Info.IsFromMe, ts, kind, text, raw, starInt, st)
+	return s.insertOrUpdateMessage(ctx, tx, chatJID, msgID, senderJID, evt.Info.PushName, evt.Info.IsFromMe, ts, kind, text, raw, starInt, st, incUnread)
 }

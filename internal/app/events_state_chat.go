@@ -59,6 +59,11 @@ func handleChatStateAction(evt any) {
 					}
 				})
 			}
+		case *events.MarkChatAsRead:
+			if e.Action != nil && e.Action.GetRead() {
+				_ = msgStore.MarkChatRead(ctx, e.JID)
+				refreshChatsUI()
+			}
 		}
 	}()
 }

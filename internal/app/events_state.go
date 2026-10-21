@@ -20,7 +20,7 @@ func handleStateEvent(evt any) {
 		handleLoggedOut(e)
 	case *events.GroupInfo:
 		handleGroupInfo()
-	case *events.Pin, *events.Archive, *events.Mute, *events.Star:
+	case *events.Pin, *events.Archive, *events.Mute, *events.Star, *events.MarkChatAsRead:
 		handleChatStateAction(e)
 	case *events.AppStateSyncComplete:
 		glib.IdleAdd(func() {

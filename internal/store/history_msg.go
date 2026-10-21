@@ -76,7 +76,7 @@ func (s *MessageStore) saveConversationMessages(ctx context.Context, tx execer, 
 				status = MessageStatusSent
 			}
 		}
-		inserted, err := s.SaveMessageTxWithStar(ctx, tx, evt, isStarred, status)
+		inserted, err := s.SaveHistoryMessageTx(ctx, tx, evt, isStarred, status)
 		if err != nil {
 			return 0, err
 		}

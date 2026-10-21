@@ -19,7 +19,7 @@ func handleWhatsAppEvent(evt any) {
 		ui.ActiveMainWindow().HandleChatPresence(e)
 	case *events.CallOffer, *events.CallTerminate:
 		handleCallEvent(e)
-	case *events.Connected, *events.LoggedOut, *events.GroupInfo, *events.Pin, *events.Archive, *events.Mute, *events.Star, *events.AppStateSyncComplete, *events.Picture, *events.Contact, *events.PushName, *events.BusinessName:
+	case *events.Connected, *events.LoggedOut, *events.GroupInfo, *events.Pin, *events.Archive, *events.Mute, *events.Star, *events.MarkChatAsRead, *events.AppStateSyncComplete, *events.Picture, *events.Contact, *events.PushName, *events.BusinessName:
 		handleStateEvent(e)
 	}
 }
