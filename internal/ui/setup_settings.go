@@ -65,6 +65,7 @@ func (ctrl *MainController) bindSettingsWidgets(builder *gtk.Builder, settingsNa
 	}
 
 	ctrl.bindThemeRow()
+	ctrl.bindDonationButtons(builder)
 
 	if ctrl.settingsLogoutBtn != nil {
 		ctrl.settingsLogoutBtn.ConnectClicked(func() {

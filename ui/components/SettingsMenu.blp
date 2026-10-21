@@ -120,6 +120,45 @@ Adw.ToolbarView settings_page {
       }
 
       Adw.PreferencesGroup {
+        title: _("Donations");
+        description: _("Support the development of WhatsDown");
+
+        Adw.ActionRow {
+          title: "Liberapay";
+          subtitle: "liberapay.com/postbeta";
+
+          [prefix]
+          Gtk.Image {
+            icon-name: "emblem-favorite-symbolic";
+          }
+
+          [suffix]
+          Gtk.Button settings_donate_liberapay_btn {
+            label: _("Donate");
+            valign: center;
+            styles ["suggested-action", "pill"]
+          }
+        }
+
+        Adw.ActionRow {
+          title: "Buy Me a Coffee";
+          subtitle: "buymeacoffee.com/postbeta";
+
+          [prefix]
+          Gtk.Image {
+            icon-name: "emblem-favorite-symbolic";
+          }
+
+          [suffix]
+          Gtk.Button settings_donate_bmac_btn {
+            label: _("Support");
+            valign: center;
+            styles ["pill"]
+          }
+        }
+      }
+
+      Adw.PreferencesGroup {
         title: _("Session");
 
         Adw.ActionRow {
