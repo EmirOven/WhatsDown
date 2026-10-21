@@ -41,6 +41,7 @@ func (c *MainController) selectChat(chat store.Chat) {
 	c.splitView.SetShowContent(true)
 	c.cancelReply()
 	c.deleteVoiceRecording()
+	c.applyChatWallpaper(chat.JID)
 
 	c.markChatRead(chat.JID)
 	glib.IdleAdd(func() {

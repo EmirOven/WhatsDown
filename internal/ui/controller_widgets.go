@@ -37,6 +37,8 @@ type chatViewWidgets struct {
 	scrollToBottomBtn      *gtk.Button
 	messagesScrolledWindow *gtk.ScrolledWindow
 	messagesList           *gtk.ListBox
+	chatPage               *gtk.Box
+	chatBgCSSProvider      *gtk.CSSProvider
 }
 
 type inputWidgets struct {
