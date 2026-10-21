@@ -1,3 +1,5 @@
+%global debug_package %{nil}
+
 Name:           whatsdown
 Version:        0.1.0
 Release:        1%{?dist}
