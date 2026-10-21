@@ -1,0 +1,83 @@
+package ui
+
+import (
+	"context"
+	"strings"
+
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
+	"go.mau.fi/whatsmeow/types"
+	"postbetasoftware.com/whatsdown/internal/avatar"
+	"postbetasoftware.com/whatsdown/internal/store"
+)
+
+func (c *MainController) selectChat(chat store.Chat) {
+	c.currentChat = &chat
+	c.setTypingIndicator(false)
+
+	displayName := formatDisplayName(chat)
+	c.activeChatBtn.SetSensitive(true)
+	c.activeChatTitle.SetTitle(displayName)
+	c.updateTopbarSubtitle()
+	avatar.LoadAvatar(c.client, chat.JID, displayName, c.activeChatAvatar)
+	c.contentStack.SetVisibleChildName("chat")
+
+	if c.client != nil && !strings.HasSuffix(chat.JID, "@g.us") && !strings.HasSuffix(chat.JID, "@broadcast") && !strings.HasSuffix(chat.JID, "@newsletter") {
+		go func() {
+			if targetJID, err := types.ParseJID(chat.JID); err == nil {
+				_ = c.client.SubscribePresence(context.Background(), targetJID)
+			}
+		}()
+	}
+
+	c.chatSearchBtn.SetSensitive(true)
+	c.chatSearchBtn.SetActive(false)
+	c.chatSearchBar.SetSearchMode(false)
+	c.chatSearchEntry.SetText("")
+	c.messagesSearchFilter = ""
+	c.searchMatchIndices = nil
+	c.currentSearchMatchIndex = 0
+	c.updateSearchUI()
+
+	c.splitView.SetShowContent(true)
+	c.cancelReply()
+	c.deleteVoiceRecording()
+
+	c.markChatRead(chat.JID)
+	glib.IdleAdd(func() {
+		c.loadChats()
+		c.loadArchivedChats()
+	})
+
+	c.loadMessages(chat.JID)
+}
+
+func (c *MainController) markChatRead(chatJIDStr string) {
+	if chatJIDStr == "" {
+		return
+	}
+	targetJID, err := types.ParseJID(chatJIDStr)
+	if err != nil {
+		return
+	}
+
+	if c.store != nil {
+		_ = c.store.MarkChatRead(context.Background(), targetJID)
+	}
+
+	for i := range c.chats {
+		if c.chats[i].JID == chatJIDStr {
+			c.chats[i].UnreadCount = 0
+			break
+		}
+	}
+	for i := range c.archivedChats {
+		if c.archivedChats[i].JID == chatJIDStr {
+			c.archivedChats[i].UnreadCount = 0
+			break
+		}
+	}
+
+	if c.client != nil {
+		go c.sendReadReceipts(targetJID, chatJIDStr)
+	}
+}

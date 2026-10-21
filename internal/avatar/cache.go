@@ -1,0 +1,56 @@
+package avatar
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
+)
+
+var (
+	mu            sync.RWMutex
+	memoryCache   = make(map[string]*gdk.Texture)
+	negativeCache = make(map[string]time.Time)
+	inFlight      = make(map[string]bool)
+)
+
+func CacheDir() string {
+	dir := filepath.Join(glib.GetUserDataDir(), "whatsdown", "avatars")
+	_ = os.MkdirAll(dir, 0o700)
+	return dir
+}
+
+func SanitizeJIDFilename(jid string) string {
+	clean := strings.ReplaceAll(jid, "/", "_")
+	clean = strings.ReplaceAll(clean, ":", "_")
+	return clean
+}
+
+func DiskPath(jid string) string {
+	return filepath.Join(CacheDir(), SanitizeJIDFilename(jid)+".jpg")
+}
+
+// Invalidate removes the cached avatar for the given JID.
+func Invalidate(jid string) {
+	mu.Lock()
+	delete(memoryCache, jid)
+	delete(negativeCache, jid)
+	mu.Unlock()
+	_ = os.Remove(DiskPath(jid))
+}
+
+// ClearCache removes disk cached avatars and empties the in-memory texture cache.
+func ClearCache() {
+	cacheDir := CacheDir()
+	_ = os.RemoveAll(cacheDir)
+	_ = os.MkdirAll(cacheDir, 0o700)
+
+	mu.Lock()
+	memoryCache = make(map[string]*gdk.Texture)
+	negativeCache = make(map[string]time.Time)
+	mu.Unlock()
+}
