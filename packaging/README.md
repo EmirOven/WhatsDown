@@ -169,3 +169,59 @@ Flatpak provides a single sandboxed bundle that works across Arch, Fedora, Ubunt
 3. Add `com.postbetasoftware.WhatsDown.yml` and any supporting files.
 4. Submit a Pull Request to `flathub/flathub`. The automated bot will validate the manifest and test-build the package across x86_64 and aarch64.
 5. Once merged by the Flathub review team, a repository `flathub/com.postbetasoftware.WhatsDown` is automatically created, and your app will be published to Flathub and GNOME Software!
+
+---
+
+## 5. openSUSE (Open Build Service - OBS)
+
+Package files: [`packaging/obs/whatsdown.spec`](obs/whatsdown.spec) and [`packaging/obs/_service`](obs/_service).
+
+The Open Build Service (OBS) is openSUSE's native automated build infrastructure for **openSUSE Tumbleweed**, **openSUSE Leap 15.6**, and other distributions.
+
+### How to set up OBS:
+
+#### Option A: Via OBS Web Interface (Recommended)
+1. Sign up / Log in at [build.opensuse.org](https://build.opensuse.org/) using your openSUSE Account.
+2. Go to your home project (e.g. `home:<your-username>`).
+3. Click **Create Package**:
+   - **Name:** `whatsdown`
+   - **Title:** `WhatsDown Native WhatsApp Client`
+4. In the package repository view, click **Add file**:
+   - Upload [`packaging/obs/whatsdown.spec`](obs/whatsdown.spec).
+   - Upload [`packaging/obs/_service`](obs/_service).
+5. In **Repositories** on the package page, ensure **openSUSE Tumbleweed** and/or **openSUSE Leap 15.6** are enabled as build targets.
+6. Trigger the source service by clicking **Run Service**. OBS will automatically clone the repository from GitHub, create the tarball, and start the build!
+
+#### Option B: Via `osc` Command Line Tool
+1. Install `osc`:
+   ```bash
+   sudo zypper install osc   # openSUSE
+   # or
+   sudo pacman -S osc        # Arch Linux
+   ```
+2. Check out your home project:
+   ```bash
+   osc checkout home:<your-username>/whatsdown
+   cd home:<your-username>/whatsdown
+   ```
+3. Copy the OBS configuration files:
+   ```bash
+   cp /path/to/WhatsDown/packaging/obs/* .
+   ```
+4. Run the source service to fetch the Git tree into an archive:
+   ```bash
+   osc service manualrun
+   ```
+5. Add files, commit, and trigger cloud build:
+   ```bash
+   osc add whatsdown.spec _service
+   osc commit -m "Initial WhatsDown package"
+   ```
+
+### User Installation from OBS:
+Once the build completes on OBS, users can install it on **openSUSE Tumbleweed**:
+```bash
+sudo zypper addrepo https://download.opensuse.org/repositories/home:/<your-username>/openSUSE_Tumbleweed/home:<your-username>.repo
+sudo zypper refresh
+sudo zypper install whatsdown
+```
