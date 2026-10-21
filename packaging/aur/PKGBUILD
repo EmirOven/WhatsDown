@@ -1,6 +1,6 @@
 # Maintainer: Emir Öven <emiroven@postbetasoftware.com>
 pkgname=whatsdown-git
-pkgver=0.1.0.r31.gfae83d6
+pkgver=0.1.0.r36.g9d65033
 pkgrel=1
 pkgdesc="Native Linux WhatsApp client built with GTK 4 and Libadwaita"
 arch=('x86_64' 'aarch64')
