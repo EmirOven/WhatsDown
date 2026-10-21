@@ -48,6 +48,9 @@ func fetchRemote(client ClientProvider, jid string, isCommunity bool, onLoaded f
 		} else {
 			log.Printf("fetching profile picture info for %s: %v", jid, err)
 		}
+		if onLoaded != nil {
+			glib.IdleAdd(func() { onLoaded(nil) })
+		}
 		return
 	}
 
@@ -55,6 +58,9 @@ func fetchRemote(client ClientProvider, jid string, isCommunity bool, onLoaded f
 		mu.Lock()
 		negativeCache[jid] = time.Now()
 		mu.Unlock()
+		if onLoaded != nil {
+			glib.IdleAdd(func() { onLoaded(nil) })
+		}
 		return
 	}
 

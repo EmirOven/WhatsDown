@@ -27,6 +27,7 @@ func LoadAvatar(client ClientProvider, jid, displayName string, avatar *adw.Avat
 	}
 	avatar.SetText(displayName)
 	avatar.SetShowInitials(true)
+	avatar.SetCustomImage(nil)
 
 	isComm := len(isCommunity) > 0 && isCommunity[0]
 	LoadTexture(client, jid, isComm, func(tex *gdk.Texture) {
