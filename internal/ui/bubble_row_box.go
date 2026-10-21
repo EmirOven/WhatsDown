@@ -6,7 +6,7 @@ import (
 )
 
 func (c *MainController) buildBubbleRowBox(row *gtk.ListBoxRow, box *gtk.Box, msg store.StoredMessage, isOutgoing bool) *gtk.Box {
-	rowBox := gtk.NewBox(gtk.OrientationHorizontal, 6)
+	rowBox := gtk.NewBox(gtk.OrientationHorizontal, 3)
 	rowBox.AddCSSClass("message-row-box")
 
 	bubbleContainer := gtk.NewBox(gtk.OrientationVertical, 0)
@@ -30,6 +30,16 @@ func (c *MainController) buildBubbleRowBox(row *gtk.ListBoxRow, box *gtk.Box, ms
 
 	if msg.Kind != store.MessageKindDeleted {
 		mCopy := msg
+		doubleClick := gtk.NewGestureClick()
+		doubleClick.SetButton(1)
+		doubleClick.SetPropagationPhase(gtk.PhaseCapture)
+		doubleClick.ConnectPressed(func(nPress int, x, y float64) {
+			if nPress == 2 {
+				c.startReply(mCopy)
+			}
+		})
+		box.AddController(doubleClick)
+
 		replyBtn := gtk.NewButton()
 		addCSSClasses(replyBtn, "flat", "circular", "message-reply-btn")
 		replyBtn.SetIconName("mail-reply-sender-symbolic")

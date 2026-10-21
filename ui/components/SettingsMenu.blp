@@ -123,8 +123,9 @@ Adw.ToolbarView settings_page {
         title: _("Donations");
         description: _("Support the development of WhatsDown");
 
-        Adw.ActionRow {
+        Adw.ActionRow settings_donate_liberapay_row {
           title: "Liberapay";
+          activatable: true;
 
           [prefix]
           Gtk.Image settings_liberapay_icon {
@@ -132,15 +133,15 @@ Adw.ToolbarView settings_page {
           }
 
           [suffix]
-          Gtk.Button settings_donate_liberapay_btn {
-            label: _("Donate");
-            valign: center;
-            styles ["suggested-action", "pill"]
+          Gtk.Image {
+            icon-name: "go-next-symbolic";
+            styles ["dim-label"]
           }
         }
 
-        Adw.ActionRow {
+        Adw.ActionRow settings_donate_bmac_row {
           title: "Buy Me a Coffee";
+          activatable: true;
 
           [prefix]
           Gtk.Image settings_bmac_icon {
@@ -148,10 +149,9 @@ Adw.ToolbarView settings_page {
           }
 
           [suffix]
-          Gtk.Button settings_donate_bmac_btn {
-            label: _("Support");
-            valign: center;
-            styles ["pill"]
+          Gtk.Image {
+            icon-name: "go-next-symbolic";
+            styles ["dim-label"]
           }
         }
       }

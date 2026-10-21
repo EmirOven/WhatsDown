@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -27,13 +28,13 @@ func (ctrl *MainController) bindDonationButtons(builder *gtk.Builder) {
 			icon.SetFromPaintable(tex)
 		}
 	}
-	if btn, ok := castObject[*gtk.Button](builder, "settings_donate_liberapay_btn"); ok && btn != nil {
-		btn.ConnectClicked(func() {
+	if row, ok := castObject[*adw.ActionRow](builder, "settings_donate_liberapay_row"); ok && row != nil {
+		row.ConnectActivated(func() {
 			_ = media.OpenURL(liberapayURL)
 		})
 	}
-	if btn, ok := castObject[*gtk.Button](builder, "settings_donate_bmac_btn"); ok && btn != nil {
-		btn.ConnectClicked(func() {
+	if row, ok := castObject[*adw.ActionRow](builder, "settings_donate_bmac_row"); ok && row != nil {
+		row.ConnectActivated(func() {
 			_ = media.OpenURL(buyMeACoffeeURL)
 		})
 	}

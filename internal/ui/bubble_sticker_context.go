@@ -80,7 +80,6 @@ func (c *MainController) attachStickerContextMenu(widget gtk.Widgetter, msg stor
 			})
 			menuBox.Append(replyBtn)
 		}
-
 		c.appendStandardContextActions(menuBox, popover, mCopy)
 		popover.SetChild(menuBox)
 	}
@@ -88,6 +87,9 @@ func (c *MainController) attachStickerContextMenu(widget gtk.Widgetter, msg stor
 	gesture := gtk.NewGestureClick()
 	gesture.SetButton(0)
 	gesture.ConnectPressed(func(nPress int, x, y float64) {
+		if nPress > 1 {
+			return
+		}
 		populate()
 		rect := gdk.NewRectangle(int(x), int(y), 1, 1)
 		popover.SetPointingTo(&rect)
