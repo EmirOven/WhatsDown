@@ -41,38 +41,23 @@ func buildWallpaperCSS(wp store.ChatWallpaper, tinting bool) string {
 	var tintCSS string
 	if tinting && wp.Kind == "color" && wp.Value != "" {
 		tintColor := wp.Value
-		var fgColor string
-		if rgba, ok := parseColorSpec(tintColor); ok {
-			r, g, b := int(rgba.Red()*255), int(rgba.Green()*255), int(rgba.Blue()*255)
-			if r > 170 || g > 170 || b > 170 {
-				fgColor = "#000000"
-			} else {
-				fgColor = "#ffffff"
-			}
-		} else {
-			fgColor = "currentColor"
-		}
 		tintCSS = fmt.Sprintf(`
+#right_chat_view > revealer > windowhandle > box,
 .right-chat-header,
 .right-chat-header windowhandle,
 .right-chat-header windowcontrols,
 .right-chat-header windowcontrols button {
-  background-color: %s;
-  color: %s;
-}
-.right-chat-header label,
-.right-chat-header .active-chat-btn label {
-  color: %s;
+  background-color: mix(@headerbar_bg_color, %s, 0.2);
 }
 .chat-page .chat-input-bar,
 .chat-page .voice-recording-bar {
-  background-color: %s;
+  background-color: mix(@window_bg_color, %s, 0.2);
 }
 .chat-page .chat-input-bar .chat-send-btn {
   background-color: var(--accent-bg-color);
   color: var(--accent-fg-color);
 }
-`, tintColor, fgColor, fgColor, tintColor)
+`, tintColor, tintColor)
 	}
 
 	return fmt.Sprintf(`
