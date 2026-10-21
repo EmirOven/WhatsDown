@@ -1,6 +1,6 @@
 app-id: com.postbetasoftware.WhatsDown
 runtime: org.gnome.Platform
-runtime-version: '47'
+runtime-version: '51'
 sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.golang
@@ -34,7 +34,7 @@ modules:
     sources:
       - type: git
         url: https://gitlab.gnome.org/jwestman/blueprint-compiler.git
-        tag: v0.14.0
+        tag: v0.20.4
 
   - name: whatsdown
     buildsystem: simple
