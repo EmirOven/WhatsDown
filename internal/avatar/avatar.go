@@ -30,7 +30,11 @@ func LoadAvatar(client ClientProvider, jid, displayName string, avatar *adw.Avat
 
 	isComm := len(isCommunity) > 0 && isCommunity[0]
 	LoadTexture(client, jid, isComm, func(tex *gdk.Texture) {
-		avatar.SetCustomImage(tex)
+		if tex != nil {
+			avatar.SetCustomImage(tex)
+		} else {
+			avatar.SetCustomImage(nil)
+		}
 	})
 }
 
