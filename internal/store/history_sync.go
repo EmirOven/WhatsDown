@@ -8,43 +8,47 @@ import (
 	"go.mau.fi/whatsmeow/types"
 )
 
-// SaveHistorySync stores one history sync chunk in a single transaction.
+// SaveHistorySync stores one history sync chunk using per-conversation transactions
+// to avoid holding the database lock and blocking concurrent whatsmeow operations.
 func (s *MessageStore) SaveHistorySync(ctx context.Context, client *whatsmeow.Client, data *waHistorySync.HistorySync) (int, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return 0, err
-	}
-	defer tx.Rollback()
-
-	stored := 0
-	for _, pn := range data.GetPushnames() {
-		if pn.GetID() != "" && pn.GetPushname() != "" {
-			_, _ = tx.ExecContext(ctx, `
-				INSERT INTO whatsmeow_contacts (our_jid, their_jid, push_name)
-				VALUES ('', ?, ?)
-				ON CONFLICT (our_jid, their_jid) DO UPDATE SET
-					push_name = CASE WHEN push_name = '' OR push_name IS NULL THEN excluded.push_name ELSE push_name END`,
-				pn.GetID(), pn.GetPushname())
+	if pushnames := data.GetPushnames(); len(pushnames) > 0 {
+		if tx, err := s.db.BeginTx(ctx, nil); err == nil {
+			for _, pn := range pushnames {
+				if pn.GetID() != "" && pn.GetPushname() != "" {
+					_, _ = tx.ExecContext(ctx, `
+						INSERT INTO whatsmeow_contacts (our_jid, their_jid, push_name)
+						VALUES ('', ?, ?)
+						ON CONFLICT (our_jid, their_jid) DO UPDATE SET
+							push_name = CASE WHEN push_name = '' OR push_name IS NULL THEN excluded.push_name ELSE push_name END`,
+						pn.GetID(), pn.GetPushname())
+				}
+			}
+			_ = tx.Commit()
 		}
 	}
 
+	stored := 0
 	for _, conv := range data.GetConversations() {
 		chatJID, err := types.ParseJID(conv.GetID())
 		if err != nil {
 			continue
 		}
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			continue
+		}
 		if err := s.saveConversationChat(ctx, tx, chatJID, conv); err != nil {
-			return 0, err
+			_ = tx.Rollback()
+			continue
 		}
 		n, err := s.saveConversationMessages(ctx, tx, client, chatJID, conv.GetMessages())
 		if err != nil {
-			return 0, err
+			_ = tx.Rollback()
+			continue
 		}
-		stored += n
-	}
-
-	if err := tx.Commit(); err != nil {
-		return 0, err
+		if err := tx.Commit(); err == nil {
+			stored += n
+		}
 	}
 
 	favs := data.GetFavoriteStickers()

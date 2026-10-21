@@ -31,7 +31,11 @@ func newWhatsAppClient() (*whatsmeow.Client, error) {
 		if err != nil {
 			return nil, err
 		}
-		dsn := (&url.URL{Scheme: "file", Path: dbPath, RawQuery: "_foreign_keys=on&_busy_timeout=5000"}).String()
+		dsn := (&url.URL{
+			Scheme:   "file",
+			Path:     dbPath,
+			RawQuery: "_foreign_keys=on&_journal_mode=WAL&_busy_timeout=30000&_synchronous=NORMAL&_txlock=immediate",
+		}).String()
 		db, err := sql.Open("sqlite3", dsn)
 		if err != nil {
 			return nil, fmt.Errorf("opening database: %w", err)
