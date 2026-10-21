@@ -101,10 +101,12 @@ WhatsDown is a native Linux WhatsApp client built with **Go**, **GTK 4**, and **
 WhatsDown styles chat text, emoji autocomplete, and reaction pickers with a cross-platform emoji font stack:
 
 ```css
-font-family: "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji", "Twemoji Mozilla", sans-serif;
+font-family:
+  "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji", "Twemoji Mozilla", sans-serif;
 ```
 
 ### Apple Emoji Disclaimer
+
 > [!NOTE]
 > **Emoji Font Disclaimer:**
 > Official WhatsApp clients utilize Apple-designed emoji artwork: native **Apple Color Emoji** on iOS and macOS, and a custom Apple-styled emoji set on Android and WhatsApp Web.
@@ -120,6 +122,7 @@ font-family: "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji", "Twemoji
 Ensure you have the following system dependencies installed:
 
 ### Debian / Ubuntu
+
 ```bash
 sudo apt install -y \
   golang \
@@ -134,6 +137,7 @@ sudo apt install -y \
 ```
 
 ### Fedora
+
 ```bash
 sudo dnf install -y \
   golang \
@@ -146,6 +150,7 @@ sudo dnf install -y \
 ```
 
 ### Arch Linux
+
 ```bash
 sudo pacman -S --needed \
   go \
@@ -164,16 +169,19 @@ sudo pacman -S --needed \
 ### Development Mode (with Live Reload)
 
 The repository includes a development script `run.sh` that watches for file changes:
+
 - Changes to `ui/*.blp` are automatically recompiled into `.ui` via `blueprint-compiler`.
 - Changes to UI templates and CSS files are reloaded directly into the running application.
 - Changes to Go source code trigger an automatic recompile and restart.
 
 To start in development mode:
+
 ```bash
 ./run.sh
 ```
 
 To preview individual screens directly without pairing:
+
 ```bash
 # Preview the syncing progress screen:
 WHATSDOWN_DEV_PAGE=syncing ./run.sh
@@ -185,11 +193,14 @@ WHATSDOWN_DEV_PAGE=main ./run.sh
 ### Standard Run (Embedded Assets)
 
 Since XML `.ui` files are compiled from Blueprint source files (`.blp`) and not tracked in Git, compile them first before building:
+
 ```bash
 blueprint-compiler batch-compile ui ui ui/*.blp ui/components/*.blp
 WHATSDOWN_DEV=0 ./run.sh
 ```
+
 Or build the binary directly:
+
 ```bash
 blueprint-compiler batch-compile ui ui ui/*.blp ui/components/*.blp
 go build -o whatsdown .
@@ -222,3 +233,9 @@ WhatsDown stores application data in SQLite at `~/.local/share/whatsdown/whatsdo
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
+---
+
+## AI Notice
+
+AI is used as a tool in this project. All code is user-generated, or user-reviewed before being sent. Contributions that are found to be completely 'vibecoded' will not be accepted.
