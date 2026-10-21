@@ -11,11 +11,11 @@ export GOPATH = $(CURDIR)/debian/.go
 override_dh_auto_build:
 	mkdir -p $(HOME) $(GOCACHE) $(GOPATH)
 	blueprint-compiler batch-compile ui ui ui/*.blp ui/components/*.blp
-	go build -trimpath -ldflags="-s -w" -v -o whatsdown .
+	go build -mod=vendor -trimpath -ldflags="-s -w" -v -o whatsdown .
 
 override_dh_auto_test:
 	# Skip interactive/audio tests during package build
-	go test -short ./... || true
+	go test -mod=vendor -short ./... || true
 
 override_dh_auto_clean:
 	dh_auto_clean

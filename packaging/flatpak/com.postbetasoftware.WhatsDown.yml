@@ -40,7 +40,7 @@ modules:
     buildsystem: simple
     build-commands:
       - blueprint-compiler batch-compile ui ui ui/*.blp ui/components/*.blp
-      - go build -v -ldflags="-s -w" -o /app/bin/whatsdown .
+      - go build -mod=vendor -v -ldflags="-s -w" -o /app/bin/whatsdown .
       - install -Dm644 com.postbetasoftware.WhatsDown.desktop /app/share/applications/com.postbetasoftware.WhatsDown.desktop
       - install -Dm644 com.postbetasoftware.WhatsDown.svg /app/share/icons/hicolor/scalable/apps/com.postbetasoftware.WhatsDown.svg
       - install -Dm644 com.postbetasoftware.WhatsDown.metainfo.xml /app/share/metainfo/com.postbetasoftware.WhatsDown.metainfo.xml
