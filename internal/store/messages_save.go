@@ -38,6 +38,11 @@ func (s *MessageStore) SaveMessageTxWithStar(ctx context.Context, tx execer, evt
 	if strings.HasSuffix(chatJID, "@s.whatsapp.net") && s.IsSelfJID(ctx, chatJID) {
 		chatJID = s.GetCanonicalSelfJID(ctx)
 	}
+	if strings.HasSuffix(chatJID, "@lid") {
+		if pn := s.ResolveLIDtoPN(ctx, chatJID); pn != "" {
+			chatJID = pn
+		}
+	}
 
 	msg := evt.Message
 	if ephem := msg.GetEphemeralMessage(); ephem != nil && ephem.Message != nil {

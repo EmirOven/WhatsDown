@@ -3,7 +3,6 @@ package ui
 import (
 	"fmt"
 
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"postbetasoftware.com/whatsdown/internal/avatar"
 	"postbetasoftware.com/whatsdown/internal/store"
@@ -19,8 +18,7 @@ func (c *MainController) createCommunityHeaderRow(comm store.Chat, childCount in
 	box.SetMarginTop(8)
 	box.SetMarginBottom(8)
 
-	av := adw.NewAvatar(36, comm.Name, true)
-	avatar.LoadAvatar(c.client, comm.JID, comm.Name, av)
+	av := avatar.NewCommunityAvatar(c.client, comm.JID, comm.Name, 44)
 	box.Append(av)
 
 	titleBox := gtk.NewBox(gtk.OrientationVertical, 2)
@@ -47,6 +45,7 @@ func (c *MainController) createCommunityHeaderRow(comm store.Chat, childCount in
 	arrow.AddCSSClass("dim-label")
 	box.Append(arrow)
 
+	c.attachContextMenu(row, comm, false)
 	row.SetChild(box)
 	return row
 }

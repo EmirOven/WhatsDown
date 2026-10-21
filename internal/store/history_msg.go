@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"strings"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waHistorySync"
@@ -10,6 +11,12 @@ import (
 )
 
 func (s *MessageStore) saveConversationChat(ctx context.Context, tx execer, chatJID types.JID, conv *waHistorySync.Conversation) error {
+	targetJIDStr := chatJID.String()
+	if strings.HasSuffix(targetJIDStr, "@lid") {
+		if pn := s.ResolveLIDtoPN(ctx, targetJIDStr); pn != "" {
+			targetJIDStr = pn
+		}
+	}
 	name := conv.GetDisplayName()
 	if name == "" {
 		name = conv.GetName()
@@ -31,7 +38,7 @@ func (s *MessageStore) saveConversationChat(ctx context.Context, tx execer, chat
 			LEFT JOIN whatsmeow_contacts cnt ON cnt.their_jid = t.jid
 			LEFT JOIN whatsmeow_lid_map lm ON (lm.lid || '@lid') = t.jid
 			LEFT JOIN whatsmeow_contacts cnt_lid ON cnt_lid.their_jid = (lm.pn || '@s.whatsapp.net')`,
-			chatJID.String()).Scan(&name)
+			targetJIDStr).Scan(&name)
 	}
 
 	_, err := tx.ExecContext(ctx, `
@@ -43,7 +50,7 @@ func (s *MessageStore) saveConversationChat(ctx context.Context, tx execer, chat
 			unread_count    = excluded.unread_count,
 			archived        = excluded.archived,
 			pinned          = excluded.pinned`,
-		chatJID.String(), name, int64(conv.GetConversationTimestamp()),
+		targetJIDStr, name, int64(conv.GetConversationTimestamp()),
 		conv.GetUnreadCount(), conv.GetArchived(), conv.GetPinned() > 0)
 	return err
 }

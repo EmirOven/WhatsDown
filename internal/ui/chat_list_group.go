@@ -28,6 +28,9 @@ func groupCommunities(chats []store.Chat, searchLower string, expanded map[strin
 		children := childrenMap[pJID]
 		for _, ch := range children {
 			comm.UnreadCount += ch.UnreadCount
+			if ch.Pinned {
+				comm.Pinned = true
+			}
 			if ch.LastMessageAt.After(comm.LastMessageAt) {
 				comm.LastMessageAt = ch.LastMessageAt
 				comm.LastMessageText = ch.Name + ": " + ch.LastMessageText

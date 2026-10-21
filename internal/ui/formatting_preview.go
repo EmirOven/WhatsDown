@@ -15,36 +15,37 @@ func formatDisplayName(chat store.Chat) string {
 		}
 		return "Message yourself"
 	}
+	if chat.IsDefaultSubGroup {
+		return "Announcements"
+	}
 
 	name := strings.TrimSpace(chat.Name)
 	if name != "" && !strings.Contains(name, "@") && !strings.Contains(name, "∙∙∙") {
 		return name
 	}
-	if strings.HasSuffix(chat.JID, "@s.whatsapp.net") {
+	switch {
+	case strings.HasSuffix(chat.JID, "@s.whatsapp.net"):
 		return cleanPhoneNumber(chat.JID)
-	}
-	if strings.HasSuffix(chat.JID, "@lid") {
+	case strings.HasSuffix(chat.JID, "@lid"):
 		if strings.HasPrefix(name, "+") {
 			return name
 		}
 		return "WhatsApp User"
-	}
-	if strings.HasSuffix(chat.JID, "@g.us") {
+	case strings.HasSuffix(chat.JID, "@g.us"):
 		if name != "" && !strings.Contains(name, "@") {
 			return name
 		}
 		return "Group"
-	}
-	if strings.HasSuffix(chat.JID, "@broadcast") {
+	case strings.HasSuffix(chat.JID, "@broadcast"):
 		return "Status Updates"
-	}
-	if strings.HasSuffix(chat.JID, "@newsletter") {
+	case strings.HasSuffix(chat.JID, "@newsletter"):
 		if name != "" && !strings.Contains(name, "@") {
 			return name
 		}
 		return "Channel"
+	default:
+		return cleanPhoneNumber(chat.JID)
 	}
-	return cleanPhoneNumber(chat.JID)
 }
 
 // formatMessagePreview formats a message into a concise single-line preview snippet.
@@ -52,41 +53,23 @@ func formatMessagePreview(kind, text string) string {
 	cleanText := strings.TrimSpace(strings.ReplaceAll(text, "\n", " "))
 	switch kind {
 	case store.MessageKindImage:
-		if cleanText != "" {
-			return "📷 " + cleanText
-		}
-		return "📷 Photo"
+		return previewWithFallback("📷 ", cleanText, "📷 Photo")
 	case store.MessageKindVideo:
-		if cleanText != "" {
-			return "📹 " + cleanText
-		}
-		return "📹 Video"
+		return previewWithFallback("📹 ", cleanText, "📹 Video")
 	case store.MessageKindAudio:
 		return "🎵 Audio"
 	case store.MessageKindVoice:
 		return "🎤 Voice message"
 	case store.MessageKindDocument:
-		if cleanText != "" {
-			return "📄 " + cleanText
-		}
-		return "📄 Document"
+		return previewWithFallback("📄 ", cleanText, "📄 Document")
 	case store.MessageKindSticker:
 		return "Sticker"
 	case store.MessageKindLocation:
-		if cleanText != "" {
-			return "📍 " + cleanText
-		}
-		return "📍 Location"
+		return previewWithFallback("📍 ", cleanText, "📍 Location")
 	case store.MessageKindContact:
-		if cleanText != "" {
-			return "👤 " + cleanText
-		}
-		return "👤 Contact"
+		return previewWithFallback("👤 ", cleanText, "👤 Contact")
 	case store.MessageKindPoll:
-		if cleanText != "" {
-			return "📊 " + cleanText
-		}
-		return "📊 Poll"
+		return previewWithFallback("📊 ", cleanText, "📊 Poll")
 	case store.MessageKindDeleted:
 		return "🚫 This message was deleted"
 	default:
@@ -95,4 +78,11 @@ func formatMessagePreview(kind, text string) string {
 		}
 		return "Message"
 	}
+}
+
+func previewWithFallback(prefix, text, fallback string) string {
+	if text != "" {
+		return prefix + text
+	}
+	return fallback
 }

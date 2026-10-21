@@ -31,6 +31,7 @@ func OpenMessageStore(ctx context.Context, db *sql.DB) (*MessageStore, error) {
 		return nil, fmt.Errorf("migrating message store: %w", err)
 	}
 	s.cleanupSelfChats(ctx)
+	s.cleanupDuplicateChats(ctx)
 	return s, nil
 }
 

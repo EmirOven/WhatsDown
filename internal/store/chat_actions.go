@@ -11,7 +11,11 @@ func (s *MessageStore) SetChatPinned(ctx context.Context, jid string, pinned boo
 	if pinned {
 		v = 1
 	}
-	_, err := s.db.ExecContext(ctx, `UPDATE whatsdown_chats SET pinned = ? WHERE jid = ?`, v, jid)
+	altJID := s.ResolveLIDtoPN(ctx, jid)
+	if altJID == "" {
+		altJID = s.ResolvePNtoLID(ctx, jid)
+	}
+	_, err := s.db.ExecContext(ctx, `UPDATE whatsdown_chats SET pinned = ? WHERE jid = ? OR (jid = ? AND ? <> '')`, v, jid, altJID, altJID)
 	return err
 }
 
@@ -20,7 +24,11 @@ func (s *MessageStore) SetChatArchived(ctx context.Context, jid string, archived
 	if archived {
 		v = 1
 	}
-	_, err := s.db.ExecContext(ctx, `UPDATE whatsdown_chats SET archived = ? WHERE jid = ?`, v, jid)
+	altJID := s.ResolveLIDtoPN(ctx, jid)
+	if altJID == "" {
+		altJID = s.ResolvePNtoLID(ctx, jid)
+	}
+	_, err := s.db.ExecContext(ctx, `UPDATE whatsdown_chats SET archived = ? WHERE jid = ? OR (jid = ? AND ? <> '')`, v, jid, altJID, altJID)
 	return err
 }
 
@@ -29,7 +37,11 @@ func (s *MessageStore) SetChatMuted(ctx context.Context, jid string, muted bool)
 	if muted {
 		v = 1
 	}
-	_, err := s.db.ExecContext(ctx, `UPDATE whatsdown_chats SET muted = ? WHERE jid = ?`, v, jid)
+	altJID := s.ResolveLIDtoPN(ctx, jid)
+	if altJID == "" {
+		altJID = s.ResolvePNtoLID(ctx, jid)
+	}
+	_, err := s.db.ExecContext(ctx, `UPDATE whatsdown_chats SET muted = ? WHERE jid = ? OR (jid = ? AND ? <> '')`, v, jid, altJID, altJID)
 	return err
 }
 

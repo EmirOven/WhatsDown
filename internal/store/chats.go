@@ -26,13 +26,12 @@ func (s *MessageStore) fetchChats(ctx context.Context, archived bool) ([]Chat, e
 			COALESCE(m.text, ''), COALESCE(m.kind, ''), COALESCE(m.from_me, 0), COALESCE(m.status, 0)
 		FROM whatsdown_chats c
 		LEFT JOIN (
-			SELECT m1.chat_jid, m1.text, m1.kind, m1.from_me, m1.status
-			FROM whatsdown_messages m1
-			JOIN (
-				SELECT chat_jid, MAX(timestamp) AS max_time
+			SELECT chat_jid, text, kind, from_me, status
+			FROM (
+				SELECT chat_jid, text, kind, from_me, status,
+				       ROW_NUMBER() OVER (PARTITION BY chat_jid ORDER BY timestamp DESC, rowid DESC) as rn
 				FROM whatsdown_messages
-				GROUP BY chat_jid
-			) m2 ON m1.chat_jid = m2.chat_jid AND m1.timestamp = m2.max_time
+			) WHERE rn = 1
 		) m ON c.jid = m.chat_jid
 		WHERE c.archived = ?
 		ORDER BY c.pinned DESC, c.last_message_at DESC

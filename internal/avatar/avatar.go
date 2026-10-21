@@ -21,29 +21,39 @@ type ClientProvider interface {
 
 // LoadAvatar sets the fallback initials and asynchronously fetches/applies the
 // profile picture for the given JID to the provided Adw.Avatar.
-func LoadAvatar(client ClientProvider, jid, displayName string, avatar *adw.Avatar) {
+func LoadAvatar(client ClientProvider, jid, displayName string, avatar *adw.Avatar, isCommunity ...bool) {
 	if avatar == nil {
 		return
 	}
-
 	avatar.SetText(displayName)
 	avatar.SetShowInitials(true)
 
+	isComm := len(isCommunity) > 0 && isCommunity[0]
+	LoadTexture(client, jid, isComm, func(tex *gdk.Texture) {
+		avatar.SetCustomImage(tex)
+	})
+}
+
+// LoadTexture loads an avatar texture from cache or network.
+func LoadTexture(client ClientProvider, jid string, isCommunity bool, onLoaded func(*gdk.Texture)) {
+	if onLoaded == nil {
+		return
+	}
 	if jid == "" || jid == "0@s.whatsapp.net" || strings.HasPrefix(jid, "0@") {
-		avatar.SetCustomImage(nil)
+		onLoaded(nil)
 		return
 	}
 
 	mu.RLock()
 	if tex, ok := memoryCache[jid]; ok {
 		mu.RUnlock()
-		avatar.SetCustomImage(tex)
+		onLoaded(tex)
 		return
 	}
 	if lastFailed, ok := negativeCache[jid]; ok {
 		if time.Since(lastFailed) < 1*time.Hour {
 			mu.RUnlock()
-			avatar.SetCustomImage(nil)
+			onLoaded(nil)
 			return
 		}
 	}
@@ -51,18 +61,17 @@ func LoadAvatar(client ClientProvider, jid, displayName string, avatar *adw.Avat
 
 	diskPath := DiskPath(jid)
 	if data, err := os.ReadFile(diskPath); err == nil && len(data) > 0 {
-		texture, err := gdk.NewTextureFromBytes(glib.NewBytesWithGo(data))
-		if err == nil {
+		if texture, err := gdk.NewTextureFromBytes(glib.NewBytesWithGo(data)); err == nil {
 			mu.Lock()
 			memoryCache[jid] = texture
 			mu.Unlock()
-			avatar.SetCustomImage(texture)
+			onLoaded(texture)
 			return
 		}
 	}
 
 	if client == nil || !client.IsConnected() {
-		avatar.SetCustomImage(nil)
+		onLoaded(nil)
 		return
 	}
 
@@ -74,5 +83,5 @@ func LoadAvatar(client ClientProvider, jid, displayName string, avatar *adw.Avat
 	inFlight[jid] = true
 	mu.Unlock()
 
-	go fetchRemote(client, jid, avatar)
+	go fetchRemote(client, jid, isCommunity, onLoaded)
 }

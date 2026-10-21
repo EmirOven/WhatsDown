@@ -7,16 +7,16 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
 )
 
-func fetchRemote(client ClientProvider, jid string, avatar *adw.Avatar) {
+func fetchRemote(client ClientProvider, jid string, isCommunity bool, onLoaded func(*gdk.Texture)) {
 	defer func() {
 		mu.Lock()
 		delete(inFlight, jid)
@@ -31,9 +31,15 @@ func fetchRemote(client ClientProvider, jid string, avatar *adw.Avatar) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	picInfo, err := client.GetProfilePictureInfo(ctx, targetJID, &whatsmeow.GetProfilePictureParams{
-		Preview: true,
-	})
+	params := &whatsmeow.GetProfilePictureParams{
+		Preview:     true,
+		IsCommunity: isCommunity,
+	}
+	picInfo, err := client.GetProfilePictureInfo(ctx, targetJID, params)
+	if err != nil && !isCommunity && strings.HasSuffix(jid, "@g.us") {
+		params.IsCommunity = true
+		picInfo, err = client.GetProfilePictureInfo(ctx, targetJID, params)
+	}
 	if err != nil {
 		if errors.Is(err, whatsmeow.ErrProfilePictureNotSet) || errors.Is(err, whatsmeow.ErrProfilePictureUnauthorized) {
 			mu.Lock()
@@ -76,12 +82,13 @@ func fetchRemote(client ClientProvider, jid string, avatar *adw.Avatar) {
 	_ = os.WriteFile(DiskPath(jid), data, 0o600)
 
 	glib.IdleAdd(func() {
-		texture, err := gdk.NewTextureFromBytes(glib.NewBytesWithGo(data))
-		if err == nil {
+		if texture, err := gdk.NewTextureFromBytes(glib.NewBytesWithGo(data)); err == nil {
 			mu.Lock()
 			memoryCache[jid] = texture
 			mu.Unlock()
-			avatar.SetCustomImage(texture)
+			if onLoaded != nil {
+				onLoaded(texture)
+			}
 		}
 	})
 }

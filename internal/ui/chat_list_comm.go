@@ -10,6 +10,9 @@ import (
 
 func (c *MainController) appendCommunityRows(listBox *gtk.ListBox, item *store.Chat, children []store.Chat, searchLower string, isArchived bool, rows *[]chatRowItem) {
 	sort.SliceStable(children, func(i, j int) bool {
+		if children[i].Pinned != children[j].Pinned {
+			return children[i].Pinned
+		}
 		if children[i].IsDefaultSubGroup != children[j].IsDefaultSubGroup {
 			return children[i].IsDefaultSubGroup
 		}
