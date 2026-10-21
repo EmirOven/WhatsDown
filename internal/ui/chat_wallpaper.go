@@ -42,6 +42,7 @@ func buildWallpaperCSS(wp store.ChatWallpaper, tinting bool) string {
 	if tinting && wp.Kind == "color" && wp.Value != "" {
 		tintColor := wp.Value
 		tintCSS = fmt.Sprintf(`
+.right-chat-header-box,
 #right_chat_view > revealer > windowhandle > box,
 .right-chat-header,
 .right-chat-header windowhandle,

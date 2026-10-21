@@ -1150,7 +1150,8 @@ tabbar:drop(active) {
   color: #53bdeb;
 }
 
-#right_chat_view > revealer > windowhandle > box {
+#right_chat_view > revealer > windowhandle > box,
+.right-chat-header-box {
   padding-left: 0;
   padding-right: 0;
   margin-left: 0;
