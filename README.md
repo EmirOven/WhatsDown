@@ -217,9 +217,6 @@ If you enjoy using WhatsDown and would like to support its ongoing development a
 [![Donate via Liberapay](https://img.shields.io/badge/Liberapay-Donate-F6C915?style=for-the-badge&logo=liberapay&logoColor=black)](https://liberapay.com/postbeta)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/postbeta)
 
-- **Liberapay:** [liberapay.com/postbeta](https://liberapay.com/postbeta)
-- **Buy Me a Coffee:** [buymeacoffee.com/postbeta](https://buymeacoffee.com/postbeta)
-
 ---
 
 ## License
