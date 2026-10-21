@@ -11,11 +11,17 @@ func (s *MessageStore) SetChatPinned(ctx context.Context, jid string, pinned boo
 	if pinned {
 		v = 1
 	}
-	altJID := s.ResolveLIDtoPN(ctx, jid)
-	if altJID == "" {
-		altJID = s.ResolvePNtoLID(ctx, jid)
+	targetJID := jid
+	if alt := s.ResolveLIDtoPN(ctx, jid); alt != "" {
+		targetJID = alt
 	}
-	_, err := s.db.ExecContext(ctx, `UPDATE whatsdown_chats SET pinned = ? WHERE jid = ? OR (jid = ? AND ? <> '')`, v, jid, altJID, altJID)
+	altJID := s.ResolvePNtoLID(ctx, targetJID)
+	res, err := s.db.ExecContext(ctx, `UPDATE whatsdown_chats SET pinned = ? WHERE jid = ? OR (jid = ? AND ? <> '')`, v, targetJID, altJID, altJID)
+	if err == nil && pinned {
+		if rows, _ := res.RowsAffected(); rows == 0 {
+			_, _ = s.db.ExecContext(ctx, `INSERT OR IGNORE INTO whatsdown_chats (jid, name, last_message_at, unread_count, pinned) VALUES (?, '', 0, 0, 1)`, targetJID)
+		}
+	}
 	return err
 }
 

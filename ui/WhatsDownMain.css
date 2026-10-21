@@ -449,6 +449,14 @@ list.chat-messages-list > row {
   min-width: 170px;
 }
 
+.popover-menu-btn.destructive-action {
+  color: #e01b24;
+}
+
+.popover-menu-btn.destructive-action:hover {
+  background-color: alpha(#e01b24, 0.12);
+}
+
 .details-dialog-box {
   padding: 24px;
 }

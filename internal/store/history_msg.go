@@ -48,8 +48,8 @@ func (s *MessageStore) saveConversationChat(ctx context.Context, tx execer, chat
 			name            = CASE WHEN excluded.name <> '' THEN excluded.name ELSE name END,
 			last_message_at = MAX(last_message_at, excluded.last_message_at),
 			unread_count    = excluded.unread_count,
-			archived        = excluded.archived,
-			pinned          = excluded.pinned`,
+			archived        = CASE WHEN excluded.archived = 1 THEN 1 ELSE archived END,
+			pinned          = CASE WHEN excluded.pinned = 1 THEN 1 ELSE pinned END`,
 		targetJIDStr, name, int64(conv.GetConversationTimestamp()),
 		conv.GetUnreadCount(), conv.GetArchived(), conv.GetPinned() > 0)
 	return err

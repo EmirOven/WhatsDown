@@ -33,6 +33,7 @@ func (s *MessageStore) SaveHistorySync(ctx context.Context, client *whatsmeow.Cl
 		if err != nil {
 			continue
 		}
+		chatJID = chatJID.ToNonAD()
 		tx, err := s.db.BeginTx(ctx, nil)
 		if err != nil {
 			continue

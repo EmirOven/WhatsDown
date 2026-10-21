@@ -22,46 +22,50 @@ func (c *MainController) attachContextMenu(row *gtk.ListBoxRow, chat store.Chat,
 	if chat.Pinned {
 		pinText = "Unpin chat"
 	}
-	pinBtn := newMenuButton("view-pin-symbolic", pinText, func() {
+	menuBox.Append(newMenuButton("view-pin-symbolic", pinText, func() {
 		popover.Popdown()
 		c.togglePin(chat)
-	})
-	menuBox.Append(pinBtn)
+	}))
 
-	muteText := "Mute chat"
-	muteIconName := "audio-volume-muted-symbolic"
+	muteText, muteIcon := "Mute chat", "audio-volume-muted-symbolic"
 	if chat.Muted {
-		muteText = "Unmute chat"
-		muteIconName = "audio-volume-high-symbolic"
+		muteText, muteIcon = "Unmute chat", "audio-volume-high-symbolic"
 	}
-	muteBtn := newMenuButton(muteIconName, muteText, func() {
+	menuBox.Append(newMenuButton(muteIcon, muteText, func() {
 		popover.Popdown()
 		c.toggleMute(chat)
-	})
-	menuBox.Append(muteBtn)
+	}))
 
-	detailsBtn := newMenuButton("help-about-symbolic", "Details & Media", func() {
+	menuBox.Append(newMenuButton("help-about-symbolic", "Details & Media", func() {
 		popover.Popdown()
 		c.showDetailsAndMedia(chat)
-	})
-	menuBox.Append(detailsBtn)
+	}))
 
 	sep := gtk.NewSeparator(gtk.OrientationHorizontal)
 	sep.SetMarginTop(2)
 	sep.SetMarginBottom(2)
 	menuBox.Append(sep)
 
-	archiveText := "Archive chat"
-	archiveIconName := "folder-download-symbolic"
+	archText, archIcon := "Archive chat", "folder-download-symbolic"
 	if chat.Archived {
-		archiveText = "Unarchive chat"
-		archiveIconName = "folder-symbolic"
+		archText, archIcon = "Unarchive chat", "folder-symbolic"
 	}
-	archiveBtn := newMenuButton(archiveIconName, archiveText, func() {
+	menuBox.Append(newMenuButton(archIcon, archText, func() {
 		popover.Popdown()
 		c.toggleArchive(chat)
+	}))
+
+	sep2 := gtk.NewSeparator(gtk.OrientationHorizontal)
+	sep2.SetMarginTop(2)
+	sep2.SetMarginBottom(2)
+	menuBox.Append(sep2)
+
+	delBtn := newMenuButton("user-trash-symbolic", "Delete chat", func() {
+		popover.Popdown()
+		c.deleteChatLocally(chat)
 	})
-	menuBox.Append(archiveBtn)
+	delBtn.AddCSSClass("destructive-action")
+	menuBox.Append(delBtn)
 
 	popover.SetChild(menuBox)
 

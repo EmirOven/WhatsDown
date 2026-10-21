@@ -47,7 +47,8 @@ func handleConnected() {
 			_ = waClient.SendPresence(context.Background(), types.PresenceAvailable)
 		}
 		for _, name := range appstate.AllPatchNames {
-			_ = waClient.FetchAppState(context.Background(), name, false, false)
+			fullSync := name == appstate.WAPatchRegularLow
+			_ = waClient.FetchAppState(context.Background(), name, fullSync, false)
 		}
 		if msgStore != nil && waClient != nil {
 			msgStore.ImportStickersFromChatHistory(context.Background(), waClient)
