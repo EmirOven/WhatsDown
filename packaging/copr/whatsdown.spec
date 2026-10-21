@@ -5,7 +5,7 @@ Summary:        Native Linux WhatsApp client built with GTK 4 and Libadwaita
 
 License:        MIT
 URL:            https://github.com/EmirOven/WhatsDown
-Source0:        %{url}/archive/refs/tags/v%{version}.tar.gz#/%{name}-%{version}.tar.gz
+Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  golang >= 1.22
 BuildRequires:  gtk4-devel >= 4.14

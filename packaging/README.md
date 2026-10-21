@@ -54,11 +54,13 @@ COPR builds RPM packages in the cloud for Fedora 40, Fedora 41, Rawhide, etc., a
    - **Chroots:** Select current Fedora versions (`fedora-40-x86_64`, `fedora-41-x86_64`, `fedora-rawhide-x86_64`).
 3. Click **New Package** within your project:
    - **Package Name:** `whatsdown`
-   - **Source type:** Select **SCM** (or **Custom**)
+   - **Source type:** Select **SCM**
    - **Clone URL:** `https://github.com/EmirOven/WhatsDown.git`
    - **Committish:** `main`
+   - **Source build method:** Select **`make_srpm`** (uses `.copr/Makefile` to archive the git tree automatically)
    - **Spec file:** `packaging/copr/whatsdown.spec`
-   - **Subdirectory:** `packaging/copr`
+   - **Subdirectory:** *(Leave completely empty/blank)*
+   - Make sure **"Enable internet access during build"** is checked in project settings.
 4. Enable **Auto-rebuilds** / Webhook:
    - Under project settings, copy the GitHub Webhook URL provided by COPR and paste it into `GitHub Repository -> Settings -> Webhooks` with Content-type `application/json`.
 5. Trigger your first build by clicking **Rebuild**.
