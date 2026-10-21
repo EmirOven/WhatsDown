@@ -583,7 +583,7 @@
        d="m 64.000029,184.06464 a 51.999986,51.999986 45.000016 0 1 51.999971,52 51.967695,51.967695 135.03563 0 1 -52,51.93537 H 20.315621 a 8.2509913,8.2509913 45 0 1 -8.250991,-8.25099 l 0,-43.74898 a 51.935399,51.935399 135 0 1 51.935399,-51.9354 z"
        inkscape:path-effect="#path-effect6"
        inkscape:original-d="M 12.06463,184.06464 H 116 V 288.00001 H 12.06463 Z"
-       style="display:inline;enable-background:new;fill:#55ff99"
+       style="display:inline;enable-background:new;fill:#25d366"
        sodipodi:nodetypes="ccccc"
        transform="translate(0,-172)" />
     <path
@@ -596,7 +596,7 @@
        transform="matrix(0.80756917,0,0,0.80756909,12.321977,-126.69885)" />
     <text
        xml:space="preserve"
-       style="font-size:64px;line-height:0;writing-mode:lr-tb;direction:ltr;fill:#55ff99;stroke-width:5.16819;filter:url(#filter25)"
+       style="font-size:64px;line-height:0;writing-mode:lr-tb;direction:ltr;fill:#25d366;stroke-width:5.16819;filter:url(#filter25)"
        x="35.231995"
        y="84"
        id="text21"><tspan
@@ -604,7 +604,7 @@
          id="tspan21"
          x="35.231995"
          y="84"
-         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:64px;line-height:0;font-family:'Noto Sans';-inkscape-font-specification:'Noto Sans Bold';fill:#55ff99;stroke-width:5.16819">@</tspan></text>
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:64px;line-height:0;font-family:'Noto Sans';-inkscape-font-specification:'Noto Sans Bold';fill:#25d366;stroke-width:5.16819">@</tspan></text>
   </g>
   <g
      id="g29"
