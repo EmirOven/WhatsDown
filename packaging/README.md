@@ -34,6 +34,12 @@ Package files: [`packaging/aur/PKGBUILD`](PKGBUILD) and [`packaging/aur/.SRCINFO
 
 Users can install it with:
 ```bash
+# Option A: Install from source using PKGBUILD (no AUR helper required)
+git clone https://github.com/EmirOven/WhatsDown.git
+cd WhatsDown/packaging/aur
+makepkg -sic
+
+# Option B: Install via AUR helper
 yay -S whatsdown-git
 # or
 paru -S whatsdown-git
@@ -65,10 +71,19 @@ COPR builds RPM packages in the cloud for Fedora 40, Fedora 41, Rawhide, etc., a
    - Under project settings, copy the GitHub Webhook URL provided by COPR and paste it into `GitHub Repository -> Settings -> Webhooks` with Content-type `application/json`.
 5. Trigger your first build by clicking **Rebuild**.
 
-Users can install it on Fedora with:
+Users can install it with:
+
+#### Fedora 45
 ```bash
-sudo dnf copr enable <your-username>/whatsdown
+sudo dnf copr enable emiroven/WhatsDown
 sudo dnf install whatsdown
+```
+
+#### openSUSE Tumbleweed
+```bash
+sudo zypper addrepo https://copr.fedorainfracloud.org/coprs/emiroven/WhatsDown/repo/opensuse-tumbleweed/emiroven-WhatsDown-opensuse-tumbleweed.repo
+sudo zypper refresh
+sudo zypper install whatsdown
 ```
 
 ---
@@ -109,9 +124,9 @@ To manually build and upload a source package to your PPA:
    dput ppa:your-username/whatsdown ../whatsdown_0.1.0-1_source.changes
    ```
 
-Users can install it on Ubuntu with:
+Users can install it on Ubuntu (**Stonking** and **Tenacious**) with:
 ```bash
-sudo add-apt-repository ppa:your-username/whatsdown
+sudo add-apt-repository ppa:emiroven/whatsdown
 sudo apt update
 sudo apt install whatsdown
 ```

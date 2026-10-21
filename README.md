@@ -117,6 +117,74 @@ font-family:
 
 ---
 
+## Installation
+
+WhatsDown can be installed via pre-built packages or compiled from source.
+
+### Ubuntu (Launchpad PPA)
+
+Available for Ubuntu **Stonking** (26.10) and **Tenacious** (27.04):
+
+```bash
+sudo add-apt-repository ppa:emiroven/whatsdown
+sudo apt update
+sudo apt install whatsdown
+```
+
+---
+
+### Fedora & openSUSE (COPR)
+
+Available for **Fedora 45** and **openSUSE Tumbleweed** via Fedora COPR:
+
+#### Fedora 45
+```bash
+sudo dnf copr enable emiroven/WhatsDown
+sudo dnf install whatsdown
+```
+
+#### openSUSE Tumbleweed
+```bash
+# Add the COPR repository via zypper
+sudo zypper addrepo https://copr.fedorainfracloud.org/coprs/emiroven/WhatsDown/repo/opensuse-tumbleweed/emiroven-WhatsDown-opensuse-tumbleweed.repo
+sudo zypper refresh
+sudo zypper install whatsdown
+```
+*(Or if using DNF on Tumbleweed: `sudo dnf copr enable emiroven/WhatsDown && sudo dnf install whatsdown`)*
+
+---
+
+### Arch Linux (From Source using PKGBUILD)
+
+You can build and install directly from source using the provided `PKGBUILD`:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/EmirOven/WhatsDown.git
+cd WhatsDown/packaging/aur
+
+# 2. Build and install with dependencies (-s: resolve deps, -i: install, -c: clean up)
+makepkg -sic
+```
+
+If you use an AUR helper like `yay` or `paru`:
+```bash
+yay -S whatsdown-git
+# or
+paru -S whatsdown-git
+```
+
+---
+
+### Flatpak (Any Linux Distribution)
+
+```bash
+flatpak install flathub com.postbetasoftware.WhatsDown
+flatpak run com.postbetasoftware.WhatsDown
+```
+
+---
+
 ## Prerequisites
 
 Ensure you have the following system dependencies installed:
