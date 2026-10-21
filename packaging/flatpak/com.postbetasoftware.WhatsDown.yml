@@ -20,6 +20,8 @@ finish-args:
 
 build-options:
   append-path: /usr/lib/sdk/golang/bin
+  build-args:
+    - --share=network
   env:
     GOPATH: /run/build/whatsdown/go
     GOFLAGS: -trimpath -modcacherw

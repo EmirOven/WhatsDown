@@ -141,7 +141,7 @@ Flatpak provides a single sandboxed bundle that works across Arch, Fedora, Ubunt
    ```
 3. Build and install locally:
    ```bash
-   flatpak-builder --user --install --force-clean --share=network build-dir packaging/flatpak/com.postbetasoftware.WhatsDown.yml
+   flatpak-builder --user --install --force-clean build-dir packaging/flatpak/com.postbetasoftware.WhatsDown.yml
    ```
 4. Run the app:
    ```bash
