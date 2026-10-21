@@ -54,7 +54,7 @@ func (pw *wallpaperPreviewWidgets) update(wp store.ChatWallpaper) {
 	if pw == nil || pw.cssProvider == nil {
 		return
 	}
-	bgStyle, isLight := extractWallpaperStyle(wp)
+	bgStyle, bubbleBg, bubbleFg := extractWallpaperStyle(wp)
 	if bgStyle == "" {
 		pw.cssProvider.LoadFromData(`
 			.wallpaper-preview-box { background: none; }
@@ -62,11 +62,6 @@ func (pw *wallpaperPreviewWidgets) update(wp store.ChatWallpaper) {
 			.wallpaper-preview-incoming label { color: currentColor; }
 		`)
 		return
-	}
-
-	bubbleBg, bubbleFg := "#ffffff", "#000000"
-	if isLight {
-		bubbleBg, bubbleFg = "#1c1c1e", "#ffffff"
 	}
 
 	pw.cssProvider.LoadFromData(fmt.Sprintf(`

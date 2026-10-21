@@ -33,14 +33,9 @@ func (c *MainController) applyChatWallpaper(chatJID string) {
 }
 
 func buildWallpaperCSS(wp store.ChatWallpaper) string {
-	bgCSS, isLight := extractWallpaperStyle(wp)
+	bgCSS, bubbleBg, bubbleFg := extractWallpaperStyle(wp)
 	if bgCSS == "" {
 		return `.chat-page { background: none; }`
-	}
-
-	bubbleBg, bubbleFg := "#ffffff", "#000000"
-	if isLight {
-		bubbleBg, bubbleFg = "#1c1c1e", "#ffffff"
 	}
 
 	return fmt.Sprintf(`
