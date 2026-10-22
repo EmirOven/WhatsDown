@@ -15,7 +15,8 @@ var (
 	mu            sync.RWMutex
 	memoryCache   = make(map[string]*gdk.Texture)
 	negativeCache = make(map[string]time.Time)
-	inFlight      = make(map[string]bool)
+	inFlight      = make(map[string][]func(*gdk.Texture))
+	fetchSem      = make(chan struct{}, 2)
 )
 
 func CacheDir() string {
@@ -41,6 +42,18 @@ func Invalidate(jid string) {
 	delete(negativeCache, jid)
 	mu.Unlock()
 	_ = os.Remove(DiskPath(jid))
+}
+
+// StoreBytes saves raw avatar bytes to disk and clears the in-memory/negative cache for the JID.
+func StoreBytes(jid string, data []byte) {
+	if len(data) == 0 {
+		return
+	}
+	_ = os.WriteFile(DiskPath(jid), data, 0o600)
+	mu.Lock()
+	delete(memoryCache, jid)
+	delete(negativeCache, jid)
+	mu.Unlock()
 }
 
 // ClearCache removes disk cached avatars and empties the in-memory texture cache.

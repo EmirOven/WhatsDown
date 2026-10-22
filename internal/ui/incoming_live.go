@@ -26,6 +26,10 @@ func (c *MainController) HandleIncomingLiveMessage(evt *events.Message) {
 		if canonical := c.getCanonicalSelfJID(); canonical != "" {
 			chatStr = canonical
 		}
+	} else if c.store != nil {
+		if pn := c.store.ResolveLIDtoPN(context.Background(), chatStr); pn != "" {
+			chatStr = pn
+		}
 	}
 
 	isCurrentChat := c.currentChat != nil && c.isSameChat(c.currentChat.JID, chatStr)

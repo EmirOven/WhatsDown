@@ -8,7 +8,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
-// NewCommunityAvatar creates a rounded-square avatar widget for a WhatsApp community.
+// NewCommunityAvatar creates a square avatar widget for a WhatsApp community.
 func NewCommunityAvatar(client ClientProvider, jid, name string, size int) *gtk.Box {
 	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
 	box.SetSizeRequest(size, size)
@@ -16,6 +16,7 @@ func NewCommunityAvatar(client ClientProvider, jid, name string, size int) *gtk.
 	box.AddCSSClass("community-avatar")
 
 	stack := gtk.NewStack()
+	stack.SetSizeRequest(size, size)
 	stack.SetTransitionType(gtk.StackTransitionTypeCrossfade)
 	stack.SetTransitionDuration(150)
 
@@ -32,11 +33,10 @@ func NewCommunityAvatar(client ClientProvider, jid, name string, size int) *gtk.
 	fallbackBox.Append(lbl)
 	stack.AddNamed(fallbackBox, "fallback")
 
-	picture := gtk.NewPicture()
-	picture.SetContentFit(gtk.ContentFitCover)
-	picture.SetCanShrink(true)
-	picture.SetSizeRequest(size, size)
-	stack.AddNamed(picture, "image")
+	img := gtk.NewImage()
+	img.SetPixelSize(size)
+	img.SetSizeRequest(size, size)
+	stack.AddNamed(img, "image")
 	stack.SetVisibleChildName("fallback")
 
 	box.Append(stack)
@@ -44,7 +44,7 @@ func NewCommunityAvatar(client ClientProvider, jid, name string, size int) *gtk.
 	LoadTexture(client, jid, true, func(tex *gdk.Texture) {
 		glib.IdleAdd(func() {
 			if tex != nil {
-				picture.SetPaintable(tex)
+				img.SetFromPaintable(tex)
 				stack.SetVisibleChildName("image")
 			} else {
 				stack.SetVisibleChildName("fallback")

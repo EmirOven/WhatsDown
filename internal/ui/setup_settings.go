@@ -20,6 +20,7 @@ func (ctrl *MainController) bindSettingsWidgets(builder *gtk.Builder) {
 	ctrl.settingsStatsRow, _ = castObject[*adw.ActionRow](builder, "settings_stats_row")
 	ctrl.settingsClearCacheBtn, _ = castObject[*gtk.Button](builder, "settings_clear_cache_btn")
 	ctrl.settingsThemeRow, _ = castObject[*adw.ComboRow](builder, "settings_theme_row")
+	ctrl.settingsTintingRow, _ = castObject[*adw.SwitchRow](builder, "settings_tinting_row")
 	ctrl.settingsLogoutBtn, _ = castObject[*gtk.Button](builder, "settings_logout_btn")
 
 	if ctrl.settingsResyncBtn != nil {

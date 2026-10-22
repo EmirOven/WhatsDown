@@ -4,6 +4,13 @@
   padding: 10px 12px;
 }
 
+.chat-row-color-bar {
+  min-width: 4px;
+  border-radius: 9999px;
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
 .chat-row-title {
   font-weight: 700;
   font-size: 11pt;
@@ -120,6 +127,46 @@ list.chat-messages-list > row {
   background-color: alpha(currentColor, 0.15);
 }
 
+/* User @ mention autocomplete popover */
+popover.mention-popover,
+.mention-popover {
+  background: transparent;
+}
+
+popover.mention-popover > contents,
+.mention-popover > contents,
+.mention-popover contents {
+  padding: 6px;
+  border-radius: 12px;
+  background-color: @popover_bg_color;
+  background-image: none;
+  border: 1px solid alpha(currentColor, 0.14);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+.mention-list {
+  background-color: @popover_bg_color;
+  border-radius: 8px;
+}
+
+.mention-row {
+  background-color: @popover_bg_color;
+  border-radius: 8px;
+  padding: 2px 4px;
+  transition: background-color 100ms ease;
+}
+
+.mention-row:hover,
+.mention-row.selected,
+.mention-row:selected {
+  background-color: alpha(currentColor, 0.14);
+}
+
+.mention-row-name {
+  font-weight: 600;
+  font-size: 10.5pt;
+}
+
 /* WhatsApp emoji font stack */
 .emoji-font,
 .reaction-quick-btn,
@@ -201,7 +248,7 @@ list.chat-messages-list > row {
   color: var(--accent-fg-color);
   border-bottom-right-radius: 3px;
   margin-left: 60px;
-  margin-right: 8px;
+  margin-right: 0px;
 }
 
 .chat-bubble-incoming {
@@ -222,6 +269,20 @@ list.chat-messages-list > row {
   font-size: 11pt;
 }
 
+.chat-bubble-text a {
+  color: #3584e4;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.chat-bubble-text a:hover {
+  text-decoration: underline;
+}
+
+.chat-bubble-outgoing .chat-bubble-text a {
+  color: #78aeed;
+}
+
 .chat-bubble-outgoing label selection,
 .chat-bubble-outgoing label:selected {
   background-color: rgba(255, 255, 255, 0.35);
@@ -239,25 +300,11 @@ list.chat-messages-list > row {
 }
 
 /* Community Grouping & Folders */
-.community-avatar {
-  border-radius: 10px;
-  min-width: 44px;
-  min-height: 44px;
-  max-width: 44px;
-  max-height: 44px;
-}
-
-.community-avatar-fallback {
-  background: linear-gradient(135deg, #128c7e 0%, #075e54 100%);
-  border-radius: 10px;
-  min-width: 44px;
-  min-height: 44px;
-}
-
-.community-avatar-initials {
-  color: #ffffff;
-  font-weight: 700;
-  font-size: 15px;
+avatar.community-avatar,
+.community-avatar,
+avatar.community-avatar image,
+.community-avatar image {
+  border-radius: 8px;
 }
 
 .community-folder-row {
@@ -785,7 +832,7 @@ list.chat-messages-list > row {
 
 /* Reply preview bar over message input */
 .reply-preview-bar {
-  background: transparent;
+  background-color: var(--window-bg-color);
   border-top: 1px solid alpha(currentColor, 0.08);
   border-left: 4px solid #3584e4;
   border-radius: 8px 8px 0 0;
@@ -821,7 +868,8 @@ list.chat-messages-list > row {
 .message-row-box {
   margin-top: 0px;
   margin-bottom: 0px;
-  margin-right: 30px;
+  margin-right: 8px;
+  margin-left: 8px;
 }
 
 .message-reply-btn {
@@ -985,6 +1033,12 @@ tabbar:drop(active) {
   border-color: transparent !important;
 }
 
+.chat-page,
+.chat-page scrolledwindow,
+.chat-page scrolledwindow viewport {
+  background-color: transparent;
+  background-image: none;
+}
 .chat-page:drop(active),
 .chat-messages-list:drop(active) {
   outline: 2px dashed @accent_color !important;
@@ -1101,3 +1155,66 @@ tabbar:drop(active) {
 .reaction-list-emoji {
   font-size: 20px;
 }
+
+/* Chat Wallpaper Preview in details dialog */
+.wallpaper-preview-box {
+  border-radius: 12px;
+  padding: 14px 16px;
+  min-height: 110px;
+  border: 1px solid alpha(currentColor, 0.12);
+  background-color: var(--view-bg-color);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.wallpaper-preview-incoming {
+  padding: 6px 10px;
+  border-radius: 12px;
+  border-bottom-left-radius: 2px;
+  font-size: 9.5pt;
+  max-width: 200px;
+  background-color: alpha(currentColor, 0.08);
+}
+
+.wallpaper-preview-outgoing {
+  padding: 6px 10px;
+  border-radius: 12px;
+  border-bottom-right-radius: 2px;
+  font-size: 9.5pt;
+  max-width: 200px;
+  background-color: var(--accent-bg-color);
+  color: var(--accent-fg-color);
+}
+
+.wallpaper-preview-time {
+  font-size: 7.5pt;
+  opacity: 0.65;
+}
+
+.wallpaper-preview-status {
+  font-size: 8pt;
+  color: #53bdeb;
+}
+
+#right_chat_view > revealer > windowhandle > box,
+.right-chat-header-box {
+  padding-left: 0;
+  padding-right: 0;
+  margin-left: 0;
+  margin-right: 0;
+  transition: none;
+}
+
+.right-chat-header,
+.right-chat-header windowhandle,
+.right-chat-header windowcontrols,
+.right-chat-header windowcontrols button,
+.right-chat-header windowcontrols button > image,
+.chat-page .chat-input-bar,
+.chat-page .voice-recording-bar,
+.chat-page .reply-preview-bar {
+  transition: none;
+}
+
+

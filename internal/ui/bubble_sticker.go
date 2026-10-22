@@ -60,7 +60,9 @@ func (c *MainController) buildStickerWidget(msg store.StoredMessage) *gtk.Pictur
 					pic.SetSizeRequest(sw, sh)
 					pic.QueueResize()
 				}
-				c.scrollToBottomAnimated()
+				if c.autoScrollBottom {
+					c.scrollToBottom()
+				}
 			})
 		}
 	})

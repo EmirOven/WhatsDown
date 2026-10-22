@@ -27,6 +27,7 @@ func LoadAvatar(client ClientProvider, jid, displayName string, avatar *adw.Avat
 	}
 	avatar.SetText(displayName)
 	avatar.SetShowInitials(true)
+	avatar.SetCustomImage(nil)
 
 	isComm := len(isCommunity) > 0 && isCommunity[0]
 	LoadTexture(client, jid, isComm, func(tex *gdk.Texture) {
@@ -80,12 +81,13 @@ func LoadTexture(client ClientProvider, jid string, isCommunity bool, onLoaded f
 	}
 
 	mu.Lock()
-	if inFlight[jid] {
+	if cbs, ok := inFlight[jid]; ok {
+		inFlight[jid] = append(cbs, onLoaded)
 		mu.Unlock()
 		return
 	}
-	inFlight[jid] = true
+	inFlight[jid] = []func(*gdk.Texture){onLoaded}
 	mu.Unlock()
 
-	go fetchRemote(client, jid, isCommunity, onLoaded)
+	go fetchRemote(client, jid, isCommunity)
 }

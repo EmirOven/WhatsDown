@@ -4,6 +4,12 @@ using Adw 1;
 Adw.ToolbarView chats_page {
   [top]
   Adw.HeaderBar {
+    [start]
+    Gtk.Button new_group_btn {
+      icon-name: "list-add-symbolic";
+      tooltip-text: _("Create New Group");
+    }
+
     title-widget: Adw.WindowTitle {
       title: "Chats";
     };

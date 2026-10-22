@@ -43,6 +43,7 @@ func SetupMainWindow(builder *gtk.Builder, client *whatsmeow.Client, s *store.Me
 
 	ctrl.bindSidebarWidgets(builder, splitView, sidebarStack, chatsList, archivedChatsList)
 	ctrl.bindChatViewWidgets(builder, contentStack, activeChatBtn, activeChatAvatar, activeChatTitle, messagesList)
+	ctrl.chatPage, _ = castObject[*gtk.Box](builder, "chat_page")
 	ctrl.bindInputWidgets(builder, messageEntry, sendButton)
 	ctrl.bindPopoverWidgets(builder)
 	ctrl.bindSettingsWidgets(builder)

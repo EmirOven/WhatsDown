@@ -36,19 +36,10 @@ func (c *MainController) scrollToBottomAnimated() {
 	c.isAutoScrolling = true
 	c.scrollToBottom()
 	glib.IdleAdd(func() {
-		c.scrollToBottom()
-	})
-	delays := []uint{15, 40, 80, 150, 250, 400, 600, 900, 1300}
-	for _, d := range delays {
-		delay := d
-		glib.TimeoutAdd(delay, func() bool {
+		if c.autoScrollBottom {
 			c.scrollToBottom()
-			return false
-		})
-	}
-	glib.TimeoutAdd(1500, func() bool {
+		}
 		c.isAutoScrolling = false
-		return false
 	})
 }
 

@@ -25,6 +25,12 @@ func (ctrl *MainController) bindSidebarWidgets(
 	ctrl.chatsSearchEntry, _ = castObject[*gtk.SearchEntry](builder, "chats_search_entry")
 	ctrl.archivedSearchEntry, _ = castObject[*gtk.SearchEntry](builder, "archived_search_entry")
 
+	if newGroupBtn, ok := castObject[*gtk.Button](builder, "new_group_btn"); ok && newGroupBtn != nil {
+		newGroupBtn.ConnectClicked(func() {
+			ctrl.showCreateGroupDialog()
+		})
+	}
+
 	chatsPage, _ := castObject[*adw.ToolbarView](builder, "chats_page")
 	archivedPage, _ := castObject[*adw.ToolbarView](builder, "archived_page")
 	settingsPage, _ := castObject[*adw.ToolbarView](builder, "settings_page")

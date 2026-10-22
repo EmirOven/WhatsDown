@@ -62,9 +62,9 @@ func (ctrl *MainController) bindScrollAdjustment() {
 	}
 	adj.ConnectValueChanged(func() {
 		maxVal := adj.Upper() - adj.PageSize()
-		isAtBottom := maxVal <= 10 || adj.Value() >= maxVal-60
+		isAtBottom := maxVal <= 10 || adj.Value() >= maxVal-30
 		if !ctrl.isAutoScrolling {
-			if maxVal > 10 && adj.Value() < maxVal-150 {
+			if maxVal > 10 && adj.Value() < maxVal-40 {
 				ctrl.autoScrollBottom = false
 			} else if isAtBottom {
 				ctrl.autoScrollBottom = true

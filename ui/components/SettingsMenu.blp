@@ -117,6 +117,16 @@ Adw.ToolbarView settings_page {
             ]
           };
         }
+
+        Adw.SwitchRow settings_tinting_row {
+          title: _("Tinting");
+          subtitle: _("Tint titlebar and message bar with chat background color");
+
+          [prefix]
+          Gtk.Image {
+            icon-name: "color-select-symbolic";
+          }
+        }
       }
 
       Adw.PreferencesGroup {

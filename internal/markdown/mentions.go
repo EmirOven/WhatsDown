@@ -24,10 +24,6 @@ func IsAllDigits(s string) bool {
 }
 
 func applyMentions(result string, mentionedJIDs []string, resolveName func(string) string) (string, bool) {
-	if len(mentionedJIDs) == 0 {
-		return result, false
-	}
-
 	jidMap := make(map[string]string)
 	for _, jid := range mentionedJIDs {
 		jidMap[jid] = jid
@@ -46,17 +42,23 @@ func applyMentions(result string, mentionedJIDs []string, resolveName func(strin
 	hasMentions := false
 	out := MentionRegex.ReplaceAllStringFunc(result, func(m string) string {
 		tag := m[1:]
+		if strings.EqualFold(tag, "all") || strings.EqualFold(tag, "everyone") {
+			hasMentions = true
+			return fmt.Sprintf(`<a href="user:all"><b>@%s</b></a>`, glib.MarkupEscapeText(tag))
+		}
 		targetJID := tag
 		if mapped, ok := jidMap[tag]; ok {
 			targetJID = mapped
 		} else if !strings.Contains(tag, "@") && IsAllDigits(tag) && len(tag) >= 5 {
 			targetJID = tag + "@s.whatsapp.net"
+		} else {
+			return m
 		}
 
 		label := "@" + tag
 		if resolveName != nil {
-			resolved := resolveName(targetJID)
-			if resolved != "" && resolved != targetJID && !strings.Contains(resolved, "@") {
+			resolved := strings.TrimPrefix(resolveName(targetJID), "@")
+			if resolved != "" && resolved != targetJID && resolved != "WhatsApp User" {
 				label = "@" + resolved
 			} else if strings.HasPrefix(targetJID, "+") {
 				label = "@" + targetJID

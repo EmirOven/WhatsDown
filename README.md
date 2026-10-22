@@ -10,6 +10,12 @@
 
 ---
 
+## Branch Info
+
+This branch is for v0.2.0 - named Colourful. It is WIP and pre-alpha software. Use the `main` branch if you just want to install or work on the latest stable code.
+
+---
+
 ## Features
 
 - **Native GNOME Experience:** Built with GTK 4 and Libadwaita, seamlessly integrating with system dark mode and GNOME desktop aesthetics.

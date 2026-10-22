@@ -35,6 +35,8 @@ func (c *MainController) sendMessage() {
 		c.cancelReply()
 	}
 
+	text, ctxInfo = c.prepareMentionsContext(text, ctxInfo)
+
 	targetJID, err := types.ParseJID(c.currentChat.JID)
 	if err != nil {
 		log.Printf("parsing target JID: %v", err)

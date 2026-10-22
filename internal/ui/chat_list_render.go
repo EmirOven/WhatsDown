@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -75,5 +76,18 @@ func (c *MainController) renderArchivedEmptyState(listBox *gtk.ListBox) {
 }
 
 func (c *MainController) isSameChat(j1, j2 string) bool {
-	return j1 == j2 || (c.isSelfJID(j1) && c.isSelfJID(j2))
+	if j1 == j2 || (c.isSelfJID(j1) && c.isSelfJID(j2)) {
+		return true
+	}
+	if c.store != nil {
+		p1, p2 := j1, j2
+		if pn := c.store.ResolveLIDtoPN(context.Background(), j1); pn != "" {
+			p1 = pn
+		}
+		if pn := c.store.ResolveLIDtoPN(context.Background(), j2); pn != "" {
+			p2 = pn
+		}
+		return p1 == p2
+	}
+	return false
 }

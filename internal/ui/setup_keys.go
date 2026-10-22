@@ -5,6 +5,25 @@ import (
 )
 
 func (ctrl *MainController) handleEntryKeyPress(val uint, code uint, state gdk.ModifierType) bool {
+	if ctrl.isMentionPopupVisible() {
+		if val == gdk.KEY_Up {
+			ctrl.navigateMentionPopup(-1)
+			return true
+		}
+		if val == gdk.KEY_Down {
+			ctrl.navigateMentionPopup(1)
+			return true
+		}
+		if val == gdk.KEY_Return || val == gdk.KEY_KP_Enter || val == gdk.KEY_ISO_Enter || val == gdk.KEY_Tab {
+			ctrl.commitSelectedMention()
+			return true
+		}
+		if val == gdk.KEY_Escape {
+			ctrl.hideMentionPopup()
+			return true
+		}
+	}
+
 	if ctrl.isEmojiSuggestionVisible() {
 		if val == gdk.KEY_Left {
 			ctrl.navigateEmojiSuggestion(-1)
