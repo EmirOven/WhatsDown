@@ -14,7 +14,13 @@ type GroupMemberItem struct {
 }
 
 func (c *MainController) fetchGroupMembers(groupJID string) []GroupMemberItem {
-	var results []GroupMemberItem
+	results := []GroupMemberItem{
+		{
+			JID:         "all",
+			DisplayName: "all",
+			Subtitle:    "Notify everyone",
+		},
+	}
 	seen := make(map[string]bool)
 
 	if c.client != nil {
@@ -45,7 +51,7 @@ func (c *MainController) fetchGroupMembers(groupJID string) []GroupMemberItem {
 		}
 	}
 
-	if len(results) == 0 && c.store != nil {
+	if len(results) <= 1 && c.store != nil {
 		historyMembers := c.getGroupSendersFromHistory(groupJID)
 		for _, s := range historyMembers {
 			clean := s

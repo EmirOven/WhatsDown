@@ -121,26 +121,38 @@ list.chat-messages-list > row {
 }
 
 /* User @ mention autocomplete popover */
-.mention-popover contents {
-  padding: 4px;
-  border-radius: 12px;
-  background-color: @card_bg_color;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
-}
-
-.mention-list {
+popover.mention-popover,
+.mention-popover {
   background: transparent;
 }
 
+popover.mention-popover > contents,
+.mention-popover > contents,
+.mention-popover contents {
+  padding: 6px;
+  border-radius: 12px;
+  background-color: @popover_bg_color;
+  background-image: none;
+  border: 1px solid alpha(currentColor, 0.14);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+.mention-list {
+  background-color: @popover_bg_color;
+  border-radius: 8px;
+}
+
 .mention-row {
+  background-color: @popover_bg_color;
   border-radius: 8px;
   padding: 2px 4px;
   transition: background-color 100ms ease;
 }
 
 .mention-row:hover,
-.mention-row.selected {
-  background-color: alpha(currentColor, 0.1);
+.mention-row.selected,
+.mention-row:selected {
+  background-color: alpha(currentColor, 0.14);
 }
 
 .mention-row-name {
@@ -281,29 +293,11 @@ list.chat-messages-list > row {
 }
 
 /* Community Grouping & Folders */
-.community-header-row {
-  padding: 10px 12px;
-  margin: 0;
-  border: none;
-}
-
-.community-avatar {
+avatar.community-avatar,
+.community-avatar,
+avatar.community-avatar image,
+.community-avatar image {
   border-radius: 8px;
-  min-width: 40px;
-  min-height: 40px;
-}
-
-.community-avatar-fallback {
-  background: linear-gradient(135deg, #128c7e 0%, #075e54 100%);
-  border-radius: 8px;
-  min-width: 40px;
-  min-height: 40px;
-}
-
-.community-avatar-initials {
-  color: #ffffff;
-  font-weight: 700;
-  font-size: 15px;
 }
 
 .community-folder-row {

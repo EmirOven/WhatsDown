@@ -18,13 +18,19 @@ func (c *MainController) createMentionRow(item GroupMemberItem, idx int) *gtk.Li
 	box.SetMarginBottom(4)
 
 	av := adw.NewAvatar(32, item.DisplayName, true)
-	avatar.LoadAvatar(c.client, item.JID, item.DisplayName, av)
+	if item.JID != "all" {
+		avatar.LoadAvatar(c.client, item.JID, item.DisplayName, av)
+	}
 	box.Append(av)
 
 	textBox := gtk.NewBox(gtk.OrientationVertical, 2)
 	textBox.SetHExpand(true)
 
-	nameLbl := gtk.NewLabel(item.DisplayName)
+	dispTitle := item.DisplayName
+	if item.JID == "all" {
+		dispTitle = "@all"
+	}
+	nameLbl := gtk.NewLabel(dispTitle)
 	nameLbl.SetXAlign(0)
 	nameLbl.AddCSSClass("mention-row-name")
 	nameLbl.SetEllipsize(pango.EllipsizeEnd)

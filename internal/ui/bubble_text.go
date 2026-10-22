@@ -23,14 +23,14 @@ func (c *MainController) buildBubbleText(msg store.StoredMessage) *gtk.Label {
 		textLabel.SetSelectable(true)
 		textLabel.AddCSSClass("chat-bubble-text")
 
-		if _, _, _, err := pango.ParseMarkup(markup, 0); err == nil {
-			textLabel.SetMarkup(markup)
-		} else {
-			textLabel.SetText(displayText)
-		}
+		textLabel.SetUseMarkup(true)
+		textLabel.SetMarkup(markup)
 
 		if hasMentions {
 			textLabel.ConnectActivateLink(func(uri string) bool {
+				if uri == "user:all" {
+					return true
+				}
 				if strings.HasPrefix(uri, "user:") {
 					targetJID := strings.TrimPrefix(uri, "user:")
 					c.openUserDetails(targetJID)

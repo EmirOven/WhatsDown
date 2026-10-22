@@ -53,10 +53,20 @@ func (c *MainController) renderMentionPopupSelection() {
 			if idx == activeMentionState.selectedIndex {
 				row.AddCSSClass("selected")
 				activeMentionState.listBox.SelectRow(row)
+				scrollToMentionRow(row)
 			} else {
 				row.RemoveCSSClass("selected")
 			}
 		}
 		idx++
+	}
+}
+
+func scrollToMentionRow(row *gtk.ListBoxRow) {
+	if activeMentionState.scrolled == nil || row == nil {
+		return
+	}
+	if vp, ok := activeMentionState.scrolled.Child().(*gtk.Viewport); ok {
+		vp.ScrollTo(row, nil)
 	}
 }
