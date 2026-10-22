@@ -76,17 +76,17 @@ func (c *MainController) loadGroupDetailsState(
 		if err != nil {
 			return
 		}
-		info, err := c.client.GetGroupInfo(context.Background(), jid)
-		if err != nil || info == nil {
+		ext, err := c.fetchGroupExtendedInfo(context.Background(), jid)
+		if err != nil || ext == nil || ext.Info == nil {
 			return
 		}
-		parts := append([]types.GroupParticipant(nil), info.Participants...)
+		parts := append([]types.GroupParticipant(nil), ext.Info.Participants...)
 		sort.SliceStable(parts, func(i, j int) bool {
 			return parts[i].IsAdmin && !parts[j].IsAdmin
 		})
 		glib.IdleAdd(func() {
 			*currentMembers = parts
-			c.populateGroupMembersList(jid, info, permWidgets, addRow, membersGroup, membersList, parts, reload)
+			c.populateGroupMembersList(jid, ext, permWidgets, addRow, membersGroup, membersList, parts, reload)
 		})
 	}()
 }

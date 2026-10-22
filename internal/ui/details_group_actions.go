@@ -13,7 +13,7 @@ import (
 )
 
 func (c *MainController) populateGroupMembersList(
-	groupJID types.JID, info *types.GroupInfo, permWidgets *groupPermWidgets, addRow *adw.ActionRow,
+	groupJID types.JID, ext *groupExtendedInfo, permWidgets *groupPermWidgets, addRow *adw.ActionRow,
 	membersGroup *adw.PreferencesGroup, membersList *gtk.ListBox, parts []types.GroupParticipant, reload func(),
 ) {
 	membersGroup.SetTitle(fmt.Sprintf("Participants (%d)", len(parts)))
@@ -27,7 +27,7 @@ func (c *MainController) populateGroupMembersList(
 			selfAdmin = true
 		}
 	}
-	c.updateGroupPermissionsUI(groupJID, info, permWidgets, selfAdmin, addRow)
+	c.updateGroupPermissionsUI(groupJID, ext, permWidgets, selfAdmin, addRow)
 	for _, p := range parts {
 		membersList.Append(c.buildGroupMemberRow(groupJID, p, selfAdmin, reload))
 	}
