@@ -45,14 +45,20 @@ func buildWallpaperCSS(wp store.ChatWallpaper, tinting bool) string {
 .right-chat-header-box,
 #right_chat_view > revealer > windowhandle > box,
 .right-chat-header,
-.right-chat-header windowhandle,
-.right-chat-header windowcontrols,
-.right-chat-header windowcontrols button {
+.right-chat-header windowhandle {
   background-color: mix(@headerbar_bg_color, %s, 0.2);
+  transition: none;
+}
+.right-chat-header windowcontrols,
+.right-chat-header windowcontrols button,
+.right-chat-header windowcontrols button > image {
+  background-color: transparent;
+  transition: none;
 }
 .chat-page .chat-input-bar,
 .chat-page .voice-recording-bar {
   background-color: mix(@window_bg_color, %s, 0.2);
+  transition: none;
 }
 .chat-page .chat-input-bar .chat-send-btn {
   background-color: var(--accent-bg-color);

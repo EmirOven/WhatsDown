@@ -1196,6 +1196,17 @@ tabbar:drop(active) {
   padding-right: 0;
   margin-left: 0;
   margin-right: 0;
+  transition: none;
+}
+
+.right-chat-header,
+.right-chat-header windowhandle,
+.right-chat-header windowcontrols,
+.right-chat-header windowcontrols button,
+.right-chat-header windowcontrols button > image,
+.chat-page .chat-input-bar,
+.chat-page .voice-recording-bar {
+  transition: none;
 }
 
 
