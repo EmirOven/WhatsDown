@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
@@ -16,6 +17,18 @@ func (c *MainController) createChatRow(chat store.Chat, isArchivedView bool) *gt
 
 	mainBox := gtk.NewBox(gtk.OrientationHorizontal, 12)
 	mainBox.SetHExpand(true)
+
+	if c.store != nil {
+		if wp, err := c.store.GetChatWallpaper(context.Background(), chat.JID); err == nil && wp.Kind == "color" && wp.Value != "" {
+			bar := gtk.NewBox(gtk.OrientationVertical, 0)
+			bar.AddCSSClass("chat-row-color-bar")
+			bar.SetVExpand(true)
+			prov := gtk.NewCSSProvider()
+			prov.LoadFromData(fmt.Sprintf(".chat-row-color-bar { background-color: %s; }", wp.Value))
+			bar.StyleContext().AddProvider(prov, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION+20)
+			mainBox.Append(bar)
+		}
+	}
 
 	displayName := formatDisplayName(chat)
 	subText := formatChatSubtitle(chat)

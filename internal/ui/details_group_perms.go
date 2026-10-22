@@ -11,7 +11,7 @@ import (
 
 type groupPermWidgets struct {
 	group                                                                 *adw.PreferencesGroup
-	linkRow                                                               *adw.ActionRow
+	linkRow, copyLinkRow, copyQRRow                                       *adw.ActionRow
 	editSwitch, msgSwitch, addSwitch, linkSwitch, histSwitch, approveSwitch *gtk.Switch
 	bound, updating                                                       bool
 }
@@ -61,6 +61,7 @@ func (c *MainController) updateGroupPermissionsUI(groupJID types.JID, ext *group
 		sw.SetSensitive(isAdmin)
 	}
 	pw.linkSwitch.SetSensitive(isAdmin && addEnabled)
+	pw.updateInviteButtonsVisibility(isAdmin)
 	if pw.bound {
 		return
 	}
@@ -68,9 +69,10 @@ func (c *MainController) updateGroupPermissionsUI(groupJID types.JID, ext *group
 	bindSw := func(sw *gtk.Switch, fn func(bool) error) {
 		sw.ConnectStateSet(func(state bool) bool {
 			if !pw.updating && c.client != nil {
+				glib.IdleAdd(func() { pw.updateInviteButtonsVisibility(isAdmin) })
 				go func() {
 					if fn(state) != nil {
-						glib.IdleAdd(func() { pw.updating = true; sw.SetActive(!state); pw.updating = false })
+						glib.IdleAdd(func() { pw.updating = true; sw.SetActive(!state); pw.updating = false; pw.updateInviteButtonsVisibility(isAdmin) })
 					}
 				}()
 			}
@@ -80,16 +82,13 @@ func (c *MainController) updateGroupPermissionsUI(groupJID types.JID, ext *group
 	bindSw(pw.editSwitch, func(s bool) error { return c.client.SetGroupLocked(context.Background(), groupJID, !s) })
 	bindSw(pw.msgSwitch, func(s bool) error { return c.client.SetGroupAnnounce(context.Background(), groupJID, s) })
 	bindSw(pw.addSwitch, func(s bool) error {
-		setDeps := func(on bool) { pw.linkRow.SetVisible(on); pw.linkSwitch.SetSensitive(isAdmin && on) }
+		setDeps := func(on bool) { pw.linkRow.SetVisible(on); pw.linkSwitch.SetSensitive(isAdmin && on); pw.updateInviteButtonsVisibility(isAdmin) }
 		glib.IdleAdd(func() { setDeps(s) })
 		mode := map[bool]types.GroupMemberAddMode{false: types.GroupMemberAddModeAdmin, true: types.GroupMemberAddModeAllMember}[s]
 		err := c.client.SetGroupMemberAddMode(context.Background(), groupJID, mode)
 		glib.IdleAdd(func() {
-			if err != nil {
-				setDeps(!s)
-			} else {
-				addRow.SetSensitive(isAdmin || s)
-			}
+			if err != nil { setDeps(!s); return }
+			addRow.SetSensitive(isAdmin || s)
 		})
 		return err
 	})

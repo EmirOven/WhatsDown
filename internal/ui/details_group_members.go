@@ -24,6 +24,7 @@ func (c *MainController) appendGroupManagementSections(dialog *adw.Dialog, chat 
 	addRow.SetActivatable(true)
 	addRow.SetSensitive(false)
 	actionsGroup.Add(addRow)
+	c.addGroupInviteActionRows(actionsGroup, chat.JID, permWidgets)
 
 	delRow := adw.NewActionRow()
 	delRow.SetTitle("Delete Group Chat")

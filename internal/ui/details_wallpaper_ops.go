@@ -38,6 +38,8 @@ func (c *MainController) handleWallpaperColorChange(chat store.Chat, colorBtn *g
 		colStr := rgbaToHex(rgba)
 		_ = c.store.SetChatWallpaper(context.Background(), chat.JID, "color", colStr)
 		c.applyChatWallpaper(chat.JID)
+		c.LoadChats()
+		c.LoadArchivedChats()
 		pw.update(store.ChatWallpaper{ChatJID: chat.JID, Kind: "color", Value: colStr})
 	}
 }
@@ -62,6 +64,8 @@ func (c *MainController) openWallpaperImageChooser(chat store.Chat, imageRow *ad
 					glib.IdleAdd(func() {
 						imageRow.SetSubtitle(filepath.Base(path))
 						c.applyChatWallpaper(chat.JID)
+						c.LoadChats()
+						c.LoadArchivedChats()
 						pw.update(store.ChatWallpaper{ChatJID: chat.JID, Kind: "image", Value: path})
 					})
 				}

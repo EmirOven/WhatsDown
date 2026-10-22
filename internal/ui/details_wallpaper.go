@@ -74,6 +74,8 @@ func (c *MainController) handleWallpaperTypeChange(
 	case 0:
 		_ = c.store.SetChatWallpaper(context.Background(), chat.JID, "none", "")
 		c.applyChatWallpaper(chat.JID)
+		c.LoadChats()
+		c.LoadArchivedChats()
 		pw.update(store.ChatWallpaper{ChatJID: chat.JID, Kind: "none"})
 	case 1:
 		colStr := "#1e1e1e"
@@ -82,6 +84,8 @@ func (c *MainController) handleWallpaperTypeChange(
 		}
 		_ = c.store.SetChatWallpaper(context.Background(), chat.JID, "color", colStr)
 		c.applyChatWallpaper(chat.JID)
+		c.LoadChats()
+		c.LoadArchivedChats()
 		pw.update(store.ChatWallpaper{ChatJID: chat.JID, Kind: "color", Value: colStr})
 	case 2:
 		c.openWallpaperImageChooser(chat, imageRow, pw)

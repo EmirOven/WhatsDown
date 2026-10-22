@@ -4,6 +4,13 @@
   padding: 10px 12px;
 }
 
+.chat-row-color-bar {
+  min-width: 4px;
+  border-radius: 9999px;
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
 .chat-row-title {
   font-weight: 700;
   font-size: 11pt;
