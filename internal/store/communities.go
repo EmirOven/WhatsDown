@@ -64,3 +64,14 @@ func (s *MessageStore) SyncGroups(ctx context.Context, groups []*types.GroupInfo
 
 	return tx.Commit()
 }
+
+func (s *MessageStore) UpsertChat(ctx context.Context, jid, name string, lastMsgUnix int64) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO whatsdown_chats (jid, name, last_message_at, unread_count)
+		VALUES (?, ?, ?, 0)
+		ON CONFLICT(jid) DO UPDATE SET
+			name = CASE WHEN excluded.name <> '' THEN excluded.name ELSE whatsdown_chats.name END,
+			last_message_at = MAX(whatsdown_chats.last_message_at, excluded.last_message_at)
+	`, jid, name, lastMsgUnix)
+	return err
+}
