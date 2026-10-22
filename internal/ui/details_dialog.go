@@ -34,6 +34,9 @@ func (c *MainController) showDetailsAndMedia(chat store.Chat) {
 	contentBox.SetMarginEnd(18)
 	contentBox.Append(c.buildDetailsHeader(chat, displayName))
 	contentBox.Append(c.buildDetailsInfoGroup(chat, displayName))
+	if strings.HasSuffix(chat.JID, "@g.us") {
+		c.appendGroupManagementSections(dialog, chat, contentBox)
+	}
 
 	if c.store != nil {
 		contentBox.Append(c.buildDetailsWallpaperGroup(dialog, chat))
