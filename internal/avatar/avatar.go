@@ -50,7 +50,7 @@ func LoadTexture(client ClientProvider, jid string, isCommunity bool, onLoaded f
 	}
 
 	mu.RLock()
-	if tex, ok := memoryCache[jid]; ok {
+	if tex, ok := memoryCache.Get(jid); ok {
 		mu.RUnlock()
 		onLoaded(tex)
 		return
@@ -68,7 +68,7 @@ func LoadTexture(client ClientProvider, jid string, isCommunity bool, onLoaded f
 	if data, err := os.ReadFile(diskPath); err == nil && len(data) > 0 {
 		if texture, err := gdk.NewTextureFromBytes(glib.NewBytesWithGo(data)); err == nil {
 			mu.Lock()
-			memoryCache[jid] = texture
+			memoryCache.Put(jid, texture, int64(texture.Width())*int64(texture.Height())*4)
 			mu.Unlock()
 			onLoaded(texture)
 			return

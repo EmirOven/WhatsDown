@@ -23,20 +23,11 @@ func handleStateEvent(evt any) {
 	case *events.Pin, *events.Archive, *events.Mute, *events.Star, *events.MarkChatAsRead:
 		handleChatStateAction(e)
 	case *events.AppStateSyncComplete:
-		glib.IdleAdd(func() {
-			if a := ui.ActiveMainWindow(); a != nil {
-				a.LoadChats()
-				a.LoadArchivedChats()
-			}
-		})
+		refreshChatsUI()
 	case *events.Picture:
 		handlePictureUpdate(e)
 	case *events.Contact, *events.PushName, *events.BusinessName:
-		glib.IdleAdd(func() {
-			if a := ui.ActiveMainWindow(); a != nil {
-				a.LoadChats()
-			}
-		})
+		refreshChatsUI()
 	}
 }
 
@@ -47,8 +38,9 @@ func handleConnected() {
 			_ = waClient.SendPresence(context.Background(), types.PresenceAvailable)
 		}
 		for _, name := range appstate.AllPatchNames {
-			fullSync := name == appstate.WAPatchRegularLow
-			_ = waClient.FetchAppState(context.Background(), name, fullSync, false)
+			if waClient != nil {
+				_ = waClient.FetchAppState(context.Background(), name, false, false)
+			}
 		}
 		if msgStore != nil && waClient != nil {
 			msgStore.ImportStickersFromChatHistory(context.Background(), waClient)

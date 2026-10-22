@@ -43,7 +43,7 @@ func (c *MainController) buildAudioWidget(msg store.StoredMessage) *gtk.Box {
 
 	isPlaying := false
 	mCopy := msg
-	playBtn.ConnectClicked(func() {
+	c.trackWidgetSignal(playBtn, playBtn, playBtn.ConnectClicked(func() {
 		if isPlaying {
 			media.StopCurrentAudio()
 			return
@@ -66,7 +66,7 @@ func (c *MainController) buildAudioWidget(msg store.StoredMessage) *gtk.Box {
 				})
 			})
 		}()
-	})
+	}))
 
 	actionBox.Append(playBtn)
 	actionBox.Append(infoBox)

@@ -16,18 +16,18 @@ func (c *MainController) appendStickerContextActions(menuBox *gtk.Box, popover *
 		saveRow.Append(gtk.NewImageFromIconName("user-trash-symbolic"))
 		saveRow.Append(gtk.NewLabel("Remove from Saved Stickers"))
 		saveBtn.SetChild(saveRow)
-		saveBtn.ConnectClicked(func() {
+		c.trackWidgetSignal(saveBtn, saveBtn, saveBtn.ConnectClicked(func() {
 			popover.Popdown()
 			c.removeSavedStickerByMessage(mCopy)
-		})
+		}))
 	} else {
 		saveRow.Append(gtk.NewImageFromIconName("star-new-symbolic"))
 		saveRow.Append(gtk.NewLabel("Save Sticker"))
 		saveBtn.SetChild(saveRow)
-		saveBtn.ConnectClicked(func() {
+		c.trackWidgetSignal(saveBtn, saveBtn, saveBtn.ConnectClicked(func() {
 			popover.Popdown()
 			c.saveStickerFromMessage(mCopy)
-		})
+		}))
 	}
 	menuBox.Append(saveBtn)
 
@@ -37,10 +37,10 @@ func (c *MainController) appendStickerContextActions(menuBox *gtk.Box, popover *
 	openRow.Append(gtk.NewImageFromIconName("insert-image-symbolic"))
 	openRow.Append(gtk.NewLabel("Open as Image"))
 	openBtn.SetChild(openRow)
-	openBtn.ConnectClicked(func() {
+	c.trackWidgetSignal(openBtn, openBtn, openBtn.ConnectClicked(func() {
 		popover.Popdown()
 		media.OpenMedia(c.client, mCopy, nil)
-	})
+	}))
 	menuBox.Append(openBtn)
 }
 
@@ -53,6 +53,10 @@ func (c *MainController) attachStickerContextMenu(widget gtk.Widgetter, msg stor
 
 	mCopy := msg
 	populate := func() {
+		if child := popover.Child(); child != nil {
+			c.releaseMessageWidget(child)
+		}
+
 		menuBox := gtk.NewBox(gtk.OrientationVertical, 2)
 		menuBox.SetMarginTop(4)
 		menuBox.SetMarginBottom(4)
@@ -74,10 +78,10 @@ func (c *MainController) attachStickerContextMenu(widget gtk.Widgetter, msg stor
 			rBox.Append(gtk.NewImageFromIconName("mail-reply-sender-symbolic"))
 			rBox.Append(gtk.NewLabel("Reply"))
 			replyBtn.SetChild(rBox)
-			replyBtn.ConnectClicked(func() {
+			c.trackWidgetSignal(replyBtn, replyBtn, replyBtn.ConnectClicked(func() {
 				popover.Popdown()
 				c.startReply(mCopy)
-			})
+			}))
 			menuBox.Append(replyBtn)
 		}
 		c.appendStandardContextActions(menuBox, popover, mCopy)
@@ -86,7 +90,7 @@ func (c *MainController) attachStickerContextMenu(widget gtk.Widgetter, msg stor
 
 	gesture := gtk.NewGestureClick()
 	gesture.SetButton(0)
-	gesture.ConnectPressed(func(nPress int, x, y float64) {
+	c.trackWidgetSignal(w, gesture, gesture.ConnectPressed(func(nPress int, x, y float64) {
 		if nPress > 1 {
 			return
 		}
@@ -94,6 +98,6 @@ func (c *MainController) attachStickerContextMenu(widget gtk.Widgetter, msg stor
 		rect := gdk.NewRectangle(int(x), int(y), 1, 1)
 		popover.SetPointingTo(&rect)
 		popover.Popup()
-	})
+	}))
 	w.AddController(gesture)
 }

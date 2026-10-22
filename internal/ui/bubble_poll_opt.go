@@ -82,9 +82,9 @@ func (c *MainController) buildPollOptionRow(
 		progressBar: pBar,
 	}
 
-	optBtn.ConnectClicked(func() {
+	c.trackWidgetSignal(optBtn, optBtn, optBtn.ConnectClicked(func() {
 		c.handlePollVote(msg, optCopy, allowMultiple, optWidgets, totalVotesLbl)
-	})
+	}))
 
 	pollBox.Append(optBtn)
 }

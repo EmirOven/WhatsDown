@@ -13,26 +13,13 @@ func (s *MessageStore) ImportStickersFromChatHistory(ctx context.Context, client
 	s.stickerSyncMu.Lock()
 	defer s.stickerSyncMu.Unlock()
 
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, chat_jid, raw
-		FROM whatsdown_messages
-		WHERE kind = 'sticker' AND raw IS NOT NULL
-		ORDER BY from_me DESC, timestamp DESC`)
+	// Only the count is used here. Selecting raw would retain every sticker
+	// message payload in a slice during each manual sync.
+	var count int
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM whatsdown_messages
+  WHERE kind = 'sticker' AND raw IS NOT NULL`).Scan(&count)
 	if err != nil {
 		return 0
 	}
-	defer rows.Close()
-
-	type item struct {
-		id, chatJID string
-		raw         []byte
-	}
-	var msgs []item
-	for rows.Next() {
-		var it item
-		if err := rows.Scan(&it.id, &it.chatJID, &it.raw); err == nil {
-			msgs = append(msgs, it)
-		}
-	}
-	return len(msgs)
+	return count
 }

@@ -50,9 +50,9 @@ func (c *MainController) buildSenderHeader(msg store.StoredMessage) *gtk.Label {
 	if msg.SenderJID != "" {
 		sJID := msg.SenderJID
 		gesture := gtk.NewGestureClick()
-		gesture.ConnectPressed(func(nPress int, x, y float64) {
+		c.trackWidgetSignal(senderLabel, gesture, gesture.ConnectPressed(func(nPress int, x, y float64) {
 			c.openUserDetails(sJID)
-		})
+		}))
 		senderLabel.AddController(gesture)
 	}
 

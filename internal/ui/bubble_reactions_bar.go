@@ -39,10 +39,10 @@ func (c *MainController) createReactionsBar(msg store.StoredMessage, parentPopov
 			btn.AddCSSClass("active")
 		}
 
-		btn.ConnectClicked(func() {
+		c.trackWidgetSignal(btn, btn, btn.ConnectClicked(func() {
 			parentPopover.Popdown()
 			c.sendReaction(mCopy, e)
-		})
+		}))
 		bar.Append(btn)
 	}
 
@@ -54,18 +54,18 @@ func (c *MainController) createReactionsBar(msg store.StoredMessage, parentPopov
 	moreBtn.SetChild(moreBtnIcon)
 	moreBtn.SetTooltipText("More emojis")
 
-	moreBtn.ConnectClicked(func() {
+	c.trackWidgetSignal(moreBtn, moreBtn, moreBtn.ConnectClicked(func() {
 		parentPopover.Popdown()
 		w := gtk.BaseWidget(anchorWidget)
 		chooser := gtk.NewEmojiChooser()
 		chooser.SetParent(w)
 		chooser.SetHasArrow(true)
-		chooser.ConnectEmojiPicked(func(text string) {
+		c.trackWidgetSignal(chooser, chooser, chooser.ConnectEmojiPicked(func(text string) {
 			chooser.Popdown()
 			c.sendReaction(mCopy, text)
-		})
+		}))
 		chooser.Popup()
-	})
+	}))
 	bar.Append(moreBtn)
 
 	return bar

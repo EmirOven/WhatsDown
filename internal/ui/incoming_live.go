@@ -48,13 +48,12 @@ func (c *MainController) HandleIncomingLiveMessage(evt *events.Message) {
 		if newMsg != nil {
 			c.setTypingIndicator(false)
 			if _, exists := c.messageRowMap[newMsg.ID]; !exists {
-				sameMinuteAsPrev := false
+				var previous *store.StoredMessage
 				if len(c.currentMessages) > 0 {
-					prevMsg := c.currentMessages[len(c.currentMessages)-1]
-					sameMinuteAsPrev = c.isSameAuthorAndDisplayTime(prevMsg, *newMsg)
+					previous = &c.currentMessages[len(c.currentMessages)-1]
 				}
+				bubble := c.createMessageRow(*newMsg, previous)
 				c.currentMessages = append(c.currentMessages, *newMsg)
-				bubble := c.createMessageBubble(*newMsg, sameMinuteAsPrev)
 				if c.messageRowMap != nil {
 					c.messageRowMap[newMsg.ID] = bubble
 				}

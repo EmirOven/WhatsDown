@@ -10,31 +10,31 @@ func (c *MainController) attachReplyMotion(row *gtk.ListBoxRow, box *gtk.Box, re
 	doubleClick := gtk.NewGestureClick()
 	doubleClick.SetButton(1)
 	doubleClick.SetPropagationPhase(gtk.PhaseCapture)
-	doubleClick.ConnectPressed(func(nPress int, x, y float64) {
+	c.trackWidgetSignal(box, doubleClick, doubleClick.ConnectPressed(func(nPress int, x, y float64) {
 		if nPress == 2 {
 			c.startReply(mCopy)
 		}
-	})
+	}))
 	box.AddController(doubleClick)
 
-	replyBtn.ConnectClicked(func() {
+	c.trackWidgetSignal(replyBtn, replyBtn, replyBtn.ConnectClicked(func() {
 		if replyBtn.Opacity() < 0.2 {
 			return
 		}
 		c.startReply(mCopy)
-	})
+	}))
 
 	motion := gtk.NewEventControllerMotion()
-	motion.ConnectEnter(func(x, y float64) {
+	c.trackWidgetSignal(row, motion, motion.ConnectEnter(func(x, y float64) {
 		replyBtn.SetOpacity(1.0)
 		c.adjustReplyButtonPosition(row, replyBtn)
-	})
-	motion.ConnectMotion(func(x, y float64) {
+	}))
+	c.trackWidgetSignal(row, motion, motion.ConnectMotion(func(x, y float64) {
 		c.adjustReplyButtonPosition(row, replyBtn)
-	})
-	motion.ConnectLeave(func() {
+	}))
+	c.trackWidgetSignal(row, motion, motion.ConnectLeave(func() {
 		replyBtn.SetOpacity(0.0)
-	})
+	}))
 	row.AddController(motion)
 }
 

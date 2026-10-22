@@ -19,9 +19,9 @@ func (c *MainController) buildLocationWidget(msg store.StoredMessage) *gtk.Box {
 	openBtn.SetChild(btnInner)
 
 	mCopy := msg
-	openBtn.ConnectClicked(func() {
+	c.trackWidgetSignal(openBtn, openBtn, openBtn.ConnectClicked(func() {
 		media.OpenMedia(c.client, mCopy, nil)
-	})
+	}))
 	actionBox.Append(openBtn)
 	return actionBox
 }

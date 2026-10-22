@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"postbetasoftware.com/whatsdown/internal/store"
 )
@@ -17,6 +18,14 @@ func (c *MainController) renderChatList(chats []store.Chat, isArchived bool) {
 	}
 	if listBox == nil {
 		return
+	}
+	// Only release menus belonging to this list (active and archived lists
+	// are refreshed independently).
+	for row, cleanup := range c.chatMenuCleanups {
+		if parent := row.Parent(); parent != nil && coreglib.BaseObject(parent).Native() == coreglib.BaseObject(listBox).Native() {
+			cleanup()
+			delete(c.chatMenuCleanups, row)
+		}
 	}
 	listBox.RemoveAll()
 

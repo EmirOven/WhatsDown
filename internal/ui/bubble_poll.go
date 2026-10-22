@@ -85,9 +85,9 @@ func (c *MainController) buildPollWidget(msg store.StoredMessage) *gtk.Box {
 
 	viewVotesBtn := gtk.NewButtonWithLabel("View votes")
 	addCSSClasses(viewVotesBtn, "flat", "poll-view-votes-btn", "pill")
-	viewVotesBtn.ConnectClicked(func() {
+	c.trackWidgetSignal(viewVotesBtn, viewVotesBtn, viewVotesBtn.ConnectClicked(func() {
 		c.showPollVotesDialog(msg, question, options)
-	})
+	}))
 
 	summaryBox.Append(totalVotesLbl)
 	summaryBox.Append(viewVotesBtn)

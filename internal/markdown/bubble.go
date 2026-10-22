@@ -15,6 +15,7 @@ func FormatForBubble(text string, mentionedJIDs []string, resolveName func(jid s
 
 	segments := splitByCodeBlocks(text)
 	var sb strings.Builder
+	hasMentions := false
 
 	for _, seg := range segments {
 		if seg.isCode {
@@ -25,16 +26,18 @@ func FormatForBubble(text string, mentionedJIDs []string, resolveName func(jid s
 				sb.WriteString(fmt.Sprintf(`<tt>%s</tt>`, escaped))
 			}
 		} else {
-			lines := strings.Split(seg.content, "\n")
+			protected, restoreURLs := protectURLs(seg.content)
+			lines := strings.Split(protected, "\n")
 			for i, line := range lines {
 				lines[i] = formatLine(line, true)
 			}
 			formatted := strings.Join(lines, "\n")
 			formatted = formatInline(formatted, true)
-			sb.WriteString(formatted)
+			formatted, mentions := applyMentions(formatted, mentionedJIDs, resolveName)
+			hasMentions = hasMentions || mentions
+			sb.WriteString(restoreURLs(formatted))
 		}
 	}
 
-	result := sb.String()
-	return applyMentions(result, mentionedJIDs, resolveName)
+	return sb.String(), hasMentions
 }

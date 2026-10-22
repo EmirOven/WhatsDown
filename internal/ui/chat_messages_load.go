@@ -10,6 +10,14 @@ import (
 )
 
 func (c *MainController) loadMessages(chatJID string) {
+	if c.cancelMessagePreviews != nil {
+		c.cancelMessagePreviews()
+	}
+	c.messagePreviewContext, c.cancelMessagePreviews = context.WithCancel(context.Background())
+	c.currentMessages = nil
+	for child := c.messagesList.FirstChild(); child != nil; child = gtk.BaseWidget(child).NextSibling() {
+		c.releaseMessageWidget(child)
+	}
 	c.messagesList.RemoveAll()
 	c.messageRowMap = make(map[string]*gtk.ListBoxRow)
 	c.messageStatusLabels = make(map[string]*gtk.Label)
@@ -26,11 +34,11 @@ func (c *MainController) loadMessages(chatJID string) {
 
 	c.currentMessages = msgs
 	for i, msg := range msgs {
-		sameMinuteAsPrev := false
+		var previous *store.StoredMessage
 		if i > 0 {
-			sameMinuteAsPrev = c.isSameAuthorAndDisplayTime(msgs[i-1], msg)
+			previous = &msgs[i-1]
 		}
-		bubble := c.createMessageBubble(msg, sameMinuteAsPrev)
+		bubble := c.createMessageRow(msg, previous)
 		c.messageRowMap[msg.ID] = bubble
 		c.messagesList.Append(bubble)
 	}
@@ -50,5 +58,5 @@ func (c *MainController) isSameAuthorAndDisplayTime(prev, cur store.StoredMessag
 			return false
 		}
 	}
-	return prev.Timestamp.Local().Format("15:04") == cur.Timestamp.Local().Format("15:04")
+	return prev.Timestamp.Local().Format("2006-01-02 15:04") == cur.Timestamp.Local().Format("2006-01-02 15:04")
 }

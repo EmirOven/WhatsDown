@@ -90,7 +90,7 @@ func fetchRemote(client ClientProvider, jid string, isCommunity bool) {
 		if t, err := gdk.NewTextureFromBytes(glib.NewBytesWithGo(data)); err == nil {
 			tex = t
 			mu.Lock()
-			memoryCache[jid] = tex
+			memoryCache.Put(jid, tex, int64(tex.Width())*int64(tex.Height())*4)
 			mu.Unlock()
 		}
 		notifyWaiters(jid, tex)

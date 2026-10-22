@@ -14,56 +14,65 @@ func (c *MainController) attachMessageContextMenu(widget gtk.Widgetter, msg stor
 	popover.SetHasArrow(false)
 	popover.AddCSSClass("popover-menu-box")
 
-	menuBox := gtk.NewBox(gtk.OrientationVertical, 2)
-	menuBox.SetMarginTop(4)
-	menuBox.SetMarginBottom(4)
-	menuBox.SetMarginStart(4)
-	menuBox.SetMarginEnd(4)
+	// Most messages never have their context menu opened. Avoid constructing
+	// all reaction buttons and menu rows for every message during chat loading.
+	populate := func() {
+		if popover.Child() != nil {
+			return
+		}
+		menuBox := gtk.NewBox(gtk.OrientationVertical, 2)
+		menuBox.SetMarginTop(4)
+		menuBox.SetMarginBottom(4)
+		menuBox.SetMarginStart(4)
+		menuBox.SetMarginEnd(4)
 
-	mCopy := msg
+		mCopy := msg
 
-	if mCopy.Kind != store.MessageKindDeleted {
-		menuBox.Append(c.createReactionsBar(mCopy, popover, widget))
-		sep := gtk.NewSeparator(gtk.OrientationHorizontal)
-		sep.SetMarginTop(2)
-		sep.SetMarginBottom(4)
-		menuBox.Append(sep)
+		if mCopy.Kind != store.MessageKindDeleted {
+			menuBox.Append(c.createReactionsBar(mCopy, popover, widget))
+			sep := gtk.NewSeparator(gtk.OrientationHorizontal)
+			sep.SetMarginTop(2)
+			sep.SetMarginBottom(4)
+			menuBox.Append(sep)
+		}
+
+		if mCopy.Kind == store.MessageKindSticker {
+			c.appendStickerContextActions(menuBox, popover, mCopy)
+		}
+
+		if mCopy.Kind != store.MessageKindDeleted {
+			replyBtn := gtk.NewButton()
+			addCSSClasses(replyBtn, "flat", "popover-menu-btn")
+			rBox := gtk.NewBox(gtk.OrientationHorizontal, 10)
+			rBox.Append(gtk.NewImageFromIconName("mail-reply-sender-symbolic"))
+			rBox.Append(gtk.NewLabel("Reply"))
+			replyBtn.SetChild(rBox)
+			c.trackWidgetSignal(replyBtn, replyBtn, replyBtn.ConnectClicked(func() {
+				popover.Popdown()
+				c.startReply(mCopy)
+			}))
+			menuBox.Append(replyBtn)
+		}
+
+		if mCopy.FromMe && mCopy.Kind == store.MessageKindText {
+			c.appendEditContextActions(menuBox, popover, mCopy)
+		} else if mCopy.Edited {
+			c.appendEditHistoryAction(menuBox, popover, mCopy)
+		}
+
+		c.appendStandardContextActions(menuBox, popover, mCopy)
+
+		popover.SetChild(menuBox)
+
 	}
-
-	if mCopy.Kind == store.MessageKindSticker {
-		c.appendStickerContextActions(menuBox, popover, mCopy)
-	}
-
-	if mCopy.Kind != store.MessageKindDeleted {
-		replyBtn := gtk.NewButton()
-		addCSSClasses(replyBtn, "flat", "popover-menu-btn")
-		rBox := gtk.NewBox(gtk.OrientationHorizontal, 10)
-		rBox.Append(gtk.NewImageFromIconName("mail-reply-sender-symbolic"))
-		rBox.Append(gtk.NewLabel("Reply"))
-		replyBtn.SetChild(rBox)
-		replyBtn.ConnectClicked(func() {
-			popover.Popdown()
-			c.startReply(mCopy)
-		})
-		menuBox.Append(replyBtn)
-	}
-
-	if mCopy.FromMe && mCopy.Kind == store.MessageKindText {
-		c.appendEditContextActions(menuBox, popover, mCopy)
-	} else if mCopy.Edited {
-		c.appendEditHistoryAction(menuBox, popover, mCopy)
-	}
-
-	c.appendStandardContextActions(menuBox, popover, mCopy)
-
-	popover.SetChild(menuBox)
 
 	gesture := gtk.NewGestureClick()
 	gesture.SetButton(3)
-	gesture.ConnectPressed(func(nPress int, x, y float64) {
+	c.trackWidgetSignal(w, gesture, gesture.ConnectPressed(func(nPress int, x, y float64) {
+		populate()
 		rect := gdk.NewRectangle(int(x), int(y), 1, 1)
 		popover.SetPointingTo(&rect)
 		popover.Popup()
-	})
+	}))
 	w.AddController(gesture)
 }

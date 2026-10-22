@@ -19,20 +19,20 @@ func GetVideoThumbnailTexture(path string) *gdk.Texture {
 	thumbName := fmt.Sprintf("vid_thumb_%x.jpg", h[:8])
 	thumbPath := filepath.Join(CacheDir(), thumbName)
 	if fi, err := os.Stat(thumbPath); err == nil && fi.Size() > 0 {
-		if tex, err := gdk.NewTextureFromFilename(thumbPath); err == nil && tex != nil {
+		if tex, err := loadPreviewTexture(thumbPath); err == nil && tex != nil {
 			return tex
 		}
 	}
 
 	cmd := exec.Command("ffmpeg", "-y", "-ss", "00:00:01", "-i", path, "-vframes", "1", "-q:v", "2", thumbPath)
 	if err := cmd.Run(); err == nil {
-		if tex, err := gdk.NewTextureFromFilename(thumbPath); err == nil && tex != nil {
+		if tex, err := loadPreviewTexture(thumbPath); err == nil && tex != nil {
 			return tex
 		}
 	}
 	cmd = exec.Command("ffmpeg", "-y", "-ss", "00:00:00", "-i", path, "-vframes", "1", "-q:v", "2", thumbPath)
 	if err := cmd.Run(); err == nil {
-		if tex, err := gdk.NewTextureFromFilename(thumbPath); err == nil && tex != nil {
+		if tex, err := loadPreviewTexture(thumbPath); err == nil && tex != nil {
 			return tex
 		}
 	}

@@ -12,6 +12,7 @@ func (c *MainController) populateReactionsList(listBox *gtk.ListBox, popover *gt
 		if row == nil {
 			break
 		}
+		c.releaseMessageWidget(row)
 		listBox.Remove(row)
 	}
 
@@ -68,10 +69,10 @@ func (c *MainController) populateReactionsList(listBox *gtk.ListBox, popover *gt
 
 		if isMine {
 			clickGesture := gtk.NewGestureClick()
-			clickGesture.ConnectPressed(func(nPress int, x, y float64) {
+			c.trackWidgetSignal(row, clickGesture, clickGesture.ConnectPressed(func(nPress int, x, y float64) {
 				popover.Popdown()
 				c.sendReaction(msg, "")
-			})
+			}))
 			row.AddController(clickGesture)
 		}
 

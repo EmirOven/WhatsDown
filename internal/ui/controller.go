@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -26,6 +27,11 @@ type MainController struct {
 	autoScrollBottom      bool
 	isAutoScrolling       bool
 	messageStatusLabels   map[string]*gtk.Label
+	chatMenuCleanups      map[*gtk.ListBoxRow]func()
+
+	widgetSignalCleanups  map[uintptr][]func()
+	messagePreviewContext context.Context
+	cancelMessagePreviews context.CancelFunc
 
 	// Reply preview widgets & state
 	replyPreviewBar    *gtk.Box
@@ -64,7 +70,7 @@ type MainController struct {
 	chats                   []store.Chat
 	archivedChats           []store.Chat
 	calls                   []store.CallRecord
-	expandedCommunities    map[string]bool
+	expandedCommunities     map[string]bool
 	displayedChatRows       []chatRowItem
 	displayedArchivedRows   []chatRowItem
 	currentMessages         []store.StoredMessage
@@ -74,6 +80,7 @@ type MainController struct {
 	searchMatchIndices      []int
 	currentSearchMatchIndex int
 }
+
 var activeMainWindow *MainController
 
 func ActiveMainWindow() *MainController {

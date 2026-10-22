@@ -2,6 +2,8 @@ package ui
 
 import (
 	"context"
+	"log"
+	"time"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
@@ -32,13 +34,20 @@ func (ctrl *MainController) bindSettingsWidgets(builder *gtk.Builder) {
 			ctrl.settingsResyncBtn.SetSensitive(false)
 			ctrl.settingsResyncBtn.SetLabel("Syncing…")
 			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+				defer cancel()
 				if ctrl.client != nil {
 					for _, name := range appstate.AllPatchNames {
-						_ = ctrl.client.FetchAppState(context.Background(), name, true, false)
+						// Request changes since the stored version instead of deleting
+						// the version and replaying the complete account state.
+						if err := ctrl.client.FetchAppState(ctx, name, false, false); err != nil {
+							log.Printf("syncing app state %s: %v", name, err)
+							break
+						}
 					}
 				}
 				if ctrl.store != nil {
-					ctrl.store.ImportStickersFromChatHistory(context.Background(), ctrl.client)
+					ctrl.store.ImportStickersFromChatHistory(ctx, ctrl.client)
 				}
 				glib.IdleAdd(func() {
 					ctrl.settingsResyncBtn.SetSensitive(true)

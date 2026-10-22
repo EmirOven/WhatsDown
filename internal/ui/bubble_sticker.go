@@ -38,7 +38,7 @@ func (c *MainController) buildStickerWidget(msg store.StoredMessage) *gtk.Pictur
 	pic.SetSizeRequest(stickerW, stickerH)
 	pic.SetCursorFromName("pointer")
 
-	media.LoadMediaPreview(c.client, msg, pic, func(tex *gdk.Texture) {
+	media.LoadMediaPreviewContext(c.messagePreviewContext, c.client, msg, pic, func(tex *gdk.Texture) {
 		if tex != nil {
 			glib.IdleAdd(func() {
 				tw, th := tex.Width(), tex.Height()

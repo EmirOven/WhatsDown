@@ -27,7 +27,7 @@ func (c *MainController) buildBubbleText(msg store.StoredMessage) *gtk.Label {
 		textLabel.SetMarkup(markup)
 
 		if hasMentions {
-			textLabel.ConnectActivateLink(func(uri string) bool {
+			c.trackWidgetSignal(textLabel, textLabel, textLabel.ConnectActivateLink(func(uri string) bool {
 				if uri == "user:all" {
 					return true
 				}
@@ -37,7 +37,7 @@ func (c *MainController) buildBubbleText(msg store.StoredMessage) *gtk.Label {
 					return true
 				}
 				return false
-			})
+			}))
 		}
 		return textLabel
 	}

@@ -57,6 +57,13 @@ func (ctrl *MainController) bindPopoverWidgets(builder *gtk.Builder) {
 		ctrl.stickerPopover.ConnectShow(func() {
 			ctrl.loadSavedStickersUI()
 		})
+		ctrl.stickerPopover.ConnectClosed(func() {
+			// Release decoded textures and per-item menu callbacks when hidden.
+			if ctrl.stickerFlowbox != nil {
+				ctrl.releaseMessageWidget(ctrl.stickerFlowbox)
+				ctrl.stickerFlowbox.RemoveAll()
+			}
+		})
 	}
 	ctrl.loadSavedStickersUI()
 }

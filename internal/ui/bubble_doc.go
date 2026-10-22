@@ -34,7 +34,7 @@ func (c *MainController) buildDocWidget(msg store.StoredMessage) *gtk.Box {
 		pic.SetCanShrink(true)
 		pic.AddCSSClass("chat-bubble-picture")
 		pic.SetSizeRequest(240, 160)
-		media.LoadMediaPreview(c.client, msg, pic, nil)
+		media.LoadMediaPreviewContext(c.messagePreviewContext, c.client, msg, pic, nil)
 		overlay.SetChild(pic)
 
 		badge := gtk.NewLabel("PDF")
@@ -46,9 +46,9 @@ func (c *MainController) buildDocWidget(msg store.StoredMessage) *gtk.Box {
 		overlay.AddOverlay(badge)
 
 		gesture := gtk.NewGestureClick()
-		gesture.ConnectPressed(func(nPress int, x, y float64) {
+		c.trackWidgetSignal(overlay, gesture, gesture.ConnectPressed(func(nPress int, x, y float64) {
 			c.openPDFPreview(mCopy, docName)
-		})
+		}))
 		overlay.AddController(gesture)
 		container.Append(overlay)
 	}
@@ -70,13 +70,13 @@ func (c *MainController) buildDocWidget(msg store.StoredMessage) *gtk.Box {
 	btnInner.Append(lbl)
 	openBtn.SetChild(btnInner)
 
-	openBtn.ConnectClicked(func() {
+	c.trackWidgetSignal(openBtn, openBtn, openBtn.ConnectClicked(func() {
 		if isPDF {
 			c.openPDFPreview(mCopy, docName)
 		} else {
 			media.OpenMedia(c.client, mCopy, nil)
 		}
-	})
+	}))
 	actionBox.Append(openBtn)
 	container.Append(actionBox)
 

@@ -77,9 +77,9 @@ func (c *MainController) buildReactionPill(msg store.StoredMessage) *gtk.Button 
 	btn.SetTooltipText(strings.Join(tooltipNames, ", "))
 
 	mCopy := msg
-	btn.ConnectClicked(func() {
+	c.trackWidgetSignal(btn, btn, btn.ConnectClicked(func() {
 		c.showReactionsListPopover(btn, mCopy)
-	})
+	}))
 
 	return btn
 }

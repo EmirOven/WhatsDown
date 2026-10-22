@@ -28,7 +28,7 @@ func (c *MainController) buildImageVideoWidget(msg store.StoredMessage) *gtk.Ove
 	pic.AddCSSClass("chat-bubble-picture")
 	pic.SetSizeRequest(targetW, targetH)
 
-	media.LoadMediaPreview(c.client, msg, pic, func(tex *gdk.Texture) {
+	media.LoadMediaPreviewContext(c.messagePreviewContext, c.client, msg, pic, func(tex *gdk.Texture) {
 		if tex != nil {
 			glib.IdleAdd(func() {
 				tw, th := computeImageDisplaySize(tex.Width(), tex.Height(), c.getMaxImageWidth())

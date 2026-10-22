@@ -27,15 +27,15 @@ func (c *MainController) attachMediaOverlayButton(overlay *gtk.Overlay, msg stor
 	openBtn.SetChild(btnInner)
 
 	mCopy := msg
-	openBtn.ConnectClicked(func() {
+	c.trackWidgetSignal(openBtn, openBtn, openBtn.ConnectClicked(func() {
 		media.OpenMedia(c.client, mCopy, func(s string) {
 			glib.IdleAdd(func() { lbl.SetText(s) })
 		})
-	})
+	}))
 	overlay.AddOverlay(openBtn)
 
 	gesture := gtk.NewGestureClick()
-	gesture.ConnectPressed(func(nPress int, x, y float64) {
+	c.trackWidgetSignal(overlay, gesture, gesture.ConnectPressed(func(nPress int, x, y float64) {
 		if nPress != 1 {
 			return
 		}
@@ -46,6 +46,6 @@ func (c *MainController) attachMediaOverlayButton(overlay *gtk.Overlay, msg stor
 			}
 		}
 		media.OpenMedia(c.client, mCopy, nil)
-	})
+	}))
 	overlay.AddController(gesture)
 }

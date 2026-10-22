@@ -9,11 +9,12 @@ import (
 
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
+	"postbetasoftware.com/whatsdown/internal/cache"
 )
 
 var (
 	mu            sync.RWMutex
-	memoryCache   = make(map[string]*gdk.Texture)
+	memoryCache   = cache.NewLRU[*gdk.Texture](16<<20, 256)
 	negativeCache = make(map[string]time.Time)
 	inFlight      = make(map[string][]func(*gdk.Texture))
 	fetchSem      = make(chan struct{}, 2)
@@ -38,7 +39,7 @@ func DiskPath(jid string) string {
 // Invalidate removes the cached avatar for the given JID.
 func Invalidate(jid string) {
 	mu.Lock()
-	delete(memoryCache, jid)
+	memoryCache.Delete(jid)
 	delete(negativeCache, jid)
 	mu.Unlock()
 	_ = os.Remove(DiskPath(jid))
@@ -51,7 +52,7 @@ func StoreBytes(jid string, data []byte) {
 	}
 	_ = os.WriteFile(DiskPath(jid), data, 0o600)
 	mu.Lock()
-	delete(memoryCache, jid)
+	memoryCache.Delete(jid)
 	delete(negativeCache, jid)
 	mu.Unlock()
 }
@@ -63,7 +64,7 @@ func ClearCache() {
 	_ = os.MkdirAll(cacheDir, 0o700)
 
 	mu.Lock()
-	memoryCache = make(map[string]*gdk.Texture)
+	memoryCache.Clear()
 	negativeCache = make(map[string]time.Time)
 	mu.Unlock()
 }

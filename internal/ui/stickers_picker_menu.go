@@ -12,47 +12,54 @@ func (c *MainController) attachStickerPickerMenu(btn *gtk.Button, stk store.Save
 	itemPopover.SetHasArrow(true)
 	itemPopover.AddCSSClass("popover-menu-box")
 
-	popBox := gtk.NewBox(gtk.OrientationVertical, 2)
-	popBox.SetMarginTop(4)
-	popBox.SetMarginBottom(4)
-	popBox.SetMarginStart(4)
-	popBox.SetMarginEnd(4)
-
-	sendItem := gtk.NewButton()
-	addCSSClasses(sendItem, "flat", "popover-menu-btn")
-	sRow := gtk.NewBox(gtk.OrientationHorizontal, 8)
-	sRow.Append(gtk.NewImageFromIconName("mail-send-symbolic"))
-	sRow.Append(gtk.NewLabel("Send Sticker"))
-	sendItem.SetChild(sRow)
-	sendItem.ConnectClicked(func() {
-		itemPopover.Popdown()
-		if c.stickerPopover != nil {
-			c.stickerPopover.Popdown()
+	populate := func() {
+		if itemPopover.Child() != nil {
+			return
 		}
-		c.sendSticker(stk.FilePath)
-	})
-	popBox.Append(sendItem)
+		popBox := gtk.NewBox(gtk.OrientationVertical, 2)
+		popBox.SetMarginTop(4)
+		popBox.SetMarginBottom(4)
+		popBox.SetMarginStart(4)
+		popBox.SetMarginEnd(4)
 
-	delItem := gtk.NewButton()
-	addCSSClasses(delItem, "flat", "popover-menu-btn")
-	dRow := gtk.NewBox(gtk.OrientationHorizontal, 8)
-	dRow.Append(gtk.NewImageFromIconName("user-trash-symbolic"))
-	dRow.Append(gtk.NewLabel("Remove from Saved"))
-	delItem.SetChild(dRow)
-	delItem.ConnectClicked(func() {
-		itemPopover.Popdown()
-		c.removeSavedSticker(stk.ID)
-	})
-	popBox.Append(delItem)
+		sendItem := gtk.NewButton()
+		addCSSClasses(sendItem, "flat", "popover-menu-btn")
+		sRow := gtk.NewBox(gtk.OrientationHorizontal, 8)
+		sRow.Append(gtk.NewImageFromIconName("mail-send-symbolic"))
+		sRow.Append(gtk.NewLabel("Send Sticker"))
+		sendItem.SetChild(sRow)
+		c.trackWidgetSignal(sendItem, sendItem, sendItem.ConnectClicked(func() {
+			itemPopover.Popdown()
+			if c.stickerPopover != nil {
+				c.stickerPopover.Popdown()
+			}
+			c.sendSticker(stk.FilePath)
+		}))
+		popBox.Append(sendItem)
 
-	itemPopover.SetChild(popBox)
+		delItem := gtk.NewButton()
+		addCSSClasses(delItem, "flat", "popover-menu-btn")
+		dRow := gtk.NewBox(gtk.OrientationHorizontal, 8)
+		dRow.Append(gtk.NewImageFromIconName("user-trash-symbolic"))
+		dRow.Append(gtk.NewLabel("Remove from Saved"))
+		delItem.SetChild(dRow)
+		c.trackWidgetSignal(delItem, delItem, delItem.ConnectClicked(func() {
+			itemPopover.Popdown()
+			c.removeSavedSticker(stk.ID)
+		}))
+		popBox.Append(delItem)
+
+		itemPopover.SetChild(popBox)
+
+	}
 
 	rGesture := gtk.NewGestureClick()
 	rGesture.SetButton(3)
-	rGesture.ConnectPressed(func(nPress int, x, y float64) {
+	c.trackWidgetSignal(btn, rGesture, rGesture.ConnectPressed(func(nPress int, x, y float64) {
+		populate()
 		rect := gdk.NewRectangle(int(x), int(y), 1, 1)
 		itemPopover.SetPointingTo(&rect)
 		itemPopover.Popup()
-	})
+	}))
 	btn.AddController(rGesture)
 }

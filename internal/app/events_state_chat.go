@@ -29,52 +29,36 @@ func handleChatStateAction(evt any) {
 	if msgStore == nil {
 		return
 	}
-	go func() {
-		ctx := context.Background()
-		switch e := evt.(type) {
-		case *events.Pin:
-			if e.Action != nil {
-				_ = msgStore.SetChatPinned(ctx, e.JID.ToNonAD().String(), e.Action.GetPinned())
-				refreshChatsUI()
-			}
-		case *events.Archive:
-			if e.Action != nil {
-				_ = msgStore.SetChatArchived(ctx, e.JID.ToNonAD().String(), e.Action.GetArchived())
-				refreshChatsUI()
-			}
-		case *events.Mute:
-			if e.Action != nil {
-				_ = msgStore.SetChatMuted(ctx, e.JID.ToNonAD().String(), e.Action.GetMuted())
-				refreshChatsUI()
-			}
-		case *events.Star:
-			if e.Action != nil {
-				chatJID := e.ChatJID.ToNonAD().String()
-				_ = msgStore.ToggleMessageStarred(ctx, chatJID, e.MessageID, e.Action.GetStarred())
-				glib.IdleAdd(func() {
-					if a := ui.ActiveMainWindow(); a != nil && a.CurrentChat() != nil {
-						if a.IsSameChat(a.CurrentChat().JID, chatJID) {
-							a.UpdateSingleMessageRow(e.MessageID)
-						}
-					}
-				})
-			}
-		case *events.MarkChatAsRead:
-			if e.Action != nil && e.Action.GetRead() {
-				_ = msgStore.MarkChatRead(ctx, e.JID)
-				refreshChatsUI()
-			}
+	// Applying on the dispatcher provides backpressure during state replay.
+	ctx := context.Background()
+	switch e := evt.(type) {
+	case *events.Pin:
+		if e.Action != nil {
+			_ = msgStore.SetChatPinned(ctx, e.JID.ToNonAD().String(), e.Action.GetPinned())
+			refreshChatsUI()
 		}
-	}()
-}
-
-func refreshChatsUI() {
-	glib.IdleAdd(func() {
-		if a := ui.ActiveMainWindow(); a != nil {
-			a.LoadChats()
-			a.LoadArchivedChats()
+	case *events.Archive:
+		if e.Action != nil {
+			_ = msgStore.SetChatArchived(ctx, e.JID.ToNonAD().String(), e.Action.GetArchived())
+			refreshChatsUI()
 		}
-	})
+	case *events.Mute:
+		if e.Action != nil {
+			_ = msgStore.SetChatMuted(ctx, e.JID.ToNonAD().String(), e.Action.GetMuted())
+			refreshChatsUI()
+		}
+	case *events.Star:
+		if e.Action != nil {
+			_ = msgStore.ToggleMessageStarred(ctx, e.ChatJID.ToNonAD().String(), e.MessageID, e.Action.GetStarred())
+			messageRefreshNeeded.Store(true)
+			refreshChatsUI()
+		}
+	case *events.MarkChatAsRead:
+		if e.Action != nil && e.Action.GetRead() {
+			_ = msgStore.MarkChatRead(ctx, e.JID)
+			refreshChatsUI()
+		}
+	}
 }
 
 func handlePictureUpdate(e *events.Picture) {

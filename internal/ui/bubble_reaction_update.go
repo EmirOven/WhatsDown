@@ -36,12 +36,12 @@ func (c *MainController) UpdateSingleMessageRow(messageID string) {
 		return
 	}
 
-	sameMinuteAsPrev := false
+	var previous *store.StoredMessage
 	isLastMessage := false
 	for i := range c.currentMessages {
 		if c.currentMessages[i].ID == messageID {
 			if i > 0 {
-				sameMinuteAsPrev = c.isSameAuthorAndDisplayTime(c.currentMessages[i-1], *updatedMsg)
+				previous = &c.currentMessages[i-1]
 			}
 			if i == len(c.currentMessages)-1 {
 				isLastMessage = true
@@ -51,19 +51,12 @@ func (c *MainController) UpdateSingleMessageRow(messageID string) {
 		}
 	}
 
-	newRow := c.createMessageBubble(*updatedMsg, sameMinuteAsPrev)
-	if sameMinuteAsPrev {
-		row.AddCSSClass("message-row-same-minute")
-		row.SetMarginTop(2)
-	} else {
-		row.RemoveCSSClass("message-row-same-minute")
-		row.SetMarginTop(8)
-	}
-	row.SetMarginBottom(0)
-	if child := newRow.Child(); child != nil {
-		newRow.SetChild(nil)
-		row.SetChild(child)
-	}
+	newRow := c.createMessageRow(*updatedMsg, previous)
+	index := row.Index()
+	c.releaseMessageWidget(row)
+	c.messagesList.Remove(row)
+	c.messagesList.Insert(newRow, index)
+	c.messageRowMap[messageID] = newRow
 
 	if isLastMessage {
 		c.scrollToBottomAnimated()
@@ -72,4 +65,12 @@ func (c *MainController) UpdateSingleMessageRow(messageID string) {
 
 func (c *MainController) updateSingleMessageRow(messageID string) {
 	c.UpdateSingleMessageRow(messageID)
+}
+
+// RefreshMessageRows refreshes the currently displayed messages after a batch
+// of app-state changes without queuing callbacks for every historical message.
+func (c *MainController) RefreshMessageRows() {
+	for id := range c.messageRowMap {
+		c.UpdateSingleMessageRow(id)
+	}
 }

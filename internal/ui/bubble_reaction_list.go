@@ -53,13 +53,13 @@ func (c *MainController) showReactionsListPopover(parent gtk.Widgetter, msg stor
 		var chipBtns []*gtk.Button
 		chipBtns = append(chipBtns, allBtn)
 
-		allBtn.ConnectClicked(func() {
+		c.trackWidgetSignal(allBtn, allBtn, allBtn.ConnectClicked(func() {
 			for _, b := range chipBtns {
 				b.RemoveCSSClass("active")
 			}
 			allBtn.AddCSSClass("active")
 			c.populateReactionsList(listBox, popover, msg, "")
-		})
+		}))
 
 		for _, e := range distinctEmojis {
 			eCopy := e
@@ -69,13 +69,13 @@ func (c *MainController) showReactionsListPopover(parent gtk.Widgetter, msg stor
 			chipsBox.Append(chipBtn)
 			chipBtns = append(chipBtns, chipBtn)
 
-			chipBtn.ConnectClicked(func() {
+			c.trackWidgetSignal(chipBtn, chipBtn, chipBtn.ConnectClicked(func() {
 				for _, b := range chipBtns {
 					b.RemoveCSSClass("active")
 				}
 				chipBtn.AddCSSClass("active")
 				c.populateReactionsList(listBox, popover, msg, eCopy)
-			})
+			}))
 		}
 		mainBox.Append(chipsBox)
 	}

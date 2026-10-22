@@ -5,8 +5,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"postbetasoftware.com/whatsdown/internal/media"
 	"postbetasoftware.com/whatsdown/internal/store"
 )
 
@@ -33,7 +33,13 @@ func (c *MainController) LoadSavedStickersUI() {
 		if ch == nil {
 			break
 		}
+		c.releaseMessageWidget(ch)
 		c.stickerFlowbox.Remove(ch)
+	}
+	// Sync updates the collection metadata, but only an open picker needs
+	// image widgets. Do not decode the whole sticker library in Settings.
+	if c.stickerPopover == nil || !c.stickerPopover.Visible() {
+		return
 	}
 	if len(stickers) == 0 {
 		if c.stickerEmptyBox != nil {
@@ -71,18 +77,18 @@ func (c *MainController) appendStickerToFlowbox(stk store.SavedSticker) {
 	pic.SetSizeRequest(64, 64)
 
 	if fi, err := os.Stat(stk.FilePath); err == nil && fi.Size() > 0 {
-		if tex, err := gdk.NewTextureFromFilename(stk.FilePath); err == nil && tex != nil {
+		if tex, err := media.LoadSizedPreviewTexture(stk.FilePath, 64); err == nil && tex != nil {
 			pic.SetPaintable(tex)
 		}
 	}
 	btn.SetChild(pic)
 
-	btn.ConnectClicked(func() {
+	c.trackWidgetSignal(btn, btn, btn.ConnectClicked(func() {
 		if c.stickerPopover != nil {
 			c.stickerPopover.Popdown()
 		}
 		c.sendSticker(stk.FilePath)
-	})
+	}))
 
 	c.attachStickerPickerMenu(btn, stk)
 	c.stickerFlowbox.Append(btn)

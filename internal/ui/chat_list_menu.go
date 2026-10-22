@@ -12,6 +12,16 @@ func (c *MainController) attachContextMenu(row *gtk.ListBoxRow, chat store.Chat,
 	popover.SetHasArrow(false)
 	popover.AddCSSClass("popover-menu-box")
 
+	// Menu buttons capture the popover, which owns the buttons natively.
+	// Disconnect those callbacks before removing the row to break that cycle.
+	var disconnect []func()
+	menuButton := func(icon, label string, action func()) *gtk.Button {
+		btn := newMenuButtonContent(icon, label)
+		handle := btn.ConnectClicked(action)
+		disconnect = append(disconnect, func() { btn.HandlerDisconnect(handle) })
+		return btn
+	}
+
 	menuBox := gtk.NewBox(gtk.OrientationVertical, 2)
 	menuBox.SetMarginTop(4)
 	menuBox.SetMarginBottom(4)
@@ -22,7 +32,7 @@ func (c *MainController) attachContextMenu(row *gtk.ListBoxRow, chat store.Chat,
 	if chat.Pinned {
 		pinText = "Unpin chat"
 	}
-	menuBox.Append(newMenuButton("view-pin-symbolic", pinText, func() {
+	menuBox.Append(menuButton("view-pin-symbolic", pinText, func() {
 		popover.Popdown()
 		c.togglePin(chat)
 	}))
@@ -31,12 +41,12 @@ func (c *MainController) attachContextMenu(row *gtk.ListBoxRow, chat store.Chat,
 	if chat.Muted {
 		muteText, muteIcon = "Unmute chat", "audio-volume-high-symbolic"
 	}
-	menuBox.Append(newMenuButton(muteIcon, muteText, func() {
+	menuBox.Append(menuButton(muteIcon, muteText, func() {
 		popover.Popdown()
 		c.toggleMute(chat)
 	}))
 
-	menuBox.Append(newMenuButton("help-about-symbolic", "Details & Media", func() {
+	menuBox.Append(menuButton("help-about-symbolic", "Details & Media", func() {
 		popover.Popdown()
 		c.showDetailsAndMedia(chat)
 	}))
@@ -50,7 +60,7 @@ func (c *MainController) attachContextMenu(row *gtk.ListBoxRow, chat store.Chat,
 	if chat.Archived {
 		archText, archIcon = "Unarchive chat", "folder-symbolic"
 	}
-	menuBox.Append(newMenuButton(archIcon, archText, func() {
+	menuBox.Append(menuButton(archIcon, archText, func() {
 		popover.Popdown()
 		c.toggleArchive(chat)
 	}))
@@ -60,7 +70,7 @@ func (c *MainController) attachContextMenu(row *gtk.ListBoxRow, chat store.Chat,
 	sep2.SetMarginBottom(2)
 	menuBox.Append(sep2)
 
-	delBtn := newMenuButton("user-trash-symbolic", "Delete chat", func() {
+	delBtn := menuButton("user-trash-symbolic", "Delete chat", func() {
 		popover.Popdown()
 		c.deleteChatLocally(chat)
 	})
@@ -71,15 +81,32 @@ func (c *MainController) attachContextMenu(row *gtk.ListBoxRow, chat store.Chat,
 
 	gesture := gtk.NewGestureClick()
 	gesture.SetButton(gdk.BUTTON_SECONDARY)
-	gesture.ConnectPressed(func(nPress int, x, y float64) {
+	gestureHandle := gesture.ConnectPressed(func(nPress int, x, y float64) {
 		rect := gdk.NewRectangle(int(x), int(y), 1, 1)
 		popover.SetPointingTo(&rect)
 		popover.Popup()
 	})
 	row.AddController(gesture)
+	if c.chatMenuCleanups == nil {
+		c.chatMenuCleanups = make(map[*gtk.ListBoxRow]func())
+	}
+	c.chatMenuCleanups[row] = func() {
+		gesture.HandlerDisconnect(gestureHandle)
+		for _, f := range disconnect {
+			f()
+		}
+		popover.Popdown()
+		popover.Unparent()
+	}
 }
 
 func newMenuButton(iconName, label string, onClick func()) *gtk.Button {
+	btn := newMenuButtonContent(iconName, label)
+	btn.ConnectClicked(onClick)
+	return btn
+}
+
+func newMenuButtonContent(iconName, label string) *gtk.Button {
 	btn := gtk.NewButton()
 	btn.AddCSSClass("flat")
 	btn.AddCSSClass("popover-menu-btn")
@@ -87,6 +114,5 @@ func newMenuButton(iconName, label string, onClick func()) *gtk.Button {
 	b.Append(gtk.NewImageFromIconName(iconName))
 	b.Append(gtk.NewLabel(label))
 	btn.SetChild(b)
-	btn.ConnectClicked(onClick)
 	return btn
 }
