@@ -9,10 +9,15 @@
 </p>
 
 ---
+<p align="center">
+  <img src="screenshot.png" alt="WhatsDown Logo">
+</p>
+
+---
 
 ## Branch Info
 
-This branch is for v0.2.0 - named Colourful. It is WIP and pre-alpha software. Use the `main` branch if you just want to install or work on the latest stable code.
+This is the main branch. No active development (usually) will be done here anymore, and all active development will be on the latest branch version. You can assume the code here to be safe and (mostly) production-ready.
 
 ---
 
