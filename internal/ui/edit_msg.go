@@ -52,7 +52,7 @@ func (c *MainController) submitEdit(msg store.StoredMessage, newText string) {
 		}
 	}
 
-	if c.client != nil {
+	if c.client != nil && c.client.IsConnected() && (c.store == nil || !c.store.IsDemo()) {
 		targetJID, err := types.ParseJID(msg.ChatJID)
 		if err == nil {
 			editMsg := c.client.BuildEdit(targetJID, msg.ID, &waE2E.Message{

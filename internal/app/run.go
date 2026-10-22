@@ -12,12 +12,14 @@ import (
 
 // Run starts the WhatsDown GTK/Adwaita application.
 func Run() {
+	gtkArgs := parseCustomArgs(os.Args)
 	flags := gio.ApplicationDefaultFlags
 	if devMode {
 		flags = gio.ApplicationNonUnique
 	}
 	app := adw.NewApplication("com.postbetasoftware.WhatsDown", flags)
 	application = app
+	ui.OnDemoModeToggled = toggleDemoMode
 
 	ui.OnLogoutRequested = func() {
 		glib.IdleAdd(func() {
@@ -46,6 +48,11 @@ func Run() {
 
 		cssProvider := newCSSProvider()
 		loadCSS(cssProvider)
+
+		if demoMode {
+			activateDemoWindow(app, cssProvider)
+			return
+		}
 
 		client, err := newWhatsAppClient()
 		if err != nil {
@@ -83,7 +90,7 @@ func Run() {
 		}
 	})
 
-	if code := app.Run(os.Args); code > 0 {
+	if code := app.Run(gtkArgs); code > 0 {
 		os.Exit(code)
 	}
 }

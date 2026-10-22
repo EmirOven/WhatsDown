@@ -5,7 +5,12 @@ import (
 	"strings"
 )
 
+const DemoSelfJID = "15550100000@s.whatsapp.net"
+
 func (s *MessageStore) GetSelfJIDs(ctx context.Context) (pn string, lid string) {
+	if s.IsDemo() {
+		return DemoSelfJID, ""
+	}
 	s.selfMu.RLock()
 	if s.selfPN != "" || s.selfLID != "" {
 		p, l := s.selfPN, s.selfLID

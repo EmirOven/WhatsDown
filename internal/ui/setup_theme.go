@@ -55,5 +55,21 @@ func (ctrl *MainController) bindTintingRow() {
 			ctrl.applyChatWallpaper(ctrl.currentChat.JID)
 		}
 	})
+
+	ctrl.bindDemoModeRow()
+}
+
+func (ctrl *MainController) bindDemoModeRow() {
+	if ctrl.settingsDemoRow == nil {
+		return
+	}
+	isDemo := ctrl.store != nil && ctrl.store.IsDemo()
+	ctrl.settingsDemoRow.SetActive(isDemo)
+	ctrl.settingsDemoRow.Connect("notify::active", func() {
+		active := ctrl.settingsDemoRow.Active()
+		if OnDemoModeToggled != nil {
+			OnDemoModeToggled(active)
+		}
+	})
 }
 

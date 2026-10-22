@@ -18,7 +18,7 @@ func (c *MainController) dispatchPollSend(chatJIDStr, question string, options [
 	var msgID string
 	var rawProto []byte
 
-	if c.client != nil {
+	if c.client != nil && (c.store == nil || !c.store.IsDemo()) {
 		targetJID, err := types.ParseJID(chatJIDStr)
 		if err != nil {
 			log.Printf("parsing JID for poll send: %v", err)

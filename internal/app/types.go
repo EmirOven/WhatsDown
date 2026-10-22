@@ -12,7 +12,10 @@ import (
 	"postbetasoftware.com/whatsdown/internal/store"
 )
 
-var devMode = os.Getenv("WHATSDOWN_DEV") == "1"
+var (
+	devMode  = os.Getenv("WHATSDOWN_DEV") == "1" || os.Getenv("WHATSDOWN_DEMO") == "1" || os.Getenv("WHATSDOWN_DEV_DEMO") == "1"
+	demoMode = os.Getenv("WHATSDOWN_DEMO") == "1" || os.Getenv("WHATSDOWN_DEV_DEMO") == "1" || os.Getenv("WHATSDOWN_DEV_PAGE") == "demo"
+)
 
 type page int
 
@@ -50,6 +53,8 @@ var (
 	syncInfo                 syncState
 	waClient                 *whatsmeow.Client
 	msgStore                 *store.MessageStore
+	realMsgStore             *store.MessageStore
+	demoMsgStore             *store.MessageStore
 	waContainer              *sqlstore.Container
 	syncTransitionScheduled  bool
 	cssProvider              *gtk.CSSProvider

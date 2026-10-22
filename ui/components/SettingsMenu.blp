@@ -130,6 +130,20 @@ Adw.ToolbarView settings_page {
       }
 
       Adw.PreferencesGroup {
+        title: _("Developer");
+
+        Adw.SwitchRow settings_demo_row {
+          title: _("Demo Mode");
+          subtitle: _("Show sample demo chats instead of your real chats");
+
+          [prefix]
+          Gtk.Image {
+            icon-name: "applications-engineering-symbolic";
+          }
+        }
+      }
+
+      Adw.PreferencesGroup {
         title: _("Donations");
         description: _("Support the development of WhatsDown");
 

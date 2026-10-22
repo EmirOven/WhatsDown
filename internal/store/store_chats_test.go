@@ -57,3 +57,27 @@ func TestChatsAndMute(t *testing.T) {
 		t.Errorf("expected 1 archived chat")
 	}
 }
+
+func TestSeedDemoData(t *testing.T) {
+	s, ctx, db := setupTestStore(t)
+	defer db.Close()
+
+	if err := s.SeedDemoData(ctx); err != nil {
+		t.Fatalf("seed demo data: %v", err)
+	}
+	if !s.IsDemo() {
+		t.Errorf("expected store.IsDemo() to be true")
+	}
+	chats, err := s.ListChats(ctx)
+	if err != nil || len(chats) == 0 {
+		t.Fatalf("expected seeded demo chats, got %d (err: %v)", len(chats), err)
+	}
+	archived, _ := s.ListArchivedChats(ctx)
+	if len(archived) == 0 {
+		t.Errorf("expected seeded archived demo chat")
+	}
+	calls, _ := s.ListCalls(ctx, "")
+	if len(calls) == 0 {
+		t.Errorf("expected seeded demo calls")
+	}
+}

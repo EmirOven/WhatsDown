@@ -38,7 +38,9 @@ func (c *MainController) attachParticipantContextMenu(
 		}
 		popover.Popdown()
 		go func() {
-			_, _ = c.client.UpdateGroupParticipants(context.Background(), groupJID, []types.JID{p.JID}, adminAction)
+			if c.client != nil && (c.store == nil || !c.store.IsDemo()) {
+				_, _ = c.client.UpdateGroupParticipants(context.Background(), groupJID, []types.JID{p.JID}, adminAction)
+			}
 			glib.IdleAdd(reload)
 		}()
 	})
@@ -51,7 +53,9 @@ func (c *MainController) attachParticipantContextMenu(
 		}
 		popover.Popdown()
 		go func() {
-			_, _ = c.client.UpdateGroupParticipants(context.Background(), groupJID, []types.JID{p.JID}, whatsmeow.ParticipantChangeRemove)
+			if c.client != nil && (c.store == nil || !c.store.IsDemo()) {
+				_, _ = c.client.UpdateGroupParticipants(context.Background(), groupJID, []types.JID{p.JID}, whatsmeow.ParticipantChangeRemove)
+			}
 			glib.IdleAdd(reload)
 		}()
 	})

@@ -10,7 +10,10 @@ import (
 	"postbetasoftware.com/whatsdown/internal/avatar"
 )
 
-var OnLogoutRequested func()
+var (
+	OnLogoutRequested func()
+	OnDemoModeToggled func(enabled bool)
+)
 
 func (ctrl *MainController) bindSettingsWidgets(builder *gtk.Builder) {
 	ctrl.settingsProfileRow, _ = castObject[*adw.ActionRow](builder, "settings_profile_row")
@@ -21,6 +24,7 @@ func (ctrl *MainController) bindSettingsWidgets(builder *gtk.Builder) {
 	ctrl.settingsClearCacheBtn, _ = castObject[*gtk.Button](builder, "settings_clear_cache_btn")
 	ctrl.settingsThemeRow, _ = castObject[*adw.ComboRow](builder, "settings_theme_row")
 	ctrl.settingsTintingRow, _ = castObject[*adw.SwitchRow](builder, "settings_tinting_row")
+	ctrl.settingsDemoRow, _ = castObject[*adw.SwitchRow](builder, "settings_demo_row")
 	ctrl.settingsLogoutBtn, _ = castObject[*gtk.Button](builder, "settings_logout_btn")
 
 	if ctrl.settingsResyncBtn != nil {

@@ -88,8 +88,10 @@ func (c *MainController) bindAddMembersSubmit(win *gtk.Window, addBtn *gtk.Butto
 		}
 		addBtn.SetSensitive(false)
 		go func() {
-			if gJID, err := types.ParseJID(groupJID); err == nil {
-				_, _ = c.client.UpdateGroupParticipants(context.Background(), gJID, toAdd, whatsmeow.ParticipantChangeAdd)
+			if c.client != nil && (c.store == nil || !c.store.IsDemo()) {
+				if gJID, err := types.ParseJID(groupJID); err == nil {
+					_, _ = c.client.UpdateGroupParticipants(context.Background(), gJID, toAdd, whatsmeow.ParticipantChangeAdd)
+				}
 			}
 			glib.IdleAdd(func() { win.Close(); onDone() })
 		}()

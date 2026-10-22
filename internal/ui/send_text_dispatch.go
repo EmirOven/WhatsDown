@@ -28,22 +28,31 @@ func (c *MainController) dispatchTextMessage(targetJID types.JID, chatJIDStr, te
 		}
 	}
 
-	resp, err := c.client.SendMessage(ctx, targetJID, &waMsg)
-	if err != nil {
-		log.Printf("sending message to %s: %v", targetJID, err)
-		return
+	var msgID, senderJID string
+	initStatus := store.MessageStatusSent
+	if c.store != nil && c.store.IsDemo() {
+		msgID = "demo_msg_" + time.Now().Format("20060102150405.000000")
+		senderJID = store.DemoSelfJID
+		initStatus = store.MessageStatusRead
+	} else {
+		resp, err := c.client.SendMessage(ctx, targetJID, &waMsg)
+		if err != nil {
+			log.Printf("sending message to %s: %v", targetJID, err)
+			return
+		}
+		msgID = resp.ID
+		senderJID = c.client.Store.ID.ToNonAD().String()
+		if c.isSelfJID(chatJIDStr) {
+			initStatus = store.MessageStatusRead
+		}
 	}
 
 	rawProto, _ := proto.Marshal(&waMsg)
-	initStatus := store.MessageStatusSent
-	if c.isSelfJID(chatJIDStr) {
-		initStatus = store.MessageStatusRead
-	}
 	if c.store != nil {
 		sentMsg := store.StoredMessage{
 			ChatJID:   chatJIDStr,
-			ID:        resp.ID,
-			SenderJID: c.client.Store.ID.ToNonAD().String(),
+			ID:        msgID,
+			SenderJID: senderJID,
 			FromMe:    true,
 			Timestamp: time.Now(),
 			Kind:      store.MessageKindText,

@@ -52,33 +52,32 @@ func (c *MainController) bindCreateGroupAction(
 }
 
 func (c *MainController) executeCreateGroup(
-	dialog *gtk.Window,
-	createBtn *gtk.Button,
-	errLbl *gtk.Label,
-	name, desc, avPath string,
-	participants []types.JID,
+	dialog *gtk.Window, createBtn *gtk.Button, errLbl *gtk.Label, name, desc, avPath string, participants []types.JID,
 ) {
 	ctx := context.Background()
-	info, err := c.client.CreateGroup(ctx, whatsmeow.ReqCreateGroup{
-		Name:         name,
-		Participants: participants,
-	})
-	if err != nil || info == nil {
-		glib.IdleAdd(func() {
-			createBtn.SetSensitive(true)
-			errLbl.SetText("Failed to create group: " + err.Error())
-			errLbl.SetVisible(true)
-		})
-		return
+	groupJID := "120363" + time.Now().Format("150405000000") + "@g.us"
+	if c.store == nil || !c.store.IsDemo() {
+		info, err := c.client.CreateGroup(ctx, whatsmeow.ReqCreateGroup{Name: name, Participants: participants})
+		if err != nil || info == nil {
+			glib.IdleAdd(func() {
+				createBtn.SetSensitive(true)
+				errLbl.SetText("Failed to create group: " + err.Error())
+				errLbl.SetVisible(true)
+			})
+			return
+		}
+		if desc != "" {
+			_ = c.client.SetGroupDescription(ctx, info.JID, desc)
+		}
+		groupJID = info.JID.String()
 	}
-
-	if desc != "" {
-		_ = c.client.SetGroupDescription(ctx, info.JID, desc)
-	}
-	groupJID := info.JID.String()
 	if avPath != "" {
 		if jpegBytes, err := loadAsJPEG(avPath); err == nil && len(jpegBytes) > 0 {
-			_, _ = c.client.SetGroupPhoto(ctx, info.JID, jpegBytes)
+			if c.store == nil || !c.store.IsDemo() {
+				if jid, err := types.ParseJID(groupJID); err == nil {
+					_, _ = c.client.SetGroupPhoto(ctx, jid, jpegBytes)
+				}
+			}
 			avatar.StoreBytes(groupJID, jpegBytes)
 		}
 	}
@@ -87,7 +86,6 @@ func (c *MainController) executeCreateGroup(
 	if c.store != nil {
 		_ = c.store.UpsertChat(ctx, groupJID, name, now.Unix())
 	}
-
 	glib.IdleAdd(func() {
 		dialog.Close()
 		c.loadChats()

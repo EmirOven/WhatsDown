@@ -18,9 +18,7 @@ func (c *MainController) addGroupInviteActionRows(actionsGroup *adw.PreferencesG
 	linkRow.AddPrefix(gtk.NewImageFromIconName("insert-link-symbolic"))
 	linkRow.SetActivatable(true)
 	linkRow.SetVisible(false)
-	linkRow.ConnectActivated(func() {
-		c.copyGroupInviteLink(groupJID, linkRow)
-	})
+	linkRow.ConnectActivated(func() { c.copyGroupInviteLink(groupJID, linkRow) })
 	actionsGroup.Add(linkRow)
 
 	qrRow := adw.NewActionRow()
@@ -29,9 +27,7 @@ func (c *MainController) addGroupInviteActionRows(actionsGroup *adw.PreferencesG
 	qrRow.AddPrefix(gtk.NewImageFromIconName("qr-code-symbolic"))
 	qrRow.SetActivatable(true)
 	qrRow.SetVisible(false)
-	qrRow.ConnectActivated(func() {
-		c.copyGroupInviteQR(groupJID, qrRow)
-	})
+	qrRow.ConnectActivated(func() { c.copyGroupInviteQR(groupJID, qrRow) })
 	actionsGroup.Add(qrRow)
 
 	pw.copyLinkRow = linkRow
@@ -48,17 +44,25 @@ func (pw *groupPermWidgets) updateInviteButtonsVisibility(isAdmin bool) {
 	}
 }
 
-func (c *MainController) copyGroupInviteLink(groupJID string, row *adw.ActionRow) {
-	if c.client == nil || !c.client.IsConnected() {
-		return
+func (c *MainController) resolveGroupInviteLink(groupJID string) string {
+	if c.store != nil && c.store.IsDemo() {
+		return "https://chat.whatsapp.com/DemoInviteLinkWhatsDown"
 	}
+	if c.client == nil || !c.client.IsConnected() {
+		return ""
+	}
+	jid, err := types.ParseJID(groupJID)
+	if err != nil {
+		return ""
+	}
+	link, _ := c.client.GetGroupInviteLink(context.Background(), jid, false)
+	return link
+}
+
+func (c *MainController) copyGroupInviteLink(groupJID string, row *adw.ActionRow) {
 	go func() {
-		jid, err := types.ParseJID(groupJID)
-		if err != nil {
-			return
-		}
-		link, err := c.client.GetGroupInviteLink(context.Background(), jid, false)
-		if err != nil || link == "" {
+		link := c.resolveGroupInviteLink(groupJID)
+		if link == "" {
 			return
 		}
 		glib.IdleAdd(func() {
@@ -71,16 +75,9 @@ func (c *MainController) copyGroupInviteLink(groupJID string, row *adw.ActionRow
 }
 
 func (c *MainController) copyGroupInviteQR(groupJID string, row *adw.ActionRow) {
-	if c.client == nil || !c.client.IsConnected() {
-		return
-	}
 	go func() {
-		jid, err := types.ParseJID(groupJID)
-		if err != nil {
-			return
-		}
-		link, err := c.client.GetGroupInviteLink(context.Background(), jid, false)
-		if err != nil || link == "" {
+		link := c.resolveGroupInviteLink(groupJID)
+		if link == "" {
 			return
 		}
 		pngBytes, err := qrcode.Encode(link, qrcode.Medium, 512)

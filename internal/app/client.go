@@ -50,7 +50,10 @@ func newWhatsAppClient() (*whatsmeow.Client, error) {
 		if err != nil {
 			return nil, fmt.Errorf("opening message store: %w", err)
 		}
-		msgStore = s
+		realMsgStore = s
+		if !demoMode {
+			msgStore = s
+		}
 	}
 
 	deviceStore, err := waContainer.GetFirstDevice(ctx)

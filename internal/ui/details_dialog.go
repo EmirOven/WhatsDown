@@ -22,7 +22,6 @@ func (c *MainController) showDetailsAndMedia(chat store.Chat) {
 
 	toolbarView := adw.NewToolbarView()
 	toolbarView.AddTopBar(adw.NewHeaderBar())
-
 	scrolled := gtk.NewScrolledWindow()
 	scrolled.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 	scrolled.SetVExpand(true)
@@ -37,7 +36,6 @@ func (c *MainController) showDetailsAndMedia(chat store.Chat) {
 	if strings.HasSuffix(chat.JID, "@g.us") {
 		c.appendGroupManagementSections(dialog, chat, contentBox)
 	}
-
 	if c.store != nil {
 		contentBox.Append(c.buildDetailsWallpaperGroup(dialog, chat))
 		c.buildDetailsTabs(dialog, chat, contentBox)
@@ -80,7 +78,10 @@ func (c *MainController) appendDetailsSubtitle(headerBox *gtk.Box, chat store.Ch
 	subLabel.SetVisible(false)
 	headerBox.Append(subLabel)
 
-	if strings.HasSuffix(chat.JID, "@g.us") && c.client != nil && c.client.IsConnected() {
+	if strings.HasSuffix(chat.JID, "@g.us") && c.store != nil && c.store.IsDemo() {
+		subLabel.SetText("Demo group chat • Native GTK4 & Libadwaita WhatsApp client")
+		subLabel.SetVisible(true)
+	} else if strings.HasSuffix(chat.JID, "@g.us") && c.client != nil && c.client.IsConnected() {
 		go func() {
 			if jid, err := types.ParseJID(chat.JID); err == nil {
 				if info, err := c.client.GetGroupInfo(context.Background(), jid); err == nil && info != nil && strings.TrimSpace(info.Topic) != "" {

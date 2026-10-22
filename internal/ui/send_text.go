@@ -10,7 +10,7 @@ import (
 
 // sendMessage sends the text from messageEntry to the currently selected chat.
 func (c *MainController) sendMessage() {
-	if c.currentChat == nil || c.client == nil {
+	if c.currentChat == nil || (c.client == nil && (c.store == nil || !c.store.IsDemo())) {
 		return
 	}
 

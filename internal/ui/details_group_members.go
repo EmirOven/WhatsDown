@@ -69,7 +69,8 @@ func (c *MainController) loadGroupDetailsState(
 	currentMembers *[]types.GroupParticipant,
 	reload func(),
 ) {
-	if c.client == nil || !c.client.IsConnected() {
+	isDemo := c.store != nil && c.store.IsDemo()
+	if !isDemo && (c.client == nil || !c.client.IsConnected()) {
 		return
 	}
 	go func() {
@@ -77,7 +78,12 @@ func (c *MainController) loadGroupDetailsState(
 		if err != nil {
 			return
 		}
-		ext, err := c.fetchGroupExtendedInfo(context.Background(), jid)
+		var ext *groupExtendedInfo
+		if isDemo {
+			ext = c.buildDemoGroupExtendedInfo(jid)
+		} else {
+			ext, err = c.fetchGroupExtendedInfo(context.Background(), jid)
+		}
 		if err != nil || ext == nil || ext.Info == nil {
 			return
 		}

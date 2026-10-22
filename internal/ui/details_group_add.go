@@ -10,7 +10,7 @@ import (
 )
 
 func (c *MainController) showAddGroupMembersDialog(groupJID string, existing []types.GroupParticipant, onDone func()) {
-	if c.client == nil {
+	if c.client == nil && (c.store == nil || !c.store.IsDemo()) {
 		return
 	}
 	inGroup := make(map[string]bool)

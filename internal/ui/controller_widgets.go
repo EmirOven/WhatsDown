@@ -88,5 +88,6 @@ type settingsWidgets struct {
 	settingsClearCacheBtn *gtk.Button
 	settingsThemeRow      *adw.ComboRow
 	settingsTintingRow    *adw.SwitchRow
+	settingsDemoRow       *adw.SwitchRow
 	settingsLogoutBtn     *gtk.Button
 }

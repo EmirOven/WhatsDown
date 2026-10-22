@@ -12,7 +12,15 @@ import (
 var DatabasePathFunc func() (string, error)
 
 func (c *MainController) refreshSettingsInfo() {
-	if c.client != nil && c.client.Store != nil && c.client.Store.ID != nil {
+	if c.store != nil && c.store.IsDemo() {
+		if c.settingsProfileRow != nil {
+			c.settingsProfileRow.SetTitle("Demo User (Dev Mode)")
+			c.settingsProfileRow.SetSubtitle("+1 555-010-0000")
+		}
+		if c.settingsProfileAvatar != nil {
+			c.settingsProfileAvatar.SetText("Demo User")
+		}
+	} else if c.client != nil && c.client.Store != nil && c.client.Store.ID != nil {
 		pushName := c.client.Store.PushName
 		if pushName == "" {
 			pushName = "WhatsApp User"
@@ -34,7 +42,11 @@ func (c *MainController) refreshSettingsInfo() {
 		}
 	} else if c.settingsDbPathRow != nil {
 		dir := filepath.Join(glib.GetUserDataDir(), "whatsdown")
-		c.settingsDbPathRow.SetSubtitle(filepath.Join(dir, "whatsdown.db"))
+		dbName := "whatsdown.db"
+		if c.store != nil && c.store.IsDemo() {
+			dbName = "whatsdown_demo.db"
+		}
+		c.settingsDbPathRow.SetSubtitle(filepath.Join(dir, dbName))
 	}
 
 	if c.store != nil && c.settingsStatsRow != nil {
