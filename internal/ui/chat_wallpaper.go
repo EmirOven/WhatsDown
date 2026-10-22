@@ -56,7 +56,8 @@ func buildWallpaperCSS(wp store.ChatWallpaper, tinting bool) string {
   transition: none;
 }
 .chat-page .chat-input-bar,
-.chat-page .voice-recording-bar {
+.chat-page .voice-recording-bar,
+.chat-page .reply-preview-bar {
   background-color: mix(@window_bg_color, %s, 0.2);
   transition: none;
 }

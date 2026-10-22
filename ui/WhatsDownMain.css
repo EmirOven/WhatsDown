@@ -825,7 +825,7 @@ avatar.community-avatar image,
 
 /* Reply preview bar over message input */
 .reply-preview-bar {
-  background: transparent;
+  background-color: var(--window-bg-color);
   border-top: 1px solid alpha(currentColor, 0.08);
   border-left: 4px solid #3584e4;
   border-radius: 8px 8px 0 0;
@@ -1205,7 +1205,8 @@ tabbar:drop(active) {
 .right-chat-header windowcontrols button,
 .right-chat-header windowcontrols button > image,
 .chat-page .chat-input-bar,
-.chat-page .voice-recording-bar {
+.chat-page .voice-recording-bar,
+.chat-page .reply-preview-bar {
   transition: none;
 }
 
