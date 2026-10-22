@@ -13,7 +13,7 @@ import (
 )
 
 func (c *MainController) populateGroupMembersList(
-	groupJID types.JID, info *types.GroupInfo, adminSwitch *gtk.Switch,
+	groupJID types.JID, info *types.GroupInfo, permWidgets *groupPermWidgets, addRow *adw.ActionRow,
 	membersGroup *adw.PreferencesGroup, membersList *gtk.ListBox, parts []types.GroupParticipant, reload func(),
 ) {
 	membersGroup.SetTitle(fmt.Sprintf("Participants (%d)", len(parts)))
@@ -27,13 +27,13 @@ func (c *MainController) populateGroupMembersList(
 			selfAdmin = true
 		}
 	}
-	c.bindGroupAnnounceSwitch(groupJID, adminSwitch, info.IsAnnounce, selfAdmin)
+	c.updateGroupPermissionsUI(groupJID, info, permWidgets, selfAdmin, addRow)
 	for _, p := range parts {
-		membersList.Append(c.buildGroupMemberRow(groupJID, p, reload))
+		membersList.Append(c.buildGroupMemberRow(groupJID, p, selfAdmin, reload))
 	}
 }
 
-func (c *MainController) buildGroupMemberRow(groupJID types.JID, p types.GroupParticipant, reload func()) *adw.ActionRow {
+func (c *MainController) buildGroupMemberRow(groupJID types.JID, p types.GroupParticipant, selfAdmin bool, reload func()) *adw.ActionRow {
 	pTarget := p.JID.String()
 	if !p.PhoneNumber.IsEmpty() {
 		pTarget = p.PhoneNumber.String()
@@ -68,7 +68,7 @@ func (c *MainController) buildGroupMemberRow(groupJID types.JID, p types.GroupPa
 	}
 
 	if !isSelf {
-		c.attachParticipantContextMenu(row, groupJID, p, reload)
+		c.attachParticipantContextMenu(row, groupJID, p, selfAdmin, reload)
 	}
 	return row
 }

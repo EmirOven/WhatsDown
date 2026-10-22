@@ -12,7 +12,9 @@ import (
 	"postbetasoftware.com/whatsdown/internal/store"
 )
 
-func (c *MainController) attachParticipantContextMenu(row *adw.ActionRow, groupJID types.JID, p types.GroupParticipant, reload func()) {
+func (c *MainController) attachParticipantContextMenu(
+	row *adw.ActionRow, groupJID types.JID, p types.GroupParticipant, canManage bool, reload func(),
+) {
 	popover := gtk.NewPopover()
 	popover.SetParent(row)
 	popover.SetHasArrow(false)
@@ -30,15 +32,23 @@ func (c *MainController) attachParticipantContextMenu(row *adw.ActionRow, groupJ
 		adminLabel = "Dismiss as Admin"
 		adminAction = whatsmeow.ParticipantChangeDemote
 	}
-	menuBox.Append(newMenuButton("security-high-symbolic", adminLabel, func() {
+	adminBtn := newMenuButton("security-high-symbolic", adminLabel, func() {
+		if !canManage {
+			return
+		}
 		popover.Popdown()
 		go func() {
 			_, _ = c.client.UpdateGroupParticipants(context.Background(), groupJID, []types.JID{p.JID}, adminAction)
 			glib.IdleAdd(reload)
 		}()
-	}))
+	})
+	adminBtn.SetSensitive(canManage)
+	menuBox.Append(adminBtn)
 
 	remBtn := newMenuButton("list-remove-symbolic", "Remove from Group", func() {
+		if !canManage {
+			return
+		}
 		popover.Popdown()
 		go func() {
 			_, _ = c.client.UpdateGroupParticipants(context.Background(), groupJID, []types.JID{p.JID}, whatsmeow.ParticipantChangeRemove)
@@ -46,6 +56,7 @@ func (c *MainController) attachParticipantContextMenu(row *adw.ActionRow, groupJ
 		}()
 	})
 	remBtn.AddCSSClass("destructive-action")
+	remBtn.SetSensitive(canManage)
 	menuBox.Append(remBtn)
 
 	popover.SetChild(menuBox)
@@ -57,27 +68,6 @@ func (c *MainController) attachParticipantContextMenu(row *adw.ActionRow, groupJ
 		popover.Popup()
 	})
 	row.AddController(gesture)
-}
-
-func (c *MainController) bindGroupAnnounceSwitch(groupJID types.JID, sw *gtk.Switch, isAnnounce, canEdit bool) {
-	sw.SetActive(isAnnounce)
-	sw.SetSensitive(canEdit)
-	var updating bool
-	sw.ConnectStateSet(func(state bool) bool {
-		if updating || c.client == nil {
-			return false
-		}
-		go func() {
-			if err := c.client.SetGroupAnnounce(context.Background(), groupJID, state); err != nil {
-				glib.IdleAdd(func() {
-					updating = true
-					sw.SetActive(!state)
-					updating = false
-				})
-			}
-		}()
-		return false
-	})
 }
 
 func (c *MainController) leaveAndDeleteGroup(chat store.Chat) {

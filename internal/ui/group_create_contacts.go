@@ -9,6 +9,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
@@ -20,6 +21,7 @@ type groupContactItem struct {
 	JID         string
 	DisplayName string
 	Subtitle    string
+	LastActive  time.Time
 	Row         *adw.ActionRow
 	Check       *gtk.CheckButton
 }
@@ -28,34 +30,34 @@ func (c *MainController) collectSelectableContacts() []groupContactItem {
 	seen := make(map[string]bool)
 	var items []groupContactItem
 
-	addCandidate := func(jid, name string) {
+	addCandidate := func(jid, name string, lastActive time.Time) {
 		if !strings.HasSuffix(jid, "@s.whatsapp.net") || c.isSelfJID(jid) || seen[jid] {
 			return
 		}
 		seen[jid] = true
-		disp := strings.TrimSpace(name)
+		disp, sub := strings.TrimSpace(name), cleanPhoneNumber(jid)
 		if disp == "" || disp == "WhatsApp User" {
-			disp = c.resolveContactName(jid)
+			if disp = c.resolveContactName(jid); disp == "" {
+				disp = sub
+			}
 		}
-		sub := cleanPhoneNumber(jid)
-		if disp == "" {
-			disp = sub
-		}
-		items = append(items, groupContactItem{JID: jid, DisplayName: disp, Subtitle: sub})
+		items = append(items, groupContactItem{JID: jid, DisplayName: disp, Subtitle: sub, LastActive: lastActive})
 	}
 
 	for _, ch := range append(c.chats, c.archivedChats...) {
-		addCandidate(ch.JID, formatDisplayName(ch))
+		addCandidate(ch.JID, formatDisplayName(ch), ch.LastMessageAt)
 	}
 	if c.store != nil {
-		if contacts, err := c.store.ListAllContacts(context.Background()); err == nil {
-			for _, cnt := range contacts {
-				addCandidate(cnt.JID, cnt.Name)
-			}
+		contacts, _ := c.store.ListAllContacts(context.Background())
+		for _, cnt := range contacts {
+			addCandidate(cnt.JID, cnt.Name, cnt.LastMessageAt)
 		}
 	}
 
 	sort.SliceStable(items, func(i, j int) bool {
+		if !items[i].LastActive.Equal(items[j].LastActive) {
+			return items[i].LastActive.After(items[j].LastActive)
+		}
 		return strings.ToLower(items[i].DisplayName) < strings.ToLower(items[j].DisplayName)
 	})
 	return items
@@ -70,7 +72,6 @@ func (c *MainController) buildContactRow(item *groupContactItem) *adw.ActionRow 
 	av := adw.NewAvatar(36, item.DisplayName, true)
 	avatar.LoadAvatar(c.client, item.JID, item.DisplayName, av)
 	row.AddPrefix(av)
-
 	chk := gtk.NewCheckButton()
 	chk.SetVAlign(gtk.AlignCenter)
 	row.AddSuffix(chk)
@@ -86,14 +87,13 @@ func loadAsJPEG(path string) ([]byte, error) {
 		}
 	}
 	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	if img, _, err := image.Decode(bytes.NewReader(raw)); err == nil {
-		var buf bytes.Buffer
-		if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 85}); err == nil {
-			return buf.Bytes(), nil
+	if err == nil {
+		if img, _, err := image.Decode(bytes.NewReader(raw)); err == nil {
+			var buf bytes.Buffer
+			if jpeg.Encode(&buf, img, &jpeg.Options{Quality: 85}) == nil {
+				return buf.Bytes(), nil
+			}
 		}
 	}
-	return raw, nil
+	return raw, err
 }
