@@ -75,14 +75,14 @@ func (c *MainController) executeCreateGroup(
 	if desc != "" {
 		_ = c.client.SetGroupDescription(ctx, info.JID, desc)
 	}
+	groupJID := info.JID.String()
 	if avPath != "" {
 		if jpegBytes, err := loadAsJPEG(avPath); err == nil && len(jpegBytes) > 0 {
 			_, _ = c.client.SetGroupPhoto(ctx, info.JID, jpegBytes)
-			avatar.Invalidate(info.JID.String())
+			avatar.StoreBytes(groupJID, jpegBytes)
 		}
 	}
 
-	groupJID := info.JID.String()
 	now := time.Now()
 	if c.store != nil {
 		_ = c.store.UpsertChat(ctx, groupJID, name, now.Unix())

@@ -2,12 +2,9 @@ package avatar
 
 import (
 	"context"
-	"errors"
 	"io"
-	"log"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
@@ -16,15 +13,33 @@ import (
 	"go.mau.fi/whatsmeow/types"
 )
 
-func fetchRemote(client ClientProvider, jid string, isCommunity bool, onLoaded func(*gdk.Texture)) {
+func notifyWaiters(jid string, tex *gdk.Texture) {
+	mu.Lock()
+	cbs := inFlight[jid]
+	delete(inFlight, jid)
+	mu.Unlock()
+	if len(cbs) == 0 {
+		return
+	}
+	glib.IdleAdd(func() {
+		for _, cb := range cbs {
+			if cb != nil {
+				cb(tex)
+			}
+		}
+	})
+}
+
+func fetchRemote(client ClientProvider, jid string, isCommunity bool) {
+	fetchSem <- struct{}{}
 	defer func() {
-		mu.Lock()
-		delete(inFlight, jid)
-		mu.Unlock()
+		time.Sleep(150 * time.Millisecond)
+		<-fetchSem
 	}()
 
 	targetJID, err := types.ParseJID(jid)
 	if err != nil {
+		notifyWaiters(jid, nil)
 		return
 	}
 
@@ -36,65 +51,48 @@ func fetchRemote(client ClientProvider, jid string, isCommunity bool, onLoaded f
 		IsCommunity: isCommunity,
 	}
 	picInfo, err := client.GetProfilePictureInfo(ctx, targetJID, params)
-	if err != nil && !isCommunity && strings.HasSuffix(jid, "@g.us") {
-		params.IsCommunity = true
-		picInfo, err = client.GetProfilePictureInfo(ctx, targetJID, params)
-	}
-	if err != nil {
-		if errors.Is(err, whatsmeow.ErrProfilePictureNotSet) || errors.Is(err, whatsmeow.ErrProfilePictureUnauthorized) {
-			mu.Lock()
-			negativeCache[jid] = time.Now()
-			mu.Unlock()
-		} else {
-			log.Printf("fetching profile picture info for %s: %v", jid, err)
-		}
-		if onLoaded != nil {
-			glib.IdleAdd(func() { onLoaded(nil) })
-		}
-		return
-	}
-
-	if picInfo == nil || picInfo.URL == "" {
+	if err != nil || picInfo == nil || picInfo.URL == "" {
 		mu.Lock()
 		negativeCache[jid] = time.Now()
 		mu.Unlock()
-		if onLoaded != nil {
-			glib.IdleAdd(func() { onLoaded(nil) })
-		}
+		notifyWaiters(jid, nil)
 		return
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, picInfo.URL, nil)
 	if err != nil {
+		notifyWaiters(jid, nil)
 		return
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Printf("downloading avatar for %s: %v", jid, err)
+		notifyWaiters(jid, nil)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		notifyWaiters(jid, nil)
 		return
 	}
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 5*1024*1024))
 	if err != nil || len(data) == 0 {
+		notifyWaiters(jid, nil)
 		return
 	}
 
 	_ = os.WriteFile(DiskPath(jid), data, 0o600)
 
 	glib.IdleAdd(func() {
-		if texture, err := gdk.NewTextureFromBytes(glib.NewBytesWithGo(data)); err == nil {
+		var tex *gdk.Texture
+		if t, err := gdk.NewTextureFromBytes(glib.NewBytesWithGo(data)); err == nil {
+			tex = t
 			mu.Lock()
-			memoryCache[jid] = texture
+			memoryCache[jid] = tex
 			mu.Unlock()
-			if onLoaded != nil {
-				onLoaded(texture)
-			}
 		}
+		notifyWaiters(jid, tex)
 	})
 }

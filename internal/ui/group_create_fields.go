@@ -24,8 +24,10 @@ func (c *MainController) buildGroupAvatarPicker(parent *gtk.Window, selectedPath
 	lbl := gtk.NewLabel("Click to set avatar")
 	addCSSClasses(lbl, "caption", "dim-label")
 
+	var activeChooser *gtk.FileChooserNative
 	btn.ConnectClicked(func() {
 		chooser := gtk.NewFileChooserNative("Choose Group Avatar", parent, gtk.FileChooserActionOpen, "_Select", "_Cancel")
+		activeChooser = chooser
 		filter := gtk.NewFileFilter()
 		filter.SetName("Images")
 		filter.AddMIMEType("image/*")
@@ -48,6 +50,8 @@ func (c *MainController) buildGroupAvatarPicker(parent *gtk.Window, selectedPath
 					}
 				}
 			}
+			_ = activeChooser
+			activeChooser = nil
 		})
 		chooser.Show()
 	})

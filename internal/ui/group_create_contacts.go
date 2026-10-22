@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"postbetasoftware.com/whatsdown/internal/avatar"
 )
@@ -43,10 +44,7 @@ func (c *MainController) collectSelectableContacts() []groupContactItem {
 		items = append(items, groupContactItem{JID: jid, DisplayName: disp, Subtitle: sub})
 	}
 
-	for _, ch := range c.chats {
-		addCandidate(ch.JID, formatDisplayName(ch))
-	}
-	for _, ch := range c.archivedChats {
+	for _, ch := range append(c.chats, c.archivedChats...) {
 		addCandidate(ch.JID, formatDisplayName(ch))
 	}
 	if c.store != nil {
@@ -82,6 +80,11 @@ func (c *MainController) buildContactRow(item *groupContactItem) *adw.ActionRow 
 }
 
 func loadAsJPEG(path string) ([]byte, error) {
+	if pixbuf, err := gdkpixbuf.NewPixbufFromFileAtScale(path, 640, 640, true); err == nil && pixbuf != nil {
+		if data, err := pixbuf.SaveToBufferv("jpeg", []string{"quality"}, []string{"85"}); err == nil && len(data) > 0 {
+			return data, nil
+		}
+	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

@@ -1,11 +1,14 @@
 package ui
 
 import (
+	"context"
 	"strings"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"go.mau.fi/whatsmeow/types"
 	"postbetasoftware.com/whatsdown/internal/avatar"
 	"postbetasoftware.com/whatsdown/internal/store"
 )
@@ -29,9 +32,7 @@ func (c *MainController) showDetailsAndMedia(chat store.Chat) {
 	contentBox.SetMarginBottom(24)
 	contentBox.SetMarginStart(18)
 	contentBox.SetMarginEnd(18)
-
-	headerBox := c.buildDetailsHeader(chat, displayName)
-	contentBox.Append(headerBox)
+	contentBox.Append(c.buildDetailsHeader(chat, displayName))
 	contentBox.Append(c.buildDetailsInfoGroup(chat, displayName))
 
 	if c.store != nil {
@@ -61,17 +62,34 @@ func (c *MainController) buildDetailsHeader(chat store.Chat, displayName string)
 	nameLabel.SetWrapMode(pango.WrapWordChar)
 	headerBox.Append(nameLabel)
 
-	phoneSubtitle := formatChatSubtitle(chat)
-	if phoneSubtitle == "" && strings.HasSuffix(chat.JID, "@s.whatsapp.net") {
-		phoneSubtitle = cleanPhoneNumber(chat.JID)
-	}
-	if phoneSubtitle != "" && phoneSubtitle != displayName {
-		subLabel := gtk.NewLabel(phoneSubtitle)
-		subLabel.AddCSSClass("dim-label")
-		subLabel.SetHAlign(gtk.AlignCenter)
-		headerBox.Append(subLabel)
-	}
-
+	c.appendDetailsSubtitle(headerBox, chat, displayName)
 	headerBox.Append(buildDetailsBadges(chat))
 	return headerBox
+}
+
+func (c *MainController) appendDetailsSubtitle(headerBox *gtk.Box, chat store.Chat, displayName string) {
+	subLabel := gtk.NewLabel("")
+	addCSSClasses(subLabel, "dim-label")
+	subLabel.SetHAlign(gtk.AlignCenter)
+	subLabel.SetWrap(true)
+	subLabel.SetWrapMode(pango.WrapWordChar)
+	subLabel.SetJustify(gtk.JustifyCenter)
+	subLabel.SetVisible(false)
+	headerBox.Append(subLabel)
+
+	if strings.HasSuffix(chat.JID, "@g.us") && c.client != nil && c.client.IsConnected() {
+		go func() {
+			if jid, err := types.ParseJID(chat.JID); err == nil {
+				if info, err := c.client.GetGroupInfo(context.Background(), jid); err == nil && info != nil && strings.TrimSpace(info.Topic) != "" {
+					topic := strings.TrimSpace(info.Topic)
+					glib.IdleAdd(func() { subLabel.SetText(topic); subLabel.SetVisible(true) })
+				}
+			}
+		}()
+	} else if !strings.HasSuffix(chat.JID, "@g.us") {
+		if sub := formatTopbarSubtitle(chat); sub != "" && sub != displayName {
+			subLabel.SetText(sub)
+			subLabel.SetVisible(true)
+		}
+	}
 }
