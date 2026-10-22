@@ -44,6 +44,11 @@ func (s *MessageStore) GetChatOrContact(ctx context.Context, jid string) (Chat, 
 	if strings.Contains(jid, "@lid") {
 		if pn := s.ResolveLIDtoPN(ctx, jid); pn != "" {
 			targetJID = pn
+			// Check if we have a full chat record for the resolved PN
+			if pnChat, err := s.GetChatOrContact(ctx, pn); err == nil && pnChat.Name != "" {
+				pnChat.JID = jid
+				return pnChat, nil
+			}
 		}
 	}
 
@@ -54,19 +59,19 @@ func (s *MessageStore) GetChatOrContact(ctx context.Context, jid string) (Chat, 
 		LIMIT 1
 	`, targetJID, strings.Split(targetJID, "@")[0]+"@%")
 
-	var fn, fln, pn, bn string
+	var fn, fln, pn, bn sql.NullString
 	if err := contactRow.Scan(&fn, &fln, &pn, &bn); err == nil {
-		name := fln
+		name := fln.String
 		if name == "" {
-			name = fn
+			name = fn.String
 		}
 		if name == "" {
-			name = bn
+			name = bn.String
 		}
 		if name == "" {
-			name = pn
+			name = pn.String
 		}
-		c.Name = name
+		c.Name = strings.TrimPrefix(strings.TrimSpace(name), "@")
 	}
 	return c, nil
 }

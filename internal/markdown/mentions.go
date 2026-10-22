@@ -24,10 +24,6 @@ func IsAllDigits(s string) bool {
 }
 
 func applyMentions(result string, mentionedJIDs []string, resolveName func(string) string) (string, bool) {
-	if len(mentionedJIDs) == 0 {
-		return result, false
-	}
-
 	jidMap := make(map[string]string)
 	for _, jid := range mentionedJIDs {
 		jidMap[jid] = jid
@@ -55,8 +51,8 @@ func applyMentions(result string, mentionedJIDs []string, resolveName func(strin
 
 		label := "@" + tag
 		if resolveName != nil {
-			resolved := resolveName(targetJID)
-			if resolved != "" && resolved != targetJID && !strings.Contains(resolved, "@") {
+			resolved := strings.TrimPrefix(resolveName(targetJID), "@")
+			if resolved != "" && resolved != targetJID && resolved != "WhatsApp User" {
 				label = "@" + resolved
 			} else if strings.HasPrefix(targetJID, "+") {
 				label = "@" + targetJID

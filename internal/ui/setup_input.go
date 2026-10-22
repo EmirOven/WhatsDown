@@ -49,6 +49,7 @@ func (ctrl *MainController) bindInputWidgets(builder *gtk.Builder, messageEntry 
 			}
 			ctrl.updateMessageEntryHeight()
 			ctrl.checkEmojiSuggestion()
+			ctrl.checkMentionSuggestion()
 
 			if targetPath, ok := parseFilePathFromText(text); ok {
 				ctrl.clearMessageText()

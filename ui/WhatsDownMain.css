@@ -120,6 +120,34 @@ list.chat-messages-list > row {
   background-color: alpha(currentColor, 0.15);
 }
 
+/* User @ mention autocomplete popover */
+.mention-popover contents {
+  padding: 4px;
+  border-radius: 12px;
+  background-color: @card_bg_color;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+}
+
+.mention-list {
+  background: transparent;
+}
+
+.mention-row {
+  border-radius: 8px;
+  padding: 2px 4px;
+  transition: background-color 100ms ease;
+}
+
+.mention-row:hover,
+.mention-row.selected {
+  background-color: alpha(currentColor, 0.1);
+}
+
+.mention-row-name {
+  font-weight: 600;
+  font-size: 10.5pt;
+}
+
 /* WhatsApp emoji font stack */
 .emoji-font,
 .reaction-quick-btn,
@@ -222,6 +250,20 @@ list.chat-messages-list > row {
   font-size: 11pt;
 }
 
+.chat-bubble-text a {
+  color: #3584e4;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.chat-bubble-text a:hover {
+  text-decoration: underline;
+}
+
+.chat-bubble-outgoing .chat-bubble-text a {
+  color: #78aeed;
+}
+
 .chat-bubble-outgoing label selection,
 .chat-bubble-outgoing label:selected {
   background-color: rgba(255, 255, 255, 0.35);
@@ -239,15 +281,21 @@ list.chat-messages-list > row {
 }
 
 /* Community Grouping & Folders */
+.community-header-row {
+  padding: 10px 12px;
+  margin: 0;
+  border: none;
+}
+
 .community-avatar {
-  border-radius: 0px;
+  border-radius: 8px;
   min-width: 40px;
   min-height: 40px;
 }
 
 .community-avatar-fallback {
   background: linear-gradient(135deg, #128c7e 0%, #075e54 100%);
-  border-radius: 0px;
+  border-radius: 8px;
   min-width: 40px;
   min-height: 40px;
 }

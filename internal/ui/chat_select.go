@@ -40,6 +40,9 @@ func (c *MainController) selectChat(chat store.Chat) {
 
 	c.splitView.SetShowContent(true)
 	c.cancelReply()
+	c.hideMentionPopup()
+	activeMentionState.activeMembers = nil
+	activeMentionState.insertedMentions = make(map[string]string)
 	c.deleteVoiceRecording()
 	c.applyChatWallpaper(chat.JID)
 
