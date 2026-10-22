@@ -79,13 +79,6 @@ sudo dnf copr enable emiroven/WhatsDown
 sudo dnf install whatsdown
 ```
 
-#### openSUSE Tumbleweed
-```bash
-sudo zypper addrepo https://copr.fedorainfracloud.org/coprs/emiroven/WhatsDown/repo/opensuse-tumbleweed/emiroven-WhatsDown-opensuse-tumbleweed.repo
-sudo zypper refresh
-sudo zypper install whatsdown
-```
-
 ---
 
 ## 3. Ubuntu (Launchpad PPA)
@@ -219,9 +212,9 @@ The Open Build Service (OBS) is openSUSE's native automated build infrastructure
    ```
 
 ### User Installation from OBS:
-Once the build completes on OBS, users can install it on **openSUSE Tumbleweed**:
+Once the build completes on [OBS (`home:emiroven/whatsdown`)](https://build.opensuse.org/package/show/home:emiroven/whatsdown), users can install it on **openSUSE Tumbleweed**:
 ```bash
-sudo zypper addrepo https://download.opensuse.org/repositories/home:/<your-username>/openSUSE_Tumbleweed/home:<your-username>.repo
+sudo zypper addrepo https://download.opensuse.org/repositories/home:/emiroven/openSUSE_Tumbleweed/home:emiroven.repo
 sudo zypper refresh
 sudo zypper install whatsdown
 ```

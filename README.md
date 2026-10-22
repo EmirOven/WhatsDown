@@ -76,27 +76,26 @@ sudo apt install whatsdown
 
 ---
 
-### Fedora & openSUSE (COPR)
+### Fedora (COPR)
 
-Available for **Fedora 45** and **openSUSE Tumbleweed** via Fedora COPR:
-
-#### Fedora 45
+Available for **Fedora 45** via Fedora COPR:
 
 ```bash
 sudo dnf copr enable emiroven/WhatsDown
 sudo dnf install whatsdown
 ```
 
-#### openSUSE Tumbleweed
+---
+
+### openSUSE (Open Build Service - OBS)
+
+Available for **openSUSE Tumbleweed** via [Open Build Service (`home:emiroven/whatsdown`)](https://build.opensuse.org/package/show/home:emiroven/whatsdown):
 
 ```bash
-# Add the COPR repository via zypper
-sudo zypper addrepo https://copr.fedorainfracloud.org/coprs/emiroven/WhatsDown/repo/opensuse-tumbleweed/emiroven-WhatsDown-opensuse-tumbleweed.repo
+sudo zypper addrepo https://download.opensuse.org/repositories/home:/emiroven/openSUSE_Tumbleweed/home:emiroven.repo
 sudo zypper refresh
 sudo zypper install whatsdown
 ```
-
-_(Or if using DNF on Tumbleweed: `sudo dnf copr enable emiroven/WhatsDown && sudo dnf install whatsdown`)_
 
 ---
 
