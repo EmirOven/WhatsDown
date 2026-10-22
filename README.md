@@ -5,6 +5,16 @@
 <h1 align="center">WhatsDown</h1>
 
 <p align="center">
+  <img alt="OBS package build status" src="https://img.shields.io/obs/home%3Aemiroven/whatsdown/openSUSE_Tumbleweed/x86_64?style=for-the-badge&label=OBS%20Build&logo=opensuse&logoColor=white">
+  <img alt="Copr Build" src="https://img.shields.io/copr/build/emiroven/WhatsDown/whatsdown?style=for-the-badge&label=COPR%20Build&logo=fedora&logoColor=white">
+  <img alt="Launchpad Build" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.launchpad.net%2F1.0%2F~emiroven%2F%2Barchive%2Fubuntu%2Fwhatsdown%3Fws.op%3DgetBuildRecords&query=%24.entries%5B0%5D.buildstate&label=Launchpad%20Build&style=for-the-badge&logo=launchpad&logoColor=white">
+<img alt="Liberapay receiving" src="https://img.shields.io/liberapay/receives/postbeta?style=for-the-badge&logo=liberapay&logoColor=white">
+<img alt="GitHub License" src="https://img.shields.io/github/license/EmirOven/WhatsDown?style=for-the-badge">
+</p>
+
+---
+
+<p align="center">
   A native Linux WhatsApp desktop client built with <b>Go</b>, <b>GTK 4</b>, and <b>Libadwaita</b>.
 </p>
 
