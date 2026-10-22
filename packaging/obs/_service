@@ -3,7 +3,7 @@
     <param name="scm">git</param>
     <param name="url">https://github.com/EmirOven/WhatsDown.git</param>
     <param name="revision">main</param>
-    <param name="version">0.1.0</param>
+    <param name="version">0.2.0</param>
     <param name="filename">whatsdown</param>
   </service>
   <service name="tar" mode="buildtime" />

@@ -21,6 +21,8 @@
       <li>Inline emoji autocomplete with fuzzy search and popularity ranking</li>
       <li>Live typing indicators and real-time online presence status</li>
       <li>Clipboard image pasting and drag-and-drop file sharing</li>
+      <li>Custom per-chat solid colour and image wallpapers with adaptive window tinting and sidebar colour handles</li>
+      <li>Group creation, participant management, permissions, invite links/QR codes, and @mention autocomplete</li>
     </ul>
   </description>
 
@@ -44,6 +46,18 @@
   </content_rating>
 
   <releases>
+    <release version="0.2.0" date="2026-10-22">
+      <description>
+        <p>WhatsDown v0.2.0 (Colourful) introduces custom per-chat wallpapers, window tinting, sidebar colour handles, full group management, and @mention autocomplete.</p>
+        <ul>
+          <li>Custom per-chat solid colour or image backgrounds, optional window/messagebar tinting, and sidebar colour handles</li>
+          <li>Group creator modal, group permissions, participant management, and invite link/QR code copying</li>
+          <li>Interactive @mention autocomplete with fuzzy search and clickable @mention rendering in message bubbles</li>
+          <li>Demo Mode for testing and screenshots without connecting a personal account</li>
+          <li>Fixed chat scroll locking, duplicate chats, community/titlebar avatar rendering, and profile picture rate limiting</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-10-21">
       <description>
         <p>Initial release of WhatsDown with full messaging, voice recordings, polls, communities, and call history.</p>

@@ -1,6 +1,6 @@
 pkgbase = whatsdown-git
 	pkgdesc = Native Linux WhatsApp client built with GTK 4 and Libadwaita
-	pkgver = 0.1.0.r14.g10d5311
+	pkgver = 0.2.0.r76.g785a784
 	pkgrel = 1
 	url = https://github.com/EmirOven/WhatsDown
 	arch = x86_64

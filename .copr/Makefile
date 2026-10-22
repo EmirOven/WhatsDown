@@ -1,5 +1,5 @@
 # COPR build script: generates SRPM from current git tree
-VERSION ?= 0.1.0
+VERSION ?= 0.2.0
 outdir ?= .
 spec ?= packaging/copr/whatsdown.spec
 

@@ -1,3 +1,14 @@
+whatsdown (0.2.0-1) noble; urgency=medium
+
+  * v0.2.0 (Colourful) release.
+  * Add custom per-chat solid colour and image wallpapers, window tinting, and sidebar colour handles.
+  * Add group creation modal, group permissions, participant management, and invite link/QR code copying.
+  * Add @mention autocomplete and clickable @mention rendering in message bubbles.
+  * Add Demo Mode for testing and screenshots.
+  * Fix chat scroll locking, duplicate chats, community/titlebar avatar rendering, and profile picture rate limiting.
+
+ -- Emir Öven <emiroven@postbetasoftware.com>  Thu, 22 Oct 2026 14:43:00 +0200
+
 whatsdown (0.1.0-1) noble; urgency=medium
 
   * Initial release of WhatsDown for Ubuntu.

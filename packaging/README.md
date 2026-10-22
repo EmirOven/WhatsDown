@@ -121,7 +121,7 @@ To manually build and upload a source package to your PPA:
    ```
 3. Upload to your Launchpad PPA:
    ```bash
-   dput ppa:your-username/whatsdown ../whatsdown_0.1.0-1_source.changes
+   dput ppa:your-username/whatsdown ../whatsdown_0.2.0-1_source.changes
    ```
 
 Users can install it on Ubuntu (**Stonking** and **Tenacious**) with:

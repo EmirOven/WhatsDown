@@ -1,7 +1,7 @@
 %global debug_package %{nil}
 
 Name:           whatsdown
-Version:        0.1.0
+Version:        0.2.0
 Release:        1%{?dist}
 Summary:        Native Linux WhatsApp client built with GTK 4 and Libadwaita
 
@@ -55,5 +55,8 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/com.postbetasoftware.
 %{_datadir}/icons/hicolor/scalable/apps/com.postbetasoftware.WhatsDown.svg
 
 %changelog
+* Thu Oct 22 2026 Emir Öven <emiroven@postbetasoftware.com> - 0.2.0-1
+- v0.2.0 (Colourful): custom chat wallpapers, window tinting, sidebar colour handles, group creation and permissions, @mention autocomplete, and Demo Mode
+
 * Wed Oct 21 2026 Emir Öven <emiroven@postbetasoftware.com> - 0.1.0-1
 - Initial release of WhatsDown for Fedora COPR
