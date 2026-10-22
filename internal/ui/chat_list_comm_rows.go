@@ -10,19 +10,19 @@ import (
 
 func (c *MainController) createCommunityHeaderRow(comm store.Chat, childCount int, isExpanded bool) *gtk.ListBoxRow {
 	row := gtk.NewListBoxRow()
+	row.AddCSSClass("chat-row")
 	row.AddCSSClass("community-header-row")
 
 	box := gtk.NewBox(gtk.OrientationHorizontal, 12)
-	box.SetMarginStart(12)
-	box.SetMarginEnd(12)
-	box.SetMarginTop(8)
-	box.SetMarginBottom(8)
+	box.SetHExpand(true)
 
-	av := avatar.NewCommunityAvatar(c.client, comm.JID, comm.Name, 44)
+	av := avatar.NewCommunityAvatar(c.client, comm.JID, comm.Name, 40)
+	av.SetVAlign(gtk.AlignCenter)
 	box.Append(av)
 
 	titleBox := gtk.NewBox(gtk.OrientationVertical, 2)
 	titleBox.SetHExpand(true)
+	titleBox.SetVAlign(gtk.AlignCenter)
 
 	nameLbl := gtk.NewLabel(comm.Name)
 	nameLbl.SetXAlign(0)
@@ -43,6 +43,7 @@ func (c *MainController) createCommunityHeaderRow(comm store.Chat, childCount in
 	}
 	arrow := gtk.NewImageFromIconName(arrowIcon)
 	arrow.AddCSSClass("dim-label")
+	arrow.SetVAlign(gtk.AlignCenter)
 	box.Append(arrow)
 
 	c.attachContextMenu(row, comm, false)

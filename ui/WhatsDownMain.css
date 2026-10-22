@@ -240,18 +240,16 @@ list.chat-messages-list > row {
 
 /* Community Grouping & Folders */
 .community-avatar {
-  border-radius: 10px;
-  min-width: 44px;
-  min-height: 44px;
-  max-width: 44px;
-  max-height: 44px;
+  border-radius: 0px;
+  min-width: 40px;
+  min-height: 40px;
 }
 
 .community-avatar-fallback {
   background: linear-gradient(135deg, #128c7e 0%, #075e54 100%);
-  border-radius: 10px;
-  min-width: 44px;
-  min-height: 44px;
+  border-radius: 0px;
+  min-width: 40px;
+  min-height: 40px;
 }
 
 .community-avatar-initials {
