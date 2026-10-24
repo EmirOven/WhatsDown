@@ -6,9 +6,31 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 func (ctrl *MainController) handleChatViewKeyPress(val uint, code uint, state gdk.ModifierType) bool {
+	if ctrl.mediaViewer != nil {
+		if val == gdk.KEY_Escape {
+			ctrl.mediaViewer.Close()
+			return true
+		}
+		return false
+	}
+	if ctrl.messageSelection != nil && ctrl.messageSelection.active {
+		if val == gdk.KEY_Escape {
+			ctrl.cancelMessageSelection()
+			return true
+		}
+		if !ctrl.isAnySearchEntryFocused() && state&gdk.ControlMask != 0 && (val == gdk.KEY_a || val == gdk.KEY_A) {
+			for _, msg := range ctrl.currentMessages {
+				ctrl.messageSelection.selected[msg.ID] = true
+			}
+			ctrl.updateMessageSelectionUI()
+			return true
+		}
+		return false
+	}
 	if ctrl.isAnySearchEntryFocused() {
 		return false
 	}
@@ -39,10 +61,20 @@ func (ctrl *MainController) handleChatViewKeyPress(val uint, code uint, state gd
 }
 
 func (ctrl *MainController) isAnySearchEntryFocused() bool {
-	return (ctrl.chatSearchEntry != nil && ctrl.chatSearchEntry.HasFocus()) ||
-		(ctrl.chatsSearchEntry != nil && ctrl.chatsSearchEntry.HasFocus()) ||
-		(ctrl.archivedSearchEntry != nil && ctrl.archivedSearchEntry.HasFocus()) ||
-		(ctrl.callsSearchEntry != nil && ctrl.callsSearchEntry.HasFocus())
+	if ctrl.window == nil {
+		return false
+	}
+	focus := ctrl.window.Focus()
+	if focus == nil {
+		return false
+	}
+	w := gtk.BaseWidget(focus)
+	for _, entry := range []*gtk.SearchEntry{ctrl.chatSearchEntry, ctrl.chatsSearchEntry, ctrl.archivedSearchEntry, ctrl.callsSearchEntry} {
+		if entry != nil && (entry.HasFocus() || w.IsAncestor(entry)) {
+			return true
+		}
+	}
+	return false
 }
 
 func (ctrl *MainController) handlePasteShortcut() bool {

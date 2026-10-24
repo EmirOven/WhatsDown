@@ -570,10 +570,10 @@ avatar.community-avatar image,
 }
 
 .chat-bubble.chat-bubble-sticker {
-  background-color: transparent !important;
-  color: inherit !important;
-  box-shadow: none !important;
-  border: none !important;
+  background-color: transparent;
+  color: inherit;
+  box-shadow: none;
+  border: none;
   padding: 6px 12px 6px 12px;
 }
 
@@ -953,7 +953,7 @@ avatar.community-avatar image,
 }
 
 .chat-bubble-status {
-  font-size: 8pt;
+  font-size: 10pt;
   margin-left: 0;
 }
 
@@ -1038,9 +1038,9 @@ adw-toolbar-view:drop(active),
 headerbar:drop(active),
 .top-bar:drop(active),
 tabbar:drop(active) {
-  outline: none !important;
-  box-shadow: none !important;
-  border-color: transparent !important;
+  outline: none;
+  box-shadow: none;
+  border-color: transparent;
 }
 
 .chat-page,
@@ -1051,7 +1051,7 @@ tabbar:drop(active) {
 }
 .chat-page:drop(active),
 .chat-messages-list:drop(active) {
-  outline: 2px dashed @accent_color !important;
+  outline: 2px dashed @accent_color;
   outline-offset: -4px;
   background-color: alpha(@accent_color, 0.06);
 }
@@ -1183,7 +1183,6 @@ tabbar:drop(active) {
   border-radius: 12px;
   border-bottom-left-radius: 2px;
   font-size: 9.5pt;
-  max-width: 200px;
   background-color: alpha(currentColor, 0.08);
 }
 
@@ -1192,7 +1191,6 @@ tabbar:drop(active) {
   border-radius: 12px;
   border-bottom-right-radius: 2px;
   font-size: 9.5pt;
-  max-width: 200px;
   background-color: var(--accent-bg-color);
   color: var(--accent-fg-color);
 }
@@ -1228,3 +1226,44 @@ tabbar:drop(active) {
 }
 
 
+
+/* Local chat folders and drag destinations. */
+.chat-folder-row {
+  padding: 12px;
+  border-radius: 10px;
+  margin: 3px 4px;
+  background-color: alpha(currentColor, 0.045);
+}
+.folder-chat-row { margin-left: 20px; }
+.chat-loose-heading {
+  padding: 12px 14px 6px;
+  font-size: 9pt;
+  font-weight: 600;
+  color: alpha(currentColor, 0.65);
+}
+.folder-drop-target { background-color: alpha(@accent_bg_color, 0.22); }
+.chat-drop-before { box-shadow: inset 0 3px @accent_bg_color; }
+.chat-drop-after { box-shadow: inset 0 -3px @accent_bg_color; }
+
+.message-row.message-selected {
+  background-color: alpha(@accent_bg_color, 0.14);
+  border-radius: 8px;
+}
+
+.folder-member-avatar {
+  outline: none;
+  border: none;
+  box-shadow: none;
+}
+
+.media-viewer {
+  background-color: @window_bg_color;
+}
+
+.poll-progress-bar trough {
+ border: 1px solid alpha(currentColor, 0.45);
+ border-radius: 9999px;
+}
+.chat-bubble-outgoing .poll-progress-bar progress {
+ background-color: alpha(white, 0.8);
+}

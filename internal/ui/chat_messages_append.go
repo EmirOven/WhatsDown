@@ -1,8 +1,16 @@
 package ui
 
-import "postbetasoftware.com/whatsdown/internal/store"
+import (
+	"context"
+	"postbetasoftware.com/whatsdown/internal/store"
+)
 
 func (c *MainController) appendSentMessageToUI(chatJIDStr string, sentMsg store.StoredMessage) {
+	if c.store != nil {
+		if saved, err := c.store.GetMessage(context.Background(), sentMsg.ChatJID, sentMsg.ID); err == nil && saved != nil {
+			sentMsg = *saved
+		}
+	}
 	if c.currentChat != nil && c.isSameChat(c.currentChat.JID, chatJIDStr) {
 		if _, exists := c.messageRowMap[sentMsg.ID]; !exists {
 			var previous *store.StoredMessage

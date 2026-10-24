@@ -10,6 +10,18 @@ Adw.ToolbarView chats_page {
       tooltip-text: _("Create New Group");
     }
 
+    [end]
+    Gtk.Button mark_all_read_btn {
+      child: Adw.ButtonContent {
+        icon-name: "mail-read-symbolic";
+        label: _("Read All");
+      };
+      tooltip-text: _("Mark all unread chats as read");
+      valign: center;
+      sensitive: false;
+      styles ["flat"]
+    }
+
     title-widget: Adw.WindowTitle {
       title: "Chats";
     };

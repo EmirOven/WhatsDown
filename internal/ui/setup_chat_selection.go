@@ -6,45 +6,8 @@ import (
 )
 
 func (ctrl *MainController) bindChatSelection() {
-	ctrl.chatsList.ConnectRowSelected(func(row *gtk.ListBoxRow) {
-		if row == nil || ctrl.suppressChatSelection {
-			return
-		}
-		idx := row.Index()
-		if idx >= 0 && idx < len(ctrl.displayedChatRows) {
-			item := ctrl.displayedChatRows[idx]
-			if item.isCommunityHeader {
-				ctrl.toggleCommunityExpanded(item.communityJID)
-				return
-			}
-			target := item.chat
-			if ctrl.currentChat != nil && (ctrl.currentChat.JID == target.JID || (ctrl.isSelfJID(ctrl.currentChat.JID) && ctrl.isSelfJID(target.JID))) {
-				return
-			}
-			ctrl.selectChat(target)
-		}
-	})
-
-	if ctrl.archivedChatsList != nil {
-		ctrl.archivedChatsList.ConnectRowSelected(func(row *gtk.ListBoxRow) {
-			if row == nil || ctrl.suppressChatSelection {
-				return
-			}
-			idx := row.Index()
-			if idx >= 0 && idx < len(ctrl.displayedArchivedRows) {
-				item := ctrl.displayedArchivedRows[idx]
-				if item.isCommunityHeader {
-					ctrl.toggleCommunityExpanded(item.communityJID)
-					return
-				}
-				target := item.chat
-				if ctrl.currentChat != nil && (ctrl.currentChat.JID == target.JID || (ctrl.isSelfJID(ctrl.currentChat.JID) && ctrl.isSelfJID(target.JID))) {
-					return
-				}
-				ctrl.selectChat(target)
-			}
-		})
-	}
+	ctrl.bindChatListSelection(ctrl.chatsList, false)
+	ctrl.bindChatListSelection(ctrl.archivedChatsList, true)
 
 	if ctrl.callsList != nil {
 		ctrl.callsList.ConnectRowSelected(func(row *gtk.ListBoxRow) {

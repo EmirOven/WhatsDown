@@ -46,6 +46,16 @@
   </content_rating>
 
   <releases>
+    <release version="3" date="2026-10-22">
+      <description>
+        <p>WhatsDown Release 3 reduces memory usage and improves everyday messaging.</p>
+        <ul>
+          <li>Bounded image caches and smaller previews with proper widget cleanup</li>
+          <li>Incremental manual sync with coalesced chat updates and lighter sticker loading</li>
+          <li>Clickable message URLs and Today, Yesterday, and date separators in chats</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-10-22">
       <description>
         <p>WhatsDown v0.2.0 (Colourful) introduces custom per-chat wallpapers, window tinting, sidebar colour handles, full group management, and @mention autocomplete.</p>

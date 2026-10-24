@@ -1,7 +1,7 @@
 %global debug_package %{nil}
 
 Name:           whatsdown
-Version:        0.2.0
+Version:        3
 Release:        1%{?dist}
 Summary:        Native Linux WhatsApp client built with GTK 4 and Libadwaita
 
@@ -10,6 +10,7 @@ URL:            https://github.com/EmirOven/WhatsDown
 Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  golang >= 1.22
+BuildRequires:  gstreamer1-devel
 BuildRequires:  gtk4-devel >= 4.14
 BuildRequires:  libadwaita-devel >= 1.5
 BuildRequires:  sqlite-devel
@@ -19,6 +20,9 @@ BuildRequires:  gcc
 BuildRequires:  desktop-file-utils
 
 Requires:       gtk4 >= 4.14
+Requires:       gstreamer1-plugins-base
+Requires:       gstreamer1-plugins-good
+Requires:       poppler-utils
 Requires:       libadwaita >= 1.5
 Requires:       sqlite
 Requires:       hicolor-icon-theme
@@ -55,6 +59,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/com.postbetasoftware.
 %{_datadir}/icons/hicolor/scalable/apps/com.postbetasoftware.WhatsDown.svg
 
 %changelog
+* Thu Oct 22 2026 Emir Öven <emiroven@postbetasoftware.com> - 3-1
+- Release 3: reduce memory usage during chat loading and sync, add clickable URLs and message day separators.
+
 * Thu Oct 22 2026 Emir Öven <emiroven@postbetasoftware.com> - 0.2.0-1
 - v0.2.0 (Colourful): custom chat wallpapers, window tinting, sidebar colour handles, group creation and permissions, @mention autocomplete, and Demo Mode
 

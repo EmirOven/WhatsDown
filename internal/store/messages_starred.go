@@ -23,5 +23,5 @@ func (s *MessageStore) ListStarredMessages(ctx context.Context, chatJID string) 
 	if err != nil {
 		return nil, err
 	}
-	return scanStoredMessages(rows)
+	return s.scanMessagesWithReactions(ctx, rows)
 }

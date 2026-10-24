@@ -43,14 +43,14 @@ func (s *MessageStore) saveConversationChat(ctx context.Context, tx execer, chat
 
 	_, err := tx.ExecContext(ctx, `
 		INSERT INTO whatsdown_chats (jid, name, last_message_at, unread_count, archived, pinned)
-		VALUES (?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, CASE WHEN (SELECT read_at FROM whatsdown_chat_reads WHERE chat_jid = ?) >= ? THEN 0 ELSE ? END, ?, ?)
 		ON CONFLICT (jid) DO UPDATE SET
 			name            = CASE WHEN excluded.name <> '' THEN excluded.name ELSE name END,
 			last_message_at = MAX(last_message_at, excluded.last_message_at),
-			unread_count    = excluded.unread_count,
+			unread_count    = CASE WHEN last_message_at > excluded.last_message_at THEN unread_count ELSE excluded.unread_count END,
 			archived        = CASE WHEN excluded.archived = 1 THEN 1 ELSE archived END,
 			pinned          = CASE WHEN excluded.pinned = 1 THEN 1 ELSE pinned END`,
-		targetJIDStr, name, int64(conv.GetConversationTimestamp()),
+		targetJIDStr, name, int64(conv.GetConversationTimestamp()), targetJIDStr, int64(conv.GetConversationTimestamp()),
 		conv.GetUnreadCount(), conv.GetArchived(), conv.GetPinned() > 0)
 	return err
 }

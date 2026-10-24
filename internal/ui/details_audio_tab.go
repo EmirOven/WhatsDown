@@ -47,23 +47,13 @@ func (c *MainController) buildDetailsAudioTab(dialog *adw.Dialog, audioMsgs []st
 		}
 		row.SetSubtitle(sub)
 
-		openBtn := gtk.NewButtonFromIconName("media-playback-start-symbolic")
-		openBtn.AddCSSClass("flat")
-		openBtn.SetTooltipText("Play")
-		openBtn.SetVAlign(gtk.AlignCenter)
 		mCopy := m
-		openBtn.ConnectClicked(func() {
-			media.OpenMedia(c.client, mCopy, nil)
-		})
-		row.AddSuffix(openBtn)
-		row.SetActivatable(true)
-		row.ConnectActivated(func() {
-			media.OpenMedia(c.client, mCopy, nil)
-		})
+		row.AddSuffix(c.buildAudioWidget(mCopy))
 
 		c.attachMediaContextMenu(row, mCopy, dialog)
 		audioGroup.Add(row)
 	}
 	audioBox.Append(audioGroup)
+	dialog.ConnectClosed(func() { c.releaseMessageWidget(audioBox) })
 	return audioBox
 }

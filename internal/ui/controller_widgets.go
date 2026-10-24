@@ -11,6 +11,8 @@ type sidebarWidgets struct {
 	splitView           *adw.NavigationSplitView
 	sidebarStack        *adw.ViewStack
 	chatsNavBtn         *gtk.Button
+	markAllReadBtn      *gtk.Button
+	markingAllRead      bool
 	callsNavBtn         *gtk.Button
 	archivedNavBtn      *gtk.Button
 	settingsNavBtn      *gtk.Button

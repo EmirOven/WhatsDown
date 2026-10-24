@@ -17,6 +17,10 @@ func (ctrl *MainController) bindSidebarWidgets(
 	ctrl.splitView = splitView
 	ctrl.sidebarStack = sidebarStack
 	ctrl.chatsList = chatsList
+	ctrl.markAllReadBtn, _ = castObject[*gtk.Button](builder, "mark_all_read_btn")
+	if ctrl.markAllReadBtn != nil {
+		ctrl.markAllReadBtn.ConnectClicked(ctrl.markAllChatsRead)
+	}
 	ctrl.archivedChatsList = archivedChatsList
 
 	ctrl.callsPage, _ = castObject[*adw.ToolbarView](builder, "calls_page")

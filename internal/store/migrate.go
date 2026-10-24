@@ -9,7 +9,7 @@ import (
 var migrations = []string{
 	migration1, migration2, migration3, migration4, migration5,
 	migration6, migration7, migration8, migration9, migration10,
-	migration11, migration12, migration13, migration14, migration15,
+	migration11, migration12, migration13, migration14, migration15, migration16, migration17, migration18,
 }
 
 func (s *MessageStore) migrate(ctx context.Context) error {

@@ -84,6 +84,7 @@ func (c *MainController) attachStickerContextMenu(widget gtk.Widgetter, msg stor
 			}))
 			menuBox.Append(replyBtn)
 		}
+		c.appendMessageActions(menuBox, popover, mCopy)
 		c.appendStandardContextActions(menuBox, popover, mCopy)
 		popover.SetChild(menuBox)
 	}

@@ -1,7 +1,13 @@
 package ui
 
+import "strings"
+
 // HandleReceiptUpdate updates the read/delivery ticks on outgoing messages.
 func (c *MainController) HandleReceiptUpdate(ids []string, status int) {
+	if c.currentChat != nil && strings.HasSuffix(c.currentChat.JID, "@g.us") {
+		c.RefreshReceiptMessages(c.currentChat.JID, ids)
+		return
+	}
 	for _, id := range ids {
 		if lbl, ok := c.messageStatusLabels[id]; ok && lbl != nil {
 			c.applyStatusToLabel(lbl, status)
@@ -29,5 +35,16 @@ func (c *MainController) insertEmoji(text string) {
 	c.messageEntry.GrabFocus()
 	if c.messagePlaceholder != nil {
 		c.messagePlaceholder.SetVisible(c.getMessageText() == "")
+	}
+}
+
+// RefreshReceiptMessages reads the aggregate status rather than applying one
+// participant's receipt to the entire group.
+func (c *MainController) RefreshReceiptMessages(chat string, ids []string) {
+	if c.currentChat == nil || !c.isSameChat(c.currentChat.JID, chat) {
+		return
+	}
+	for _, id := range ids {
+		c.UpdateSingleMessageRow(id)
 	}
 }

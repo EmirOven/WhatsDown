@@ -36,3 +36,11 @@ func (c *MainController) releaseMessageWidget(widget gtk.Widgetter) {
 		child = next
 	}
 }
+
+func (c *MainController) trackWidgetCleanup(owner gtk.Widgetter, cleanup func()) {
+	if c.widgetSignalCleanups == nil {
+		c.widgetSignalCleanups = make(map[uintptr][]func())
+	}
+	key := uintptr(coreglib.BaseObject(owner).Native())
+	c.widgetSignalCleanups[key] = append(c.widgetSignalCleanups[key], cleanup)
+}

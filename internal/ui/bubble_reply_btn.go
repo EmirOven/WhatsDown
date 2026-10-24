@@ -11,7 +11,7 @@ func (c *MainController) attachReplyMotion(row *gtk.ListBoxRow, box *gtk.Box, re
 	doubleClick.SetButton(1)
 	doubleClick.SetPropagationPhase(gtk.PhaseCapture)
 	c.trackWidgetSignal(box, doubleClick, doubleClick.ConnectPressed(func(nPress int, x, y float64) {
-		if nPress == 2 {
+		if nPress == 2 && messageTargetAllowsReply(box.Pick(x, y, gtk.PickDefault)) {
 			c.startReply(mCopy)
 		}
 	}))
@@ -83,4 +83,20 @@ func (c *MainController) adjustReplyButtonPosition(row *gtk.ListBoxRow, replyBtn
 
 	replyBtn.SetVAlign(gtk.AlignStart)
 	replyBtn.SetMarginTop(btnMargin)
+}
+
+// Capture-phase reply gestures must leave embedded controls to their own actions.
+func messageTargetAllowsReply(target gtk.Widgetter) bool {
+	for target != nil {
+		w := gtk.BaseWidget(target)
+		if w.HasCSSClass("message-interactive") {
+			return false
+		}
+		switch target.(type) {
+		case *gtk.Button, *gtk.Scale, *gtk.Range, *gtk.Entry, *gtk.TextView, *gtk.DropDown:
+			return false
+		}
+		target = w.Parent()
+	}
+	return true
 }

@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"log"
+	"postbetasoftware.com/whatsdown/internal/wasync"
 	"strings"
 	"time"
 
@@ -28,7 +29,7 @@ func (c *MainController) togglePin(chat store.Chat) {
 				targetStr = c.store.ResolveLIDtoPN(context.Background(), targetStr)
 			}
 			if targetJID, err := types.ParseJID(targetStr); err == nil {
-				_ = c.client.SendAppState(context.Background(), appstate.BuildPin(targetJID, newPinned))
+				_ = wasync.SendAppState(context.Background(), c.client, appstate.BuildPin(targetJID, newPinned))
 			}
 		}
 		glib.IdleAdd(func() {
@@ -54,7 +55,7 @@ func (c *MainController) toggleMute(chat store.Chat) {
 				targetStr = c.store.ResolveLIDtoPN(context.Background(), targetStr)
 			}
 			if targetJID, err := types.ParseJID(targetStr); err == nil {
-				_ = c.client.SendAppState(context.Background(), appstate.BuildMute(targetJID, newMuted, 0))
+				_ = wasync.SendAppState(context.Background(), c.client, appstate.BuildMute(targetJID, newMuted, 0))
 			}
 		}
 		glib.IdleAdd(func() {
@@ -80,7 +81,7 @@ func (c *MainController) toggleArchive(chat store.Chat) {
 				targetStr = c.store.ResolveLIDtoPN(context.Background(), targetStr)
 			}
 			if targetJID, err := types.ParseJID(targetStr); err == nil {
-				_ = c.client.SendAppState(context.Background(), appstate.BuildArchive(targetJID, newArchived, time.Time{}, nil))
+				_ = wasync.SendAppState(context.Background(), c.client, appstate.BuildArchive(targetJID, newArchived, time.Time{}, nil))
 			}
 		}
 		glib.IdleAdd(func() {

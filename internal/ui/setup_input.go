@@ -48,31 +48,44 @@ func (ctrl *MainController) bindInputWidgets(builder *gtk.Builder, messageEntry 
 				ctrl.messagePlaceholder.SetVisible(text == "")
 			}
 			ctrl.updateMessageEntryHeight()
-			ctrl.checkEmojiSuggestion()
-			ctrl.checkMentionSuggestion()
 
-			if targetPath, ok := parseFilePathFromText(text); ok {
-				ctrl.clearMessageText()
-				glib.IdleAdd(func() {
-					ctrl.showSendAttachmentDialog(targetPath)
-				})
-				return
+			if ctrl.composerWork != 0 {
+				glib.SourceRemove(ctrl.composerWork)
 			}
-
-			if markdown.HasWhatsAppMarkdown(text) && strings.TrimSpace(text) != "" {
-				previewMarkup, _ := markdown.FormatForBubble(text, nil, nil)
-				if ctrl.markdownPreviewLabel != nil {
-					ctrl.markdownPreviewLabel.SetMarkup(previewMarkup)
-				}
-				if ctrl.markdownPreviewBar != nil {
-					ctrl.markdownPreviewBar.SetVisible(true)
-				}
-			} else {
-				if ctrl.markdownPreviewBar != nil {
-					ctrl.markdownPreviewBar.SetVisible(false)
-				}
-			}
+			ctrl.composerWork = glib.TimeoutAdd(80, func() bool {
+				ctrl.composerWork = 0
+				ctrl.updateComposerPreview()
+				return false
+			})
 		})
 	}
 	ctrl.updateMessageEntryHeight()
+}
+
+func (ctrl *MainController) updateComposerPreview() {
+	text := ctrl.getMessageText()
+	ctrl.checkEmojiSuggestion()
+	ctrl.checkMentionSuggestion()
+
+	if targetPath, ok := parseFilePathFromText(text); ok {
+		ctrl.clearMessageText()
+		glib.IdleAdd(func() {
+			ctrl.showSendAttachmentDialog(targetPath)
+		})
+		return
+	}
+
+	if markdown.HasWhatsAppMarkdown(text) && strings.TrimSpace(text) != "" {
+		previewMarkup, _ := markdown.FormatForBubble(text, nil, nil)
+		if ctrl.markdownPreviewLabel != nil {
+			ctrl.markdownPreviewLabel.SetMarkup(previewMarkup)
+		}
+		if ctrl.markdownPreviewBar != nil {
+			ctrl.markdownPreviewBar.SetVisible(true)
+		}
+	} else {
+		if ctrl.markdownPreviewBar != nil {
+			ctrl.markdownPreviewBar.SetVisible(false)
+		}
+	}
 }

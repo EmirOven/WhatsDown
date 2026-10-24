@@ -2,9 +2,9 @@ name: build-linux
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "Release-3" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "Release-3" ]
   workflow_dispatch:
 
 jobs:
@@ -21,6 +21,12 @@ jobs:
           sudo apt-get install -y \
             blueprint-compiler \
             libgtk-4-dev \
+            libgstreamer1.0-dev \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
+            gstreamer1.0-libav \
+            poppler-utils \
+            ffmpeg \
             libadwaita-1-dev \
             gobject-introspection \
             libsqlite3-dev \

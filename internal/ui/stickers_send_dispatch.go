@@ -83,7 +83,7 @@ func (c *MainController) dispatchStickerSend(chatJIDStr string, data []byte, ctx
 	}
 
 	if c.store != nil {
-		_ = c.store.SaveMessage(ctx, sentMsg)
+		_ = c.saveOutgoingMessage(ctx, sentMsg)
 		_ = c.store.UpdateChatLastMessage(ctx, sentMsg.ChatJID, sentMsg.Timestamp.Unix())
 		glib.IdleAdd(func() {
 			c.appendSentMessageToUI(chatJIDStr, sentMsg)

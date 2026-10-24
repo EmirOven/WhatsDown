@@ -11,6 +11,7 @@ import (
 )
 
 func (c *MainController) selectChat(chat store.Chat) {
+	c.cancelMessageSelection()
 	c.currentChat = &chat
 	c.setTypingIndicator(false)
 

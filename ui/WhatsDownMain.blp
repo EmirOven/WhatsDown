@@ -6,29 +6,31 @@ Adw.ApplicationWindow main_window {
   default-height: 640;
   title: "WhatsDown";
 
-  content: Adw.NavigationSplitView split_view {
-    hexpand: true;
-    vexpand: true;
-    min-sidebar-width: 280;
-    max-sidebar-width: 400;
+  content: Gtk.Overlay root_overlay {
+    child: Adw.NavigationSplitView split_view {
+      hexpand: true;
+      vexpand: true;
+      min-sidebar-width: 280;
+      max-sidebar-width: 400;
 
-    sidebar: Adw.NavigationPage sidebar_nav_page {
-      title: "Chats";
+      sidebar: Adw.NavigationPage sidebar_nav_page {
+        title: "Chats";
 
-      child: Adw.ToolbarView {
-        content: Adw.ViewStack sidebar_stack {
+        child: Adw.ToolbarView {
+          content: Adw.ViewStack sidebar_stack {
+          };
+
+          [bottom]
+          Adw.ViewSwitcherBar sidebar_switcher_bar {
+            stack: sidebar_stack;
+            reveal: true;
+          }
         };
-
-        [bottom]
-        Adw.ViewSwitcherBar sidebar_switcher_bar {
-          stack: sidebar_stack;
-          reveal: true;
-        }
       };
-    };
 
-    content: Adw.NavigationPage content_nav_page {
-      title: "Conversation";
+      content: Adw.NavigationPage content_nav_page {
+        title: "Conversation";
+      };
     };
   };
 }

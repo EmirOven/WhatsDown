@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"postbetasoftware.com/whatsdown/internal/wasync"
 	"strings"
 	"time"
 
@@ -17,7 +18,7 @@ func (c *MainController) sendReadReceipts(targetJID types.JID, chatJIDStr string
 			targetAppJID = pnJID
 		}
 	}
-	_ = c.client.SendAppState(ctx, appstate.BuildMarkChatAsRead(targetAppJID, true, time.Now(), nil))
+	_ = wasync.SendAppState(ctx, c.client, appstate.BuildMarkChatAsRead(targetAppJID, true, time.Now(), nil))
 
 	if c.store == nil {
 		return

@@ -61,8 +61,12 @@ func (c *MainController) buildDetailsMediaTab(dialog *adw.Dialog, mediaMsgs []st
 
 		mCopy := m
 		leftClick := gtk.NewGestureClick()
+		leftClick.SetButton(1)
 		leftClick.ConnectPressed(func(nPress int, x, y float64) {
-			media.OpenMedia(c.client, mCopy, nil)
+			if nPress == 1 {
+				dialog.Close()
+				c.openMediaViewer(mCopy)
+			}
 		})
 		overlay.AddController(leftClick)
 		c.attachMediaContextMenu(overlay, mCopy, dialog)

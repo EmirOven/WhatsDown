@@ -24,6 +24,10 @@ func (s *MessageStore) DeleteChatLocally(ctx context.Context, jid string) error 
 	}
 
 	for _, j := range jids {
+		_, _ = s.db.ExecContext(ctx, `DELETE FROM whatsdown_chat_reads WHERE chat_jid = ?`, j)
+		_, _ = s.db.ExecContext(ctx, `DELETE FROM whatsdown_message_recipients WHERE chat_jid = ?`, j)
+		_, _ = s.db.ExecContext(ctx, `DELETE FROM whatsdown_message_recipient_sets WHERE chat_jid = ?`, j)
+		_, _ = s.db.ExecContext(ctx, `DELETE FROM whatsdown_chat_folder_members WHERE chat_jid = ?`, j)
 		_, _ = s.db.ExecContext(ctx, `DELETE FROM whatsdown_messages WHERE chat_jid = ?`, j)
 		_, _ = s.db.ExecContext(ctx, `DELETE FROM whatsdown_message_edits WHERE chat_jid = ?`, j)
 		_, _ = s.db.ExecContext(ctx, `DELETE FROM whatsdown_reactions WHERE chat_jid = ?`, j)

@@ -30,7 +30,9 @@ func (c *MainController) UpdateSingleMessageRow(messageID string) {
 
 	var updatedMsg *store.StoredMessage
 	if c.store != nil {
-		updatedMsg, _ = c.store.GetMessageByID(context.Background(), messageID)
+		if c.currentChat != nil {
+			updatedMsg, _ = c.store.GetMessage(context.Background(), c.currentChat.JID, messageID)
+		}
 	}
 	if updatedMsg == nil {
 		return

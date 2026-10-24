@@ -21,14 +21,14 @@ func (s *MessageStore) seedDemoMessages(ctx context.Context, now time.Time) erro
 			ContextInfo: &waE2E.ContextInfo{
 				StanzaID:      proto.String("demo_core_1"),
 				Participant:   proto.String(aliceJID),
-				QuotedMessage: &waE2E.Message{Conversation: proto.String("Hey team! We just landed *v0.2.0* features including `group permissions` and ~old~ new UI polish!")},
+				QuotedMessage: &waE2E.Message{Conversation: proto.String("Hey team! We just landed *Release 3* features including `group permissions` and ~old~ new UI polish!")},
 			},
 		},
 	})
 
 	pollRaw, _ := proto.Marshal(&waE2E.Message{
 		PollCreationMessageV3: &waE2E.PollCreationMessage{
-			Name:                   proto.String("What feature should we prioritize next for v0.3.0?"),
+			Name:                   proto.String("What feature should we prioritize next for Release 3?"),
 			SelectableOptionsCount: proto.Uint32(1),
 			Options: []*waE2E.PollCreationMessage_Option{
 				{OptionName: proto.String("Voice & Video Calls")},
@@ -39,9 +39,9 @@ func (s *MessageStore) seedDemoMessages(ctx context.Context, now time.Time) erro
 	})
 
 	msgs := []StoredMessage{
-		{ChatJID: coreJID, ID: "demo_core_1", SenderJID: aliceJID, SenderName: "Alice Rivera", FromMe: false, Timestamp: now.Add(-25 * time.Minute), Kind: MessageKindText, Text: "Hey team! We just landed *v0.2.0* features including `group permissions` and ~old~ new UI polish!", Starred: true},
+		{ChatJID: coreJID, ID: "demo_core_1", SenderJID: aliceJID, SenderName: "Alice Rivera", FromMe: false, Timestamp: now.Add(-25 * time.Minute), Kind: MessageKindText, Text: "Hey team! We just landed *Release 3* features including `group permissions` and ~old~ new UI polish!", Starred: true},
 		{ChatJID: coreJID, ID: "demo_core_2", SenderJID: marcoJID, SenderName: "Marco Rossi", FromMe: false, Timestamp: now.Add(-18 * time.Minute), Kind: MessageKindText, Text: "Love the new 4px color bar and window tinting! Looks super native on GNOME.", Raw: replyRaw},
-		{ChatJID: coreJID, ID: "demo_core_3", SenderJID: DemoSelfJID, SenderName: "You", FromMe: true, Timestamp: now.Add(-10 * time.Minute), Kind: MessageKindPoll, Text: "What feature should we prioritize next for v0.3.0?", Raw: pollRaw, Status: MessageStatusRead},
+		{ChatJID: coreJID, ID: "demo_core_3", SenderJID: DemoSelfJID, SenderName: "You", FromMe: true, Timestamp: now.Add(-10 * time.Minute), Kind: MessageKindPoll, Text: "What feature should we prioritize next for Release 3?", Raw: pollRaw, Status: MessageStatusRead},
 		{ChatJID: coreJID, ID: "demo_core_4", SenderJID: elenaJID, SenderName: "Elena Rostova", FromMe: false, Timestamp: now.Add(-3 * time.Minute), Kind: MessageKindText, Text: "Demo Mode is ready for screenshots 🎉 You can even send messages or inspect group permissions right here!"},
 		{ChatJID: aliceJID, ID: "demo_alice_1", SenderJID: DemoSelfJID, SenderName: "You", FromMe: true, Timestamp: now.Add(-45 * time.Minute), Kind: MessageKindText, Text: "Hey Alice, did you get a chance to review the new Libadwaita dialogs?", Status: MessageStatusRead},
 		{ChatJID: aliceJID, ID: "demo_alice_2", SenderJID: aliceJID, SenderName: "Alice Rivera", FromMe: false, Timestamp: now.Add(-12 * time.Minute), Kind: MessageKindText, Text: "Yes! The adaptive layout and dark mode transitions look *fantastic*."},

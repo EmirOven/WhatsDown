@@ -18,7 +18,7 @@ func HasWhatsAppMarkdown(text string) bool {
 		trimmed := strings.TrimSpace(l)
 		if strings.HasPrefix(trimmed, ">") ||
 			strings.HasPrefix(trimmed, "- ") ||
-			(len(trimmed) >= 3 && unicode.IsDigit(rune(trimmed[0])) && strings.Contains(trimmed[:4], ". ")) {
+			(len(trimmed) >= 3 && unicode.IsDigit(rune(trimmed[0])) && strings.Contains(trimmed[:min(4, len(trimmed))], ". ")) {
 			return true
 		}
 	}

@@ -76,7 +76,7 @@ func (c *MainController) dispatchPollSend(chatJIDStr, question string, options [
 	}
 
 	if c.store != nil {
-		_ = c.store.SaveMessage(ctx, sentMsg)
+		_ = c.saveOutgoingMessage(ctx, sentMsg)
 		_ = c.store.UpdateChatLastMessage(ctx, sentMsg.ChatJID, sentMsg.Timestamp.Unix())
 		glib.IdleAdd(func() {
 			c.appendSentMessageToUI(chatJIDStr, sentMsg)

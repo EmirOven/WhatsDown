@@ -2,6 +2,8 @@
 
 This directory contains configuration files and instructions for building and distributing WhatsDown on **Arch Linux (AUR)**, **Fedora (COPR)**, and **Ubuntu (Launchpad PPA)**.
 
+Release naming: **Release 3** is represented as package version `3` (Debian `3-1`, AUR `3.r<revision>.g<commit>`). Release builds use the `Release-3` branch.
+
 ---
 
 ## 1. Arch Linux (AUR)
@@ -62,7 +64,7 @@ COPR builds RPM packages in the cloud for Fedora 40, Fedora 41, Rawhide, etc., a
    - **Package Name:** `whatsdown`
    - **Source type:** Select **SCM**
    - **Clone URL:** `https://github.com/EmirOven/WhatsDown.git`
-   - **Committish:** `main`
+   - **Committish:** `Release-3`
    - **Source build method:** Select **`make_srpm`** (uses `.copr/Makefile` to archive the git tree automatically)
    - **Spec file:** `packaging/copr/whatsdown.spec`
    - **Subdirectory:** *(Leave completely empty/blank)*
@@ -95,7 +97,7 @@ Launchpad builds and hosts Debian packages for Ubuntu distributions (e.g. `noble
    - **Recipe text:**
      ```
      # git-build-recipe format 0.4 deb-version {debversion}+git{revtime}
-     ~<your-launchpad-username>/+git/whatsdown main
+     ~<your-launchpad-username>/+git/whatsdown Release-3
      ```
    - **Target PPA:** `ppa:your-username/whatsdown`
    - **Target series:** `noble` (Ubuntu 24.04), `oracular`, etc.
@@ -114,7 +116,7 @@ To manually build and upload a source package to your PPA:
    ```
 3. Upload to your Launchpad PPA:
    ```bash
-   dput ppa:your-username/whatsdown ../whatsdown_0.2.0-1_source.changes
+   dput ppa:your-username/whatsdown ../whatsdown_3-1_source.changes
    ```
 
 Users can install it on Ubuntu (**Stonking** and **Tenacious**) with:

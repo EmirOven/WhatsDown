@@ -8,16 +8,21 @@ import (
 )
 
 var (
-	currentAudioCmd  *exec.Cmd
-	currentAudioPath string
-	currentAudioStop func()
-	audioPlayingMu   sync.Mutex
+	currentNativeAudio *AudioPlayer
+	currentAudioCmd    *exec.Cmd
+	currentAudioPath   string
+	currentAudioStop   func()
+	audioPlayingMu     sync.Mutex
 )
 
 // StopCurrentAudio stops any ongoing audio preview playback.
 func StopCurrentAudio() {
 	audioPlayingMu.Lock()
 	defer audioPlayingMu.Unlock()
+	if currentNativeAudio != nil {
+		currentNativeAudio.Pause()
+		currentNativeAudio = nil
+	}
 	if currentAudioCmd != nil && currentAudioCmd.Process != nil {
 		_ = currentAudioCmd.Process.Kill()
 		currentAudioCmd = nil

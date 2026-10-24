@@ -49,7 +49,7 @@ func formatStatusMarkup(status int) string {
 	case store.MessageStatusSent:
 		return `<span alpha="70%">・</span>`
 	default:
-		return `<span foreground="#53bdeb" font_weight="bold">・・</span>`
+		return `<span alpha="70%">・</span>`
 	}
 }
 

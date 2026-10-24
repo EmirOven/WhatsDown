@@ -41,7 +41,12 @@ func (c *MainController) updateMessageEntryHeight() {
 	if c.messageEntry == nil || c.messageEntryScrolled == nil {
 		return
 	}
+	if c.inputHeightPending {
+		return
+	}
+	c.inputHeightPending = true
 	glib.IdleAdd(func() {
+		c.inputHeightPending = false
 		if c.messageEntry == nil || c.messageEntryScrolled == nil {
 			return
 		}
@@ -65,11 +70,19 @@ func (c *MainController) updateMessageEntryHeight() {
 		}
 		if targetH > max6LinesH {
 			targetH = max6LinesH
-			c.messageEntryScrolled.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
-		} else {
-			c.messageEntryScrolled.SetPolicy(gtk.PolicyNever, gtk.PolicyNever)
+
 		}
-		c.messageEntryScrolled.SetSizeRequest(-1, targetH)
-		c.messageEntry.ScrollToMark(buf.GetInsert(), 0, false, 0, 0)
+		if targetH != c.inputHeight {
+			c.inputHeight = targetH
+			policy := gtk.PolicyNever
+			if contentH > max6LinesH {
+				policy = gtk.PolicyAutomatic
+			}
+			c.messageEntryScrolled.SetPolicy(gtk.PolicyNever, policy)
+			c.messageEntryScrolled.SetSizeRequest(-1, targetH)
+		}
+		if contentH > max6LinesH {
+			c.messageEntry.ScrollToMark(buf.GetInsert(), 0, false, 0, 0)
+		}
 	})
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"go.mau.fi/whatsmeow/proto/waWeb"
 	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
 )
@@ -72,6 +73,9 @@ func (s *MessageStore) saveMessageTxInternal(ctx context.Context, tx execer, evt
 
 	kind, text, ok := DescribeMessage(msg)
 	if !ok {
+		if evt.Info.IsFromMe && evt.SourceWebMsg != nil {
+			return false, saveSyncedReceiptsTx(ctx, tx, chatJID, msgID, evt.SourceWebMsg)
+		}
 		return false, nil
 	}
 
@@ -89,5 +93,23 @@ func (s *MessageStore) saveMessageTxInternal(ctx context.Context, tx execer, evt
 		st = initialStatus[0]
 	}
 
-	return s.insertOrUpdateMessage(ctx, tx, chatJID, msgID, senderJID, evt.Info.PushName, evt.Info.IsFromMe, ts, kind, text, raw, starInt, st, incUnread)
+	if evt.Info.IsFromMe && evt.SourceWebMsg != nil {
+		switch evt.SourceWebMsg.GetStatus() {
+		case waWeb.WebMessageInfo_READ, waWeb.WebMessageInfo_PLAYED:
+			st = MessageStatusRead
+		case waWeb.WebMessageInfo_DELIVERY_ACK:
+			st = MessageStatusDelivered
+		}
+	}
+
+	inserted, err := s.insertOrUpdateMessage(ctx, tx, chatJID, msgID, senderJID, evt.Info.PushName, evt.Info.IsFromMe, ts, kind, text, raw, starInt, st, incUnread)
+	if err != nil {
+		return false, err
+	}
+	if evt.Info.IsFromMe && evt.SourceWebMsg != nil {
+		if err := saveSyncedReceiptsTx(ctx, tx, chatJID, msgID, evt.SourceWebMsg); err != nil {
+			return false, err
+		}
+	}
+	return inserted, nil
 }

@@ -1,6 +1,6 @@
 # Maintainer: Emir Öven <emiroven@postbetasoftware.com>
 pkgname=whatsdown-git
-pkgver=0.2.0.r80.g8cf0c26
+pkgver=3.r81.g08e381b
 pkgrel=1
 pkgdesc="Native Linux WhatsApp client built with GTK 4 and Libadwaita"
 arch=('x86_64' 'aarch64')
@@ -8,6 +8,11 @@ url="https://github.com/EmirOven/WhatsDown"
 license=('MIT')
 depends=(
     'gtk4'
+    'gstreamer'
+    'gst-plugins-base'
+    'gst-plugins-good'
+    'gst-libav'
+    'poppler'
     'libadwaita'
     'sqlite'
     'hicolor-icon-theme'
@@ -22,16 +27,12 @@ makedepends=(
 )
 provides=('whatsdown')
 conflicts=('whatsdown' 'whatsdown-bin')
-source=("git+https://github.com/EmirOven/WhatsDown.git")
+source=("git+https://github.com/EmirOven/WhatsDown.git#branch=Release-3")
 sha256sums=('SKIP')
 
 pkgver() {
     cd "$srcdir/WhatsDown"
-    if git describe --long --tags >/dev/null 2>&1; then
-        git describe --long --tags | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
-    else
-        printf "0.2.0.r%s.g%s\n" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
-    fi
+    printf "3.r%s.g%s\n" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
 }
 
 build() {

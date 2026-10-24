@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"sort"
 	"strings"
 	"unicode"
@@ -56,7 +57,25 @@ func (c *MainController) checkMentionSuggestion() {
 
 func (c *MainController) filterAndShowMentions(query string) {
 	if len(activeMentionState.activeMembers) == 0 && c.currentChat != nil {
-		activeMentionState.activeMembers = c.fetchGroupMembers(c.currentChat.JID)
+		chat := c.currentChat.JID
+		if c.mentionsLoadingChat != chat {
+			c.mentionsLoadingChat = chat
+			snapshot := &MainController{client: c.client, store: c.store, chats: append(c.chats[:0:0], c.chats...), archivedChats: append(c.archivedChats[:0:0], c.archivedChats...), currentMessages: append(c.currentMessages[:0:0], c.currentMessages...)}
+			go func() {
+				members := snapshot.fetchGroupMembers(chat)
+				glib.IdleAdd(func() {
+					if c.mentionsLoadingChat != chat {
+						return
+					}
+					c.mentionsLoadingChat = ""
+					if c.currentChat != nil && c.currentChat.JID == chat {
+						activeMentionState.activeMembers = members
+						c.checkMentionSuggestion()
+					}
+				})
+			}()
+		}
+		return
 	}
 
 	type scoredItem struct {

@@ -23,12 +23,12 @@ func (s *MessageStore) fetchChats(ctx context.Context, archived bool) ([]Chat, e
 		SELECT 
 			c.jid, c.name, c.last_message_at, c.unread_count, c.archived, c.pinned, c.muted,
 			c.parent_jid, c.is_parent, c.is_default_sub_group,
-			COALESCE(m.text, ''), COALESCE(m.kind, ''), COALESCE(m.from_me, 0), COALESCE(m.status, 0)
+			COALESCE(m.text, ''), COALESCE(m.kind, ''), COALESCE(m.from_me, 0), COALESCE(m.status, 0), COALESCE(NULLIF(m.sender_name, ''), m.sender_jid, '')
 		FROM whatsdown_chats c
 		LEFT JOIN (
-			SELECT chat_jid, text, kind, from_me, status
+			SELECT chat_jid, text, kind, from_me, status, sender_jid, sender_name
 			FROM (
-				SELECT chat_jid, text, kind, from_me, status,
+				SELECT chat_jid, text, kind, from_me, status, sender_jid, sender_name,
 				       ROW_NUMBER() OVER (PARTITION BY chat_jid ORDER BY timestamp DESC, rowid DESC) as rn
 				FROM whatsdown_messages
 			) WHERE rn = 1
@@ -58,7 +58,7 @@ func (s *MessageStore) fetchChats(ctx context.Context, archived bool) ([]Chat, e
 		err := rows.Scan(
 			&c.JID, &c.Name, &lastMsgUnix, &c.UnreadCount, &archInt, &pinInt, &muteInt,
 			&c.ParentJID, &isParentInt, &isDefSubInt,
-			&c.LastMessageText, &c.LastMessageKind, &fromMeInt, &c.LastMessageStatus,
+			&c.LastMessageText, &c.LastMessageKind, &fromMeInt, &c.LastMessageStatus, &c.LastMessageSender,
 		)
 		if err != nil {
 			return nil, err

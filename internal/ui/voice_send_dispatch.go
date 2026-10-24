@@ -75,7 +75,7 @@ func (c *MainController) dispatchVoiceSend(chatJIDStr string, data []byte, secon
 	_ = os.WriteFile(destPath, data, 0o600)
 
 	if c.store != nil {
-		_ = c.store.SaveMessage(ctx, sentMsg)
+		_ = c.saveOutgoingMessage(ctx, sentMsg)
 		_ = c.store.UpdateChatLastMessage(ctx, sentMsg.ChatJID, sentMsg.Timestamp.Unix())
 		glib.IdleAdd(func() {
 			c.appendSentMessageToUI(chatJIDStr, sentMsg)

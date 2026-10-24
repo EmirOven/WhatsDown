@@ -20,7 +20,7 @@ func (s *MessageStore) UpdateMessageStatuses(ctx context.Context, ids []string, 
 	query := `
 		UPDATE whatsdown_messages
 		SET status = MAX(status, ?)
-		WHERE id IN (` + strings.Join(placeholders, ",") + `) AND from_me = 1`
+		WHERE id IN (` + strings.Join(placeholders, ",") + `) AND from_me = 1 AND chat_jid NOT LIKE '%@g.us'`
 
 	_, err := s.db.ExecContext(ctx, query, args...)
 	return err

@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -31,6 +32,9 @@ func (c *MainController) createChatRow(chat store.Chat, isArchivedView bool) *gt
 	}
 
 	displayName := formatDisplayName(chat)
+	if strings.HasSuffix(chat.JID, "@g.us") && strings.Contains(chat.LastMessageSender, "@") {
+		chat.LastMessageSender = c.resolveContactName(chat.LastMessageSender)
+	}
 	subText := formatChatSubtitle(chat)
 
 	av := adw.NewAvatar(40, displayName, true)

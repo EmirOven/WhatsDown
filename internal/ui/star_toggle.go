@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"log"
+	"postbetasoftware.com/whatsdown/internal/wasync"
 	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
@@ -39,7 +40,7 @@ func (c *MainController) toggleMessageStarred(msg store.StoredMessage) {
 				} else {
 					senderJID = chatJID
 				}
-				if err := c.client.SendAppState(ctx, appstate.BuildStar(chatJID, senderJID, types.MessageID(msg.ID), msg.FromMe, newStarred)); err != nil {
+				if err := wasync.SendAppState(ctx, c.client, appstate.BuildStar(chatJID, senderJID, types.MessageID(msg.ID), msg.FromMe, newStarred)); err != nil {
 					log.Printf("SendAppState BuildStar failed for %s (%s): %v", chatJIDStr, msg.ID, err)
 				}
 			}

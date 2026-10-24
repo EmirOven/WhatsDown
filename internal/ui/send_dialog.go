@@ -60,7 +60,18 @@ func (c *MainController) showSendAttachmentDialog(filePath string) {
 	if c.messageEntry != nil && strings.TrimSpace(c.getMessageText()) != "" {
 		captionEntry.SetText(strings.TrimSpace(c.getMessageText()))
 	}
+	if c.replyingTo != nil {
+		preview := gtk.NewLabel("Replying to " + c.replyingTo.SenderName + "\n" + truncatePreviewLines(c.replyingTo.Text, 3))
+		if c.replyingTo.Text == "" {
+			preview.SetText("Replying to " + c.replyingTo.Kind)
+		}
+		preview.SetWrap(true)
+		preview.SetXAlign(0)
+		preview.AddCSSClass("card")
+		mainBox.Append(preview)
+	}
 	mainBox.Append(captionEntry)
+	c.attachCaptionMentions(captionEntry, mainBox)
 
 	doSend := func() {
 		media.StopCurrentAudio()

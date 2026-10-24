@@ -9,11 +9,19 @@ import (
 	"postbetasoftware.com/whatsdown/internal/store"
 )
 
-func (c *MainController) loadMessages(chatJID string) {
+func (c *MainController) loadMessages(chatJID string) { c.loadMessagesBefore(chatJID, time.Time{}) }
+
+func (c *MainController) loadMessagesBefore(chatJID string, before time.Time) {
 	if c.cancelMessagePreviews != nil {
 		c.cancelMessagePreviews()
 	}
 	c.messagePreviewContext, c.cancelMessagePreviews = context.WithCancel(context.Background())
+	if c.messageSelection != nil {
+		c.messageSelection.checks = make(map[string]*gtk.CheckButton)
+		if c.messageSelection.chat != chatJID {
+			c.cancelMessageSelection()
+		}
+	}
 	c.currentMessages = nil
 	for child := c.messagesList.FirstChild(); child != nil; child = gtk.BaseWidget(child).NextSibling() {
 		c.releaseMessageWidget(child)
@@ -26,7 +34,7 @@ func (c *MainController) loadMessages(chatJID string) {
 		return
 	}
 
-	msgs, err := c.store.ListMessages(context.Background(), chatJID, time.Time{}, 100)
+	msgs, err := c.store.ListMessages(context.Background(), chatJID, before, 100)
 	if err != nil {
 		log.Printf("loading messages for %s: %v", chatJID, err)
 		return
@@ -42,6 +50,7 @@ func (c *MainController) loadMessages(chatJID string) {
 		c.messageRowMap[msg.ID] = bubble
 		c.messagesList.Append(bubble)
 	}
+	c.pruneMessageSelection()
 	c.messagesList.InvalidateFilter()
 	c.scrollToBottomAnimated()
 }

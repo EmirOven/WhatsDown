@@ -74,10 +74,10 @@ func (s *MessageStore) insertOrUpdateMessage(ctx context.Context, tx execer, cha
 	if rows > 0 && !fromMe && incrementUnread {
 		_, _ = tx.ExecContext(ctx, `
 			UPDATE whatsdown_chats
-			SET unread_count = unread_count + 1,
+			SET unread_count = unread_count + CASE WHEN ? > COALESCE((SELECT read_at FROM whatsdown_chat_reads WHERE chat_jid = ?), 0) THEN 1 ELSE 0 END,
 			    last_message_at = MAX(last_message_at, ?)
 			WHERE jid = ?`,
-			ts, chatJID)
+			ts, chatJID, ts, chatJID)
 	} else if rows > 0 {
 		_, _ = tx.ExecContext(ctx, `
 			UPDATE whatsdown_chats

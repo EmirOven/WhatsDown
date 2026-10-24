@@ -27,7 +27,9 @@
 
 ## Branch Info
 
-This is the main branch. No active development (usually) will be done here anymore, and all active development will be on the latest branch version. You can assume the code here to be safe and (mostly) production-ready.
+I decided to change the versioning convention from here. The major and minor releases were never used, and the new version scheme is more human friendly.
+
+This branch will keep all development for WhatsDown Release 3 (Functional).
 
 ---
 
@@ -44,6 +46,7 @@ This is the main branch. No active development (usually) will be done here anymo
 - **Emoji Autocomplete:** Inline fuzzy emoji search by typing `:` (e.g. `:fire`, `:laugh`, `:heart`), fully keyboard-navigable.
 - **Media Gallery & Details:** Shared photos and videos organized in a thumbnail gallery grid alongside documents and voice notes.
 - **Presence & Typing Indicators:** Real-time online status and animated typing bubbles for active contacts.
+- **Local Chat Folders:** Ctrl-click to select chats, then right-click to create a named, coloured folder. Collapse folders, drag to reorder folders and their chats, or drop chats under Other chats to restore last-contact sorting. Folders are local and cannot be nested.
 - **Pinned & Archived Chats:** Full cross-device synchronization for pinned and archived conversations.
 - **Local SQLite Storage:** Fast, private, on-device caching of chats, messages, and contact avatars following XDG specifications.
 
@@ -142,6 +145,11 @@ Ensure you have the following system dependencies installed:
 sudo apt install -y \
   golang \
   libgtk-4-dev \
+  libgstreamer1.0-dev \
+  gstreamer1.0-plugins-base \
+  gstreamer1.0-plugins-good \
+  gstreamer1.0-libav \
+  poppler-utils \
   libadwaita-1-dev \
   libgirepository1.0-dev \
   gobject-introspection \
@@ -157,6 +165,10 @@ sudo apt install -y \
 sudo dnf install -y \
   golang \
   gtk4-devel \
+  gstreamer1-devel \
+  gstreamer1-plugins-base \
+  gstreamer1-plugins-good \
+  poppler-utils \
   libadwaita-devel \
   blueprint-compiler \
   sqlite-devel \
@@ -170,6 +182,11 @@ sudo dnf install -y \
 sudo pacman -S --needed \
   go \
   gtk4 \
+  gstreamer \
+  gst-plugins-base \
+  gst-plugins-good \
+  gst-libav \
+  poppler \
   libadwaita \
   blueprint-compiler \
   sqlite \

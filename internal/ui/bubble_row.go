@@ -50,7 +50,7 @@ func (c *MainController) createMessageBubble(msg store.StoredMessage, sameMinute
 	c.attachMessageContextMenu(box, msg)
 
 	rowBox := c.buildBubbleRowBox(row, box, msg, isOutgoing)
-	row.SetChild(rowBox)
+	row.SetChild(c.wrapMessageSelectionRow(row, rowBox, msg))
 	return row
 }
 

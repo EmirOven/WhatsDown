@@ -35,7 +35,7 @@ func (s *MessageStore) ListMessages(ctx context.Context, chatJID string, before 
 		return nil, err
 	}
 
-	msgs, err := scanStoredMessages(rows)
+	msgs, err := s.scanMessagesWithReactions(ctx, rows)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (s *MessageStore) GetMessage(ctx context.Context, chatJID, id string) (*Sto
 	if err != nil {
 		return nil, err
 	}
-	msgs, err := scanStoredMessages(rows)
+	msgs, err := s.scanMessagesWithReactions(ctx, rows)
 	if err != nil || len(msgs) == 0 {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (s *MessageStore) GetMessageByID(ctx context.Context, id string) (*StoredMe
 	if err != nil {
 		return nil, err
 	}
-	msgs, err := scanStoredMessages(rows)
+	msgs, err := s.scanMessagesWithReactions(ctx, rows)
 	if err != nil || len(msgs) == 0 {
 		return nil, err
 	}

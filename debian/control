@@ -6,6 +6,7 @@ Build-Depends:
  debhelper-compat (= 13),
  golang-go (>= 2:1.22~),
  libgtk-4-dev (>= 4.14),
+ libgstreamer1.0-dev,
  libadwaita-1-dev (>= 1.5),
  libgirepository1.0-dev | libgirepository-2.0-dev,
  gobject-introspection,
@@ -22,7 +23,11 @@ Architecture: any
 Depends:
  ${shlibs:Depends},
  ${misc:Depends},
- hicolor-icon-theme
+ hicolor-icon-theme,
+ gstreamer1.0-plugins-base,
+ gstreamer1.0-plugins-good,
+ gstreamer1.0-libav,
+ poppler-utils
 Description: Native Linux WhatsApp client
  WhatsDown is a modern native Linux WhatsApp desktop client built with Go,
  GTK 4, and Libadwaita, utilizing whatsmeow and gotk4.

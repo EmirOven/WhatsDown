@@ -18,6 +18,9 @@ var (
 )
 
 func (ctrl *MainController) bindSettingsWidgets(builder *gtk.Builder) {
+	if row, ok := castObject[*adw.ActionRow](builder, "settings_about_row"); ok {
+		row.ConnectActivated(func() { ctrl.showAboutDialog() })
+	}
 	ctrl.settingsProfileRow, _ = castObject[*adw.ActionRow](builder, "settings_profile_row")
 	ctrl.settingsProfileAvatar, _ = castObject[*adw.Avatar](builder, "settings_profile_avatar")
 	ctrl.settingsResyncBtn, _ = castObject[*gtk.Button](builder, "settings_resync_btn")

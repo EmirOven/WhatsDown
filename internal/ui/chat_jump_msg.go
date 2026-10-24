@@ -1,40 +1,35 @@
 package ui
 
-import "github.com/diamondburned/gotk4/pkg/glib/v2"
+import (
+	"context"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
+	"time"
+)
 
-func (c *MainController) jumpToMessage(chatJID string, msgID string) {
-	if c.currentChat == nil || c.currentChat.JID != chatJID {
-		for _, ch := range c.chats {
-			if ch.JID == chatJID {
-				c.selectChat(ch)
-				break
-			}
+func (c *MainController) jumpToMessage(chatJID, msgID string) {
+	if c.currentChat == nil || !c.isSameChat(c.currentChat.JID, chatJID) {
+		if c.store == nil {
+			return
 		}
-		for _, ch := range c.archivedChats {
-			if ch.JID == chatJID {
-				c.selectChat(ch)
-				break
-			}
+		chat, err := c.store.GetChatOrContact(context.Background(), chatJID)
+		if err != nil {
+			c.messageActionError(err)
+			return
 		}
+		c.selectChat(chat)
 	}
-
-	foundIdx := -1
-	for i, m := range c.currentMessages {
-		if m.ID == msgID {
-			foundIdx = i
-			break
+	if c.messageRowMap[msgID] == nil && c.store != nil {
+		msg, err := c.store.GetMessage(context.Background(), chatJID, msgID)
+		if err != nil || msg == nil {
+			return
 		}
+		c.loadMessagesBefore(chatJID, msg.Timestamp.Add(time.Second))
 	}
-
-	if foundIdx >= 0 {
-		row := c.messagesList.RowAtIndex(foundIdx)
-		if row != nil {
-			row.GrabFocus()
-			row.AddCSSClass("message-highlighted")
-			glib.TimeoutAdd(2000, func() bool {
-				row.RemoveCSSClass("message-highlighted")
-				return false
-			})
+	// Let layout and the existing chat-load scroll animation finish first.
+	glib.TimeoutAdd(250, func() bool {
+		if c.currentChat != nil && c.isSameChat(c.currentChat.JID, chatJID) {
+			c.scrollToMessageID(msgID)
 		}
-	}
+		return false
+	})
 }

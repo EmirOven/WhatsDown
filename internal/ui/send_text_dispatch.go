@@ -60,7 +60,7 @@ func (c *MainController) dispatchTextMessage(targetJID types.JID, chatJIDStr, te
 			Raw:       rawProto,
 			Status:    initStatus,
 		}
-		_ = c.store.SaveMessage(ctx, sentMsg)
+		_ = c.saveOutgoingMessage(ctx, sentMsg)
 		_ = c.store.UpdateChatLastMessage(ctx, sentMsg.ChatJID, sentMsg.Timestamp.Unix())
 		glib.IdleAdd(func() {
 			c.appendSentMessageToUI(chatJIDStr, sentMsg)

@@ -1,7 +1,9 @@
 package store
 
 import (
+	"context"
 	"database/sql"
+	"strings"
 	"time"
 )
 
@@ -75,4 +77,54 @@ func scanStoredMessages(rows *sql.Rows) ([]StoredMessage, error) {
 		msgs = append(msgs, m)
 	}
 	return msgs, rows.Err()
+}
+
+// Close the message cursor before fetching reactions, including on single-connection stores.
+func (s *MessageStore) scanMessagesWithReactions(ctx context.Context, rows *sql.Rows) ([]StoredMessage, error) {
+	messages, err := scanStoredMessages(rows)
+	if err != nil {
+		return nil, err
+	}
+	type key struct{ chat, id string }
+	indices := make(map[key][]int, len(messages))
+	for i, msg := range messages {
+		k := key{msg.ChatJID, msg.ID}
+		indices[k] = append(indices[k], i)
+	}
+	// Keep batches below SQLite's bind parameter limit and only load reactions
+	// for the messages requested, rather than the whole chat history.
+	for start := 0; start < len(messages); start += 200 {
+		end := start + 200
+		if end > len(messages) {
+			end = len(messages)
+		}
+		var clauses []string
+		var args []any
+		for _, msg := range messages[start:end] {
+			clauses = append(clauses, "(chat_jid = ? AND message_id = ?)")
+			args = append(args, msg.ChatJID, msg.ID)
+		}
+		reactions, err := s.db.QueryContext(ctx, `SELECT chat_jid, message_id, sender_jid, sender_name, emoji, from_me, timestamp FROM whatsdown_reactions WHERE `+strings.Join(clauses, " OR ")+` ORDER BY timestamp ASC`, args...)
+		if err != nil {
+			return nil, err
+		}
+		for reactions.Next() {
+			var r Reaction
+			var ts int64
+			if err := reactions.Scan(&r.ChatJID, &r.MessageID, &r.SenderJID, &r.SenderName, &r.Emoji, &r.FromMe, &ts); err != nil {
+				reactions.Close()
+				return nil, err
+			}
+			r.Timestamp = time.Unix(ts, 0)
+			for _, i := range indices[key{r.ChatJID, r.MessageID}] {
+				messages[i].Reactions = append(messages[i].Reactions, r)
+			}
+		}
+		err = reactions.Err()
+		reactions.Close()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return messages, nil
 }

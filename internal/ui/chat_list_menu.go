@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"context"
+
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"postbetasoftware.com/whatsdown/internal/store"
@@ -77,11 +79,33 @@ func (c *MainController) attachContextMenu(row *gtk.ListBoxRow, chat store.Chat,
 	delBtn.AddCSSClass("destructive-action")
 	menuBox.Append(delBtn)
 
+	if c.store != nil {
+		menuBox.Append(gtk.NewSeparator(gtk.OrientationHorizontal))
+		menuBox.Append(menuButton("folder-symbolic", "Add to Folder…", func() {
+			popover.Popdown()
+			c.showAddToFolderDialog(c.selectedFolderChats(chat))
+		}))
+		menuBox.Append(menuButton("folder-new-symbolic", "Create folder…", func() {
+			popover.Popdown()
+			c.showChatFolderDialog(nil, c.selectedFolderChats(chat))
+		}))
+		if c.chatFolderID(chat.JID) != "" {
+			menuBox.Append(menuButton("folder-open-symbolic", "Remove from folder", func() {
+				popover.Popdown()
+				if err := c.store.MoveFolderChats(context.Background(), c.selectedFolderChats(chat), "", ""); err != nil {
+					c.showFolderError(err)
+					return
+				}
+				c.reloadFolderLists()
+			}))
+		}
+	}
 	popover.SetChild(menuBox)
 
 	gesture := gtk.NewGestureClick()
 	gesture.SetButton(gdk.BUTTON_SECONDARY)
 	gestureHandle := gesture.ConnectPressed(func(nPress int, x, y float64) {
+		c.selectChatForContext(row, chat, isArchivedView)
 		rect := gdk.NewRectangle(int(x), int(y), 1, 1)
 		popover.SetPointingTo(&rect)
 		popover.Popup()

@@ -20,6 +20,7 @@ func (c *MainController) LoadChats() {
 		return
 	}
 	c.chats = chats
+	c.updateMarkAllReadButton()
 	c.renderChatList(chats, false)
 }
 
@@ -42,6 +43,7 @@ func (c *MainController) LoadArchivedChats() {
 		return
 	}
 	c.archivedChats = chats
+	c.updateMarkAllReadButton()
 	c.renderChatList(chats, true)
 }
 

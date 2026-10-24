@@ -60,16 +60,16 @@ func (c *MainController) applyStatusToLabel(lbl *gtk.Label, status int) {
 
 	switch status {
 	case store.MessageStatusRead:
-		lbl.SetText("✓✓")
+		lbl.SetMarkup(`<span letter_spacing="-2048">✓✓</span>`)
 		lbl.AddCSSClass("chat-bubble-status-read")
 	case store.MessageStatusDelivered:
-		lbl.SetText("✓✓")
+		lbl.SetMarkup(`<span letter_spacing="-2048">✓✓</span>`)
 		lbl.AddCSSClass("chat-bubble-status-delivered")
 	case store.MessageStatusSent:
 		lbl.SetText("✓")
 		lbl.AddCSSClass("chat-bubble-status-sent")
 	default:
-		lbl.SetText("✓✓")
-		lbl.AddCSSClass("chat-bubble-status-read")
+		lbl.SetText("✓")
+		lbl.AddCSSClass("chat-bubble-status-sent")
 	}
 }

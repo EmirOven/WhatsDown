@@ -9,6 +9,13 @@ import (
 
 // HandleIncomingLiveMessage updates the UI when a live message arrives.
 func (c *MainController) HandleIncomingLiveMessage(evt *events.Message) {
+	if evt.SourceWebMsg != nil && evt.Info.IsFromMe {
+		for view := range c.messageInfoViews {
+			if view.messageID == evt.Info.ID && c.isSameChat(view.chatJID, evt.Info.Chat.ToNonAD().String()) {
+				view.received()
+			}
+		}
+	}
 	if evt.Message != nil && evt.Message.GetPollUpdateMessage() != nil {
 		return
 	}

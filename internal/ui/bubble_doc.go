@@ -46,8 +46,11 @@ func (c *MainController) buildDocWidget(msg store.StoredMessage) *gtk.Box {
 		overlay.AddOverlay(badge)
 
 		gesture := gtk.NewGestureClick()
+		gesture.SetButton(1)
 		c.trackWidgetSignal(overlay, gesture, gesture.ConnectPressed(func(nPress int, x, y float64) {
-			c.openPDFPreview(mCopy, docName)
+			if nPress == 1 {
+				c.openMediaViewer(mCopy)
+			}
 		}))
 		overlay.AddController(gesture)
 		container.Append(overlay)
@@ -72,7 +75,7 @@ func (c *MainController) buildDocWidget(msg store.StoredMessage) *gtk.Box {
 
 	c.trackWidgetSignal(openBtn, openBtn, openBtn.ConnectClicked(func() {
 		if isPDF {
-			c.openPDFPreview(mCopy, docName)
+			c.openMediaViewer(mCopy)
 		} else {
 			media.OpenMedia(c.client, mCopy, nil)
 		}

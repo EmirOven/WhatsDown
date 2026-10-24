@@ -29,16 +29,17 @@ func SetupMainWindow(builder *gtk.Builder, client *whatsmeow.Client, s *store.Me
 	}
 
 	ctrl := &MainController{
-		window:               window,
-		client:               client,
-		store:                s,
+		window:              window,
+		client:              client,
+		store:               s,
 		expandedCommunities: make(map[string]bool),
-		savedStickerHashes:   make(map[string]bool),
-		autoScrollBottom:     true,
-		messageStatusLabels:  make(map[string]*gtk.Label),
-		onlineContacts:       make(map[string]bool),
-		messageRowMap:        make(map[string]*gtk.ListBoxRow),
+		savedStickerHashes:  make(map[string]bool),
+		autoScrollBottom:    true,
+		messageStatusLabels: make(map[string]*gtk.Label),
+		onlineContacts:      make(map[string]bool),
+		messageRowMap:       make(map[string]*gtk.ListBoxRow),
 	}
+	ctrl.rootOverlay, _ = castObject[*gtk.Overlay](builder, "root_overlay")
 	activeMainWindow = ctrl
 
 	ctrl.bindSidebarWidgets(builder, splitView, sidebarStack, chatsList, archivedChatsList)

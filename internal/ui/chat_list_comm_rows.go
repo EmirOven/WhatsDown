@@ -9,7 +9,7 @@ import (
 	"postbetasoftware.com/whatsdown/internal/store"
 )
 
-func (c *MainController) createCommunityHeaderRow(comm store.Chat, childCount int, isExpanded bool) *gtk.ListBoxRow {
+func (c *MainController) createCommunityHeaderRow(comm store.Chat, childCount int, isExpanded, isArchived bool) *gtk.ListBoxRow {
 	row := gtk.NewListBoxRow()
 	row.AddCSSClass("chat-row")
 
@@ -47,7 +47,7 @@ func (c *MainController) createCommunityHeaderRow(comm store.Chat, childCount in
 	arrow.SetVAlign(gtk.AlignCenter)
 	box.Append(arrow)
 
-	c.attachContextMenu(row, comm, false)
+	c.attachContextMenu(row, comm, isArchived)
 	row.SetChild(box)
 	return row
 }

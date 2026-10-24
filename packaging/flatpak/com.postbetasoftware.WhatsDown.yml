@@ -47,4 +47,4 @@ modules:
     sources:
       - type: git
         url: https://github.com/EmirOven/WhatsDown.git
-        branch: main
+        branch: Release-3

@@ -59,7 +59,6 @@ func (c *MainController) startReply(msg store.StoredMessage) {
 	if c.replyPreviewBar != nil {
 		c.replyPreviewBar.SetVisible(true)
 	}
-	c.scrollToBottomAnimated()
 	if c.messageEntry != nil {
 		c.messageEntry.GrabFocus()
 	}
@@ -71,5 +70,4 @@ func (c *MainController) cancelReply() {
 	if c.replyPreviewBar != nil {
 		c.replyPreviewBar.SetVisible(false)
 	}
-	c.scrollToBottomAnimated()
 }

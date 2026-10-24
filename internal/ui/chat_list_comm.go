@@ -34,7 +34,7 @@ func (c *MainController) appendCommunityRows(listBox *gtk.ListBox, item *store.C
 	}
 
 	isExpanded := c.expandedCommunities[item.JID]
-	commRow := c.createCommunityHeaderRow(*item, len(children), isExpanded)
+	commRow := c.createCommunityHeaderRow(*item, len(children), isExpanded, isArchived)
 	listBox.Append(commRow)
 	*rows = append(*rows, chatRowItem{isCommunityHeader: true, communityJID: item.JID, chat: *item})
 
@@ -46,9 +46,6 @@ func (c *MainController) appendCommunityRows(listBox *gtk.ListBox, item *store.C
 			childRow := c.createCommunityChildRow(child, isArchived)
 			listBox.Append(childRow)
 			*rows = append(*rows, chatRowItem{isCommunityHeader: false, communityJID: item.JID, chat: child})
-			if c.currentChat != nil && c.isSameChat(c.currentChat.JID, child.JID) {
-				listBox.SelectRow(childRow)
-			}
 		}
 	}
 }

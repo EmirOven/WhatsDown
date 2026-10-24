@@ -10,7 +10,7 @@ func (s *MessageStore) ListMediaMessages(ctx context.Context, chatJID string) ([
 	if err != nil {
 		return nil, err
 	}
-	return scanStoredMessages(rows)
+	return s.scanMessagesWithReactions(ctx, rows)
 }
 
 func (s *MessageStore) ListAudioMessages(ctx context.Context, chatJID string) ([]StoredMessage, error) {
@@ -21,7 +21,7 @@ func (s *MessageStore) ListAudioMessages(ctx context.Context, chatJID string) ([
 	if err != nil {
 		return nil, err
 	}
-	return scanStoredMessages(rows)
+	return s.scanMessagesWithReactions(ctx, rows)
 }
 
 func (s *MessageStore) ListDocMessages(ctx context.Context, chatJID string) ([]StoredMessage, error) {
@@ -32,5 +32,5 @@ func (s *MessageStore) ListDocMessages(ctx context.Context, chatJID string) ([]S
 	if err != nil {
 		return nil, err
 	}
-	return scanStoredMessages(rows)
+	return s.scanMessagesWithReactions(ctx, rows)
 }

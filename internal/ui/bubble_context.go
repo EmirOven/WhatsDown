@@ -60,6 +60,7 @@ func (c *MainController) attachMessageContextMenu(widget gtk.Widgetter, msg stor
 			c.appendEditHistoryAction(menuBox, popover, mCopy)
 		}
 
+		c.appendMessageActions(menuBox, popover, mCopy)
 		c.appendStandardContextActions(menuBox, popover, mCopy)
 
 		popover.SetChild(menuBox)

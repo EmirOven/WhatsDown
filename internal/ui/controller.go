@@ -2,6 +2,8 @@ package ui
 
 import (
 	"context"
+	"sync"
+
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -11,9 +13,19 @@ import (
 
 // MainController manages state and UI interactions of the WhatsDownMain window.
 type MainController struct {
-	window *adw.ApplicationWindow
-	client *whatsmeow.Client
-	store  *store.MessageStore
+	window                   *adw.ApplicationWindow
+	rootOverlay              *gtk.Overlay
+	mediaViewer              *mediaViewer
+	inputHeightPending       bool
+	inputHeight              int
+	composerWork             glib.SourceHandle
+	mentionsLoadingChat      string
+	folderStateMu            sync.Mutex
+	folderStatePending       map[string]bool
+	folderStateWriting       bool
+	folderCollapsedOverrides map[string]bool
+	client                   *whatsmeow.Client
+	store                    *store.MessageStore
 
 	sidebarWidgets
 	chatViewWidgets
@@ -27,7 +39,16 @@ type MainController struct {
 	autoScrollBottom      bool
 	isAutoScrolling       bool
 	messageStatusLabels   map[string]*gtk.Label
+	messageInfoViews      map[*messageInfoView]struct{}
 	chatMenuCleanups      map[*gtk.ListBoxRow]func()
+	chatFolders           []store.ChatFolder
+	selectedChatJIDs      map[string]bool
+	selectedChatList      *gtk.ListBox
+	chatControlPressed    bool
+	chatDragSelection     map[string]bool
+	sidebarRefreshQueued  bool
+	sidebarDrag           *chatDragPayload
+	sidebarDropRow        *gtk.ListBoxRow
 
 	widgetSignalCleanups  map[uintptr][]func()
 	messagePreviewContext context.Context
@@ -40,6 +61,7 @@ type MainController struct {
 	cancelReplyBtn     *gtk.Button
 	replyingTo         *store.StoredMessage
 	messageRowMap      map[string]*gtk.ListBoxRow
+	messageSelection   *messageSelectionState
 
 	// Markdown preview widgets
 	markdownPreviewBar   *gtk.Box

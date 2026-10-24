@@ -53,12 +53,22 @@ func (c *MainController) buildDetailsDocsTab(dialog *adw.Dialog, docMsgs []store
 		openBtn.SetVAlign(gtk.AlignCenter)
 		mCopy := m
 		openBtn.ConnectClicked(func() {
-			media.OpenMedia(c.client, mCopy, nil)
+			if e2e != nil && (strings.Contains(e2e.GetDocumentMessage().GetMimetype(), "pdf") || strings.HasSuffix(strings.ToLower(e2e.GetDocumentMessage().GetFileName()), ".pdf")) {
+				dialog.Close()
+				c.openMediaViewer(mCopy)
+			} else {
+				media.OpenMedia(c.client, mCopy, nil)
+			}
 		})
 		row.AddSuffix(openBtn)
 		row.SetActivatable(true)
 		row.ConnectActivated(func() {
-			media.OpenMedia(c.client, mCopy, nil)
+			if e2e != nil && (strings.Contains(e2e.GetDocumentMessage().GetMimetype(), "pdf") || strings.HasSuffix(strings.ToLower(e2e.GetDocumentMessage().GetFileName()), ".pdf")) {
+				dialog.Close()
+				c.openMediaViewer(mCopy)
+			} else {
+				media.OpenMedia(c.client, mCopy, nil)
+			}
 		})
 
 		c.attachMediaContextMenu(row, mCopy, dialog)

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"log"
 	"strings"
 
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
@@ -10,6 +11,13 @@ import (
 )
 
 func (c *MainController) renderChatList(chats []store.Chat, isArchived bool) {
+	// Keep GTK's source and destination widgets alive until a drag finishes.
+	if c.sidebarDrag != nil {
+		return
+	}
+	wasSuppressed := c.suppressChatSelection
+	c.suppressChatSelection = true
+	defer func() { c.suppressChatSelection = wasSuppressed }()
 	listBox := c.chatsList
 	searchFilter := c.chatsSearchFilter
 	if isArchived {
@@ -19,6 +27,7 @@ func (c *MainController) renderChatList(chats []store.Chat, isArchived bool) {
 	if listBox == nil {
 		return
 	}
+	c.clearChatDropIndicator()
 	// Only release menus belonging to this list (active and archived lists
 	// are refreshed independently).
 	for row, cleanup := range c.chatMenuCleanups {
@@ -27,6 +36,9 @@ func (c *MainController) renderChatList(chats []store.Chat, isArchived bool) {
 			delete(c.chatMenuCleanups, row)
 		}
 	}
+	for child := listBox.FirstChild(); child != nil; child = gtk.BaseWidget(child).NextSibling() {
+		c.releaseMessageWidget(child)
+	}
 	listBox.RemoveAll()
 
 	if isArchived && len(chats) == 0 {
@@ -34,9 +46,23 @@ func (c *MainController) renderChatList(chats []store.Chat, isArchived bool) {
 		return
 	}
 
+	if c.store != nil {
+		folders, err := c.store.ListChatFolders(context.Background())
+		if err != nil {
+			log.Printf("loading chat folders: %v", err)
+		} else {
+			c.chatFolders = folders
+			for i := range c.chatFolders {
+				if value, ok := c.folderCollapsedOverrides[c.chatFolders[i].ID]; ok {
+					c.chatFolders[i].Collapsed = value
+				}
+			}
+		}
+	}
 	searchLower := strings.ToLower(strings.TrimSpace(searchFilter))
-	topLevel, childrenMap := groupCommunities(chats, searchLower, c.expandedCommunities)
 	var displayedRows []chatRowItem
+	chats = c.appendChatFolderRows(listBox, chats, searchLower, isArchived, &displayedRows)
+	topLevel, childrenMap := groupCommunities(chats, searchLower, c.expandedCommunities)
 
 	for _, item := range topLevel {
 		if item.IsParent {
@@ -48,12 +74,16 @@ func (c *MainController) renderChatList(chats []store.Chat, isArchived bool) {
 			row := c.createChatRow(*item, isArchived)
 			listBox.Append(row)
 			displayedRows = append(displayedRows, chatRowItem{chat: *item})
-			if c.currentChat != nil && c.isSameChat(c.currentChat.JID, item.JID) {
-				listBox.SelectRow(row)
-			}
 		}
 	}
 
+	for i, item := range displayedRows {
+		row := listBox.RowAtIndex(i)
+		c.bindChatRowDrag(row, item, isArchived)
+		if !item.isFolderHeader && !item.isLooseDropZone && (c.selectedChatJIDs[item.chat.JID] || (len(c.selectedChatJIDs) == 0 && c.currentChat != nil && c.isSameChat(c.currentChat.JID, item.chat.JID))) {
+			listBox.SelectRow(row)
+		}
+	}
 	if isArchived {
 		c.displayedArchivedRows = displayedRows
 	} else {

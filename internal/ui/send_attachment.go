@@ -65,5 +65,7 @@ func (c *MainController) sendAttachment(filePath, caption string) {
 		c.cancelReply()
 	}
 
+	caption, ctxInfo = c.prepareMentionsContext(caption, ctxInfo)
+
 	go c.dispatchMediaSend(chatJIDStr, filePath, filename, caption, kind, mimeType, appMediaType, data, ctxInfo)
 }

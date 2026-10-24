@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"log"
+	"time"
 
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"go.mau.fi/whatsmeow/types/events"
@@ -55,7 +57,13 @@ func handleChatStateAction(evt any) {
 		}
 	case *events.MarkChatAsRead:
 		if e.Action != nil && e.Action.GetRead() {
-			_ = msgStore.MarkChatRead(ctx, e.JID)
+			at := e.Timestamp
+			if ts := e.Action.GetMessageRange().GetLastMessageTimestamp(); ts > 0 {
+				at = time.Unix(ts, 0)
+			}
+			if err := msgStore.MarkChatReadAt(ctx, e.JID, at); err != nil {
+				log.Printf("syncing chat read state: %v", err)
+			}
 			refreshChatsUI()
 		}
 	}

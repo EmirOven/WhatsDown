@@ -3,12 +3,13 @@ package ui
 import (
 	"fmt"
 
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"postbetasoftware.com/whatsdown/internal/media"
 )
 
-func buildPDFSwitcher(filePath string, pic *gtk.Picture, totalPages int, currentPage *int) *gtk.Box {
+func buildPDFSwitcher(filePath string, setTexture func(*gdk.Texture), totalPages int, currentPage *int) *gtk.Box {
 	switcherBox := gtk.NewBox(gtk.OrientationHorizontal, 12)
 	switcherBox.SetHAlign(gtk.AlignCenter)
 	switcherBox.SetMarginTop(8)
@@ -36,8 +37,12 @@ func buildPDFSwitcher(filePath string, pic *gtk.Picture, totalPages int, current
 		prevBtn.SetSensitive(*currentPage > 1)
 		nextBtn.SetSensitive(*currentPage < totalPages)
 		go func() {
-			if tex := media.GetPDFPageTexture(filePath, *currentPage); tex != nil {
-				glib.IdleAdd(func() { pic.SetPaintable(tex) })
+			if tex := media.GetPDFPageTexture(filePath, newPage); tex != nil {
+				glib.IdleAdd(func() {
+					if *currentPage == newPage {
+						setTexture(tex)
+					}
+				})
 			}
 		}()
 	}
