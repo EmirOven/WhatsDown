@@ -172,3 +172,27 @@ func TestUpEditsWithoutComposerFocus(t *testing.T) {
 		t.Fatal("global Up did not edit last message")
 	}
 }
+
+func TestUpEditsWithSidebarSearchFocused(t *testing.T) {
+	c := shortcutComposer(t, "")
+	if err := c.store.SaveMessage(t.Context(), store.StoredMessage{ChatJID: c.currentChat.JID, ID: "last", FromMe: true, Kind: store.MessageKindText, Text: "edit from search", Timestamp: time.Unix(100, 0)}); err != nil {
+		t.Fatal(err)
+	}
+	box := gtk.NewBox(gtk.OrientationVertical, 0)
+	c.rootOverlay.SetChild(nil)
+	box.Append(c.messageEntry)
+	c.chatsSearchEntry = gtk.NewSearchEntry()
+	box.Append(c.chatsSearchEntry)
+	c.rootOverlay.SetChild(box)
+	c.chatsSearchEntry.GrabFocus()
+	pumpSidebarEvents(20 * time.Millisecond)
+	if !c.isAnySearchEntryFocused() {
+		t.Fatal("search did not receive focus")
+	}
+	if !c.handleChatViewKeyPress(gdk.KEY_Up, 0, 0) || c.editingMessage == nil || c.getMessageText() != "edit from search" {
+		t.Fatal("Up did not edit from sidebar search")
+	}
+	if !c.composerFocused() {
+		t.Fatal("editing did not focus composer")
+	}
+}

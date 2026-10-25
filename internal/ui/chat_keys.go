@@ -40,13 +40,15 @@ func (ctrl *MainController) handleChatViewKeyPress(val uint, code uint, state gd
 		}
 		return false
 	}
+	// Handle Up at the window before focused widgets (including sidebar search)
+	// can consume it. The composer keeps its own popup navigation handling.
+	if val == gdk.KEY_Up && state&(gdk.ControlMask|gdk.ShiftMask|gdk.AltMask|gdk.SuperMask) == 0 && !ctrl.composerFocused() {
+		if ctrl.editLastSentMessage() {
+			return true
+		}
+	}
 	if ctrl.isAnySearchEntryFocused() {
 		return false
-	}
-	if val == gdk.KEY_Up && state&(gdk.ControlMask|gdk.ShiftMask|gdk.AltMask|gdk.SuperMask) == 0 && !ctrl.composerFocused() {
-		if ctrl.sidebarStack == nil || ctrl.sidebarStack.VisibleChildName() == "chats" || ctrl.sidebarStack.VisibleChildName() == "archived" {
-			return ctrl.editLastSentMessage()
-		}
 	}
 
 	if (state&gdk.ControlMask != 0 && (val == gdk.KEY_v || val == gdk.KEY_V)) ||
