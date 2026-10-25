@@ -55,5 +55,6 @@ func SetupMainWindow(builder *gtk.Builder, client *whatsmeow.Client, s *store.Me
 	ctrl.loadArchivedChats()
 	ctrl.refreshSettingsInfo()
 
+	openPendingNotificationChat()
 	return window, nil
 }

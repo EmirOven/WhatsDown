@@ -19,6 +19,7 @@ func Run() {
 	}
 	app := adw.NewApplication("com.postbetasoftware.WhatsDown", flags)
 	application = app
+	ui.SetAppInstance(&app.Application.Application)
 	ui.OnDemoModeToggled = toggleDemoMode
 
 	ui.OnLogoutRequested = func() {

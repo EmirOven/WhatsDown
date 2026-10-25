@@ -85,7 +85,7 @@ func (c *MainController) HandleIncomingLiveMessage(evt *events.Message) {
 		}
 		if !isMuted {
 			title, body := c.formatNotificationContent(evt)
-			dispatchDesktopNotification(title, body)
+			c.dispatchDesktopNotification(chatStr, evt.Info.Sender.ToNonAD().String(), title, body)
 		}
 	}
 }
