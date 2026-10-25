@@ -4,30 +4,23 @@
 
 ### Added
 
-- Add local coloured chat folders with avatar clusters, Ctrl-click selection, drag-and-drop organization, and an Add to Folder context-menu action.
-- Add message selection, forwarding, deletion, and per-recipient Message Info with direct chat actions.
-- Show the last message sender in group chat previews.
-- Add in-window photo, video, and PDF viewers with Reply, Forward, Go to Message, Open in Default App, and Show in Files actions.
-- Add photo and PDF zoom, scrollwheel zoom, drag panning, rotation, and PDF page navigation. Escape closes the viewer.
-- Add voice-message seeking, pause/resume, and pitch-preserving playback at 0.5x, 1x, 1.5x, and 2x.
-- Add a compact Read All button to Chats and a native libadwaita About dialog in Settings.
-- Update Release 3 packaging and build dependencies for native media playback and PDF rendering.
+- Added coloured chat folders with avatar clusters, multiple-chat selection, drag-and-drop organization, and an Add to Folder context-menu action.
+- Added message selection, forwarding to multiple recipients, deletion, and per-recipient Message Info.
+- Added the last message sender to group chat previews.
+- Added in-window photo, video, and PDF viewers with zoom, rotation, page navigation, and actions to reply, forward, locate, or open media in another application.
+- Added voice-message seeking, pause/resume, and pitch-preserving playback at 0.5x, 1x, 1.5x, and 2x.
+- Added keyboard shortcuts for chat navigation, selected-text formatting, editing the last sent message, sending files, and viewing shortcut help.
+- Added a Read All button to Chats and a native About dialog in Settings.
+- Added clickable message links and day separators labelled Today, Yesterday, or the date.
 
 ### Fixed
 
-- Preserve phone-synced read state across delayed messages and history replay, and import WhatsApp receipt metadata including pending recipients.
-- Merge recipient identity aliases, exclude the sender from group recipient counts, and retain WhatsApp's aggregate delivery/read status when the full recipient list is unavailable.
-- Recover invalid WhatsApp app-state hashes with a verified collection snapshot and a single retry; serialize app-state writes to reduce conflicts.
-- Reduce typing stalls by coalescing composer layout and preview work, loading mention candidates asynchronously, and batching receipt updates without rebuilding the sidebars.
-- Expand and collapse folders using existing rows, preserve sidebar scroll position, and persist collapse state asynchronously.
-- Keep voice controls compact and prevent playback controls from triggering double-click replies. Selecting a reply no longer scrolls the conversation to the bottom.
-- Improve tick size and spacing, remove folder avatar outlines, and make outgoing poll progress bars visible.
-
-- Reduce memory usage when opening chats, viewing media, and syncing with WhatsApp.
-- Bound image caches, scale previews, and release callbacks for removed widgets.
-- Fetch incremental app-state updates and coalesce sync refreshes.
-- Add clickable message URLs and day separators labelled Today, Yesterday, or the date.
-- Fixed an issue with Markdown rendering, where typing a number followed by a space and a letter crashed the app (do not ask how)
+- Fixed read and delivery status synchronization across linked devices and group participants.
+- Fixed excessive memory usage when opening chats, viewing media, and syncing with WhatsApp.
+- Fixed typing stalls when updating the message composer and loading mention suggestions.
+- Fixed the conversation jumping to the bottom when selecting a message to reply to.
+- Fixed voice playback controls triggering replies and improved the visibility of read ticks and outgoing poll results.
+- Fixed a Markdown rendering crash when typing a number followed by a space and a letter in the message box.
 
 ## v0.2.0 (Colourful)
 

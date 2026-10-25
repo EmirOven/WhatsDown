@@ -14,7 +14,7 @@ import (
 func dialogTestController(t *testing.T) *MainController {
 	c := newFolderSidebar(t)
 	adw.Init()
-	app := gtk.NewApplication("com.postbetasoftware.WhatsDown.DialogTest."+strings.ReplaceAll(t.Name(), "/", "."), 0)
+	app := gtk.NewApplication("com.postbetasoftware.WhatsDown.DialogTest."+strings.NewReplacer("/", ".", " ", "_").Replace(t.Name()), 0)
 	if err := app.Register(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -83,14 +83,47 @@ func TestForwardDialogUsesIdentityRowsAndHeaderActions(t *testing.T) {
 	if !avatarFound {
 		t.Fatal("destination row has no avatar")
 	}
-	list.SelectRow(row)
+	var check *gtk.CheckButton
+	walkDialog(row, func(widget gtk.Widgetter) {
+		if candidate, ok := widget.(*gtk.CheckButton); ok {
+			check = candidate
+		}
+	})
+	if check == nil {
+		t.Fatal("forward recipient has no checkbox")
+	}
+	check.SetActive(true)
+	var second *gtk.CheckButton
+	walkDialog(list.RowAtIndex(1), func(w gtk.Widgetter) {
+		if b, ok := w.(*gtk.CheckButton); ok {
+			second = b
+		}
+	})
+	if second == nil {
+		t.Fatal("second recipient missing")
+	}
+	second.SetActive(true)
+	if forward.Label() != "Forward (2)" {
+		t.Fatal("multiple recipients were not selected")
+	}
 	if !forward.Sensitive() {
 		t.Fatal("selecting a destination did not enable forward")
 	}
 	search.SetText("no matching person")
 	pumpSidebarEvents(300 * time.Millisecond)
-	if list.RowAtIndex(0) != nil || forward.Sensitive() {
-		t.Fatal("search retained stale destination selection")
+	if list.RowAtIndex(0) != nil || !forward.Sensitive() {
+		t.Fatal("search lost selected destinations")
+	}
+	search.SetText("")
+	pumpSidebarEvents(300 * time.Millisecond)
+	count := 0
+	walkDialog(list, func(w gtk.Widgetter) {
+		if b, ok := w.(*gtk.CheckButton); ok && b.Active() {
+			count++
+		}
+	})
+	if count != 2 {
+		t.Fatal("search did not preserve both recipient selections")
 	}
 }
 

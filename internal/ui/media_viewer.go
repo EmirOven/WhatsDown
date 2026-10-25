@@ -144,6 +144,9 @@ func (c *MainController) buildMediaViewer(msg store.StoredMessage, load func(con
 	keys := gtk.NewEventControllerKey()
 	keys.SetPropagationPhase(gtk.PhaseCapture)
 	c.trackWidgetSignal(toolbar, keys, keys.ConnectKeyPressed(func(key, _ uint, _ gdk.ModifierType) bool {
+		if c.window.VisibleDialog() != nil {
+			return false
+		}
 		if key == gdk.KEY_Escape {
 			view.Close()
 			return true

@@ -10,12 +10,21 @@ import (
 )
 
 func (ctrl *MainController) handleChatViewKeyPress(val uint, code uint, state gdk.ModifierType) bool {
+	if ctrl.window != nil && ctrl.window.VisibleDialog() != nil {
+		return false
+	}
+	if state&gdk.ControlMask != 0 && (val == gdk.KEY_slash || val == gdk.KEY_question) {
+		return ctrl.handleAppShortcut(val, state)
+	}
 	if ctrl.mediaViewer != nil {
 		if val == gdk.KEY_Escape {
 			ctrl.mediaViewer.Close()
 			return true
 		}
 		return false
+	}
+	if ctrl.handleAppShortcut(val, state) {
+		return true
 	}
 	if ctrl.messageSelection != nil && ctrl.messageSelection.active {
 		if val == gdk.KEY_Escape {

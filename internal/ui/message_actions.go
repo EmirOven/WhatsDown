@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -118,8 +119,15 @@ func (c *MainController) showForwardMessages(messages []store.StoredMessage) {
 		c.messageActionError(err)
 		return
 	}
+	archived, err := c.store.ListArchivedChats(context.Background())
+	if err != nil {
+		c.messageActionError(err)
+		return
+	}
+	chats = append(chats, archived...)
 	win, box, header := c.newMessageDialog("Forward Messages", "Cancel")
-	header.SetTitleWidget(adw.NewWindowTitle("Forward Messages", fmt.Sprintf("%d selected", len(messages))))
+	title := adw.NewWindowTitle("Forward Messages", "")
+	header.SetTitleWidget(title)
 	forward := gtk.NewButtonWithLabel("Forward")
 	forward.AddCSSClass("suggested-action")
 	forward.SetSensitive(false)
@@ -133,8 +141,7 @@ func (c *MainController) showForwardMessages(messages []store.StoredMessage) {
 	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 	list := gtk.NewListBox()
 	list.AddCSSClass("boxed-list")
-	list.SetSelectionMode(gtk.SelectionSingle)
-	list.SetActivateOnSingleClick(true)
+	list.SetSelectionMode(gtk.SelectionNone)
 	list.SetVAlign(gtk.AlignStart)
 	scroll.SetChild(list)
 	box.Append(scroll)
@@ -144,67 +151,88 @@ func (c *MainController) showForwardMessages(messages []store.StoredMessage) {
 	empty.SetDescription("Try another name or group.")
 	empty.SetVisible(false)
 	box.Append(empty)
-	var visible []store.Chat
-	var indicators []*gtk.Image
-	var target string
+	selected := make(map[string]bool)
+	update := func() {
+		n := len(selected)
+		forward.SetSensitive(n > 0)
+		if n == 0 {
+			forward.SetLabel("Forward")
+		} else {
+			forward.SetLabel(fmt.Sprintf("Forward (%d)", n))
+		}
+		title.SetSubtitle(fmt.Sprintf("%d message(s) · %d recipient(s)", len(messages), n))
+	}
 	populate := func() {
-		target = ""
-		forward.SetSensitive(false)
+		for child := list.FirstChild(); child != nil; child = gtk.BaseWidget(child).NextSibling() {
+			c.releaseMessageWidget(child)
+		}
 		list.RemoveAll()
-		visible = nil
-		indicators = nil
 		query := strings.ToLower(strings.TrimSpace(search.Text()))
+		visible := 0
 		for _, chat := range chats {
 			if !strings.Contains(strings.ToLower(formatDisplayName(chat)+" "+chat.JID), query) {
 				continue
 			}
 			row := c.messageIdentityRow(chat.JID, formatDisplayName(chat), "")
-			row.SetSelectable(true)
-			row.SetActivatable(true)
-			check := gtk.NewImageFromIconName("object-select-symbolic")
-			check.SetVisible(false)
+			check := gtk.NewCheckButton()
+			check.SetVAlign(gtk.AlignCenter)
+			check.SetTooltipText("Forward to " + formatDisplayName(chat))
+			check.SetActive(selected[chat.JID])
+			c.trackWidgetSignal(check, check, check.ConnectToggled(func() {
+				if check.Active() {
+					selected[chat.JID] = true
+				} else {
+					delete(selected, chat.JID)
+				}
+				update()
+			}))
 			row.AddSuffix(check)
+			row.SetActivatableWidget(check)
+			row.SetActivatable(true)
 			list.Append(row)
-			visible = append(visible, chat)
-			indicators = append(indicators, check)
+			visible++
 		}
-		empty.SetVisible(len(visible) == 0)
-		scroll.SetVisible(len(visible) > 0)
+		empty.SetVisible(visible == 0)
+		scroll.SetVisible(visible > 0)
 	}
-	list.ConnectRowSelected(func(selected *gtk.ListBoxRow) {
-		target = ""
-		for i := range visible {
-			row := list.RowAtIndex(i)
-			if row == nil {
-				continue
-			}
-			indicators[i].SetVisible(selected != nil && selected.Index() == i)
-			if selected != nil && selected.Index() == i {
-				target = visible[i].JID
-			}
-		}
-		forward.SetSensitive(target != "")
-	})
-	forward.ConnectClicked(func() {
-		if target == "" {
+	c.trackWidgetSignal(win, forward, forward.ConnectClicked(func() {
+		if len(selected) == 0 {
 			return
 		}
-		destination := target
+		var destinations []store.Chat
+		for _, chat := range chats {
+			if selected[chat.JID] {
+				destinations = append(destinations, chat)
+			}
+		}
 		c.cancelMessageSelection()
 		win.Close()
 		go func() {
-			for _, msg := range messages {
-				if err := c.forwardMessage(msg, destination); err != nil {
-					glib.IdleAdd(func() { c.messageActionError(err) })
-					return
-				}
+			if err := forwardToDestinations(messages, destinations, c.forwardMessage); err != nil {
+				glib.IdleAdd(func() { c.messageActionError(err) })
 			}
 		}()
-	})
-	search.ConnectSearchChanged(populate)
+	}))
+	c.trackWidgetSignal(win, search, search.ConnectSearchChanged(populate))
+	c.trackWidgetSignal(win, win, win.ConnectCloseRequest(func() bool { c.releaseMessageWidget(win); return false }))
 	populate()
+	update()
 	win.Present()
 	search.GrabFocus()
+}
+
+// Preserve message order per recipient, and still try other recipients after a failure.
+func forwardToDestinations(messages []store.StoredMessage, destinations []store.Chat, send func(store.StoredMessage, string) error) error {
+	var failures []error
+	for _, destination := range destinations {
+		for _, message := range messages {
+			if err := send(message, destination.JID); err != nil {
+				failures = append(failures, fmt.Errorf("forwarding to %s: %w", formatDisplayName(destination), err))
+				break
+			}
+		}
+	}
+	return errors.Join(failures...)
 }
 
 func buildForwardMessage(msg store.StoredMessage) (*waE2E.Message, error) {

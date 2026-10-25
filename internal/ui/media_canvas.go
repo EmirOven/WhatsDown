@@ -17,12 +17,14 @@ type mediaCanvas struct {
 	Zoom     float64
 	Rotation int
 	label    *gtk.Label
+	panning  bool
 }
 
 func (c *MainController) newMediaCanvas() *mediaCanvas {
 	v := &mediaCanvas{Scroll: gtk.NewScrolledWindow(), Picture: gtk.NewPicture(), Zoom: 1}
 	v.Scroll.SetHExpand(true)
 	v.Scroll.SetVExpand(true)
+	v.Scroll.SetKineticScrolling(false)
 	v.Picture.SetKeepAspectRatio(true)
 	v.Picture.SetCanShrink(true)
 	v.Picture.SetHExpand(true)
@@ -61,27 +63,41 @@ func (c *MainController) newMediaCanvas() *mediaCanvas {
 	v.Scroll.AddController(wheel)
 	drag := gtk.NewGestureDrag()
 	drag.SetButton(1)
+	drag.SetPropagationPhase(gtk.PhaseCapture)
 	var x, y float64
-	c.trackWidgetSignal(v.Scroll, drag, drag.ConnectDragBegin(func(_, _ float64) {
-		x = v.Scroll.HAdjustment().Value()
-		y = v.Scroll.VAdjustment().Value()
-		if v.Zoom > 1 {
-			drag.SetState(gtk.EventSequenceClaimed)
-			v.Picture.SetCursorFromName("grabbing")
+	c.trackWidgetSignal(v.Scroll, drag, drag.ConnectDragBegin(func(px, py float64) {
+		v.panning = false
+		for target := v.Scroll.Pick(px, py, gtk.PickDefault); target != nil; target = gtk.BaseWidget(target).Parent() {
+			if _, ok := target.(*gtk.Scrollbar); ok {
+				drag.SetState(gtk.EventSequenceDenied)
+				return
+			}
 		}
+		horizontal, vertical := v.Scroll.HAdjustment(), v.Scroll.VAdjustment()
+		if v.Zoom <= 1 || (horizontal.Upper() <= horizontal.PageSize() && vertical.Upper() <= vertical.PageSize()) {
+			drag.SetState(gtk.EventSequenceDenied)
+			return
+		}
+		x, y = horizontal.Value(), vertical.Value()
+		v.panning = true
+		drag.SetState(gtk.EventSequenceClaimed)
+		v.Picture.SetCursorFromName("grabbing")
 	}))
 	c.trackWidgetSignal(v.Scroll, drag, drag.ConnectDragUpdate(func(dx, dy float64) {
-		if v.Zoom > 1 {
-			v.Scroll.HAdjustment().SetValue(x - dx)
-			v.Scroll.VAdjustment().SetValue(y - dy)
+		if !v.panning {
+			return
 		}
+		setPanAdjustment(v.Scroll.HAdjustment(), x-dx)
+		setPanAdjustment(v.Scroll.VAdjustment(), y-dy)
 	}))
 	c.trackWidgetSignal(v.Scroll, drag, drag.ConnectDragEnd(func(_, _ float64) {
+		v.panning = false
 		if v.Zoom > 1 {
 			v.Picture.SetCursorFromName("grab")
 		}
 	}))
-	v.Picture.AddController(drag)
+	// Gesture offsets must stay in viewport coordinates: the picture moves as we pan.
+	v.Scroll.AddController(drag)
 	return v
 }
 func (v *mediaCanvas) SetTexture(texture *gdk.Texture) {
@@ -89,10 +105,12 @@ func (v *mediaCanvas) SetTexture(texture *gdk.Texture) {
 	v.updateSize()
 }
 func (v *mediaCanvas) Rotate() {
+	v.panning = false
 	v.Rotation = (v.Rotation + 90) % 360
 	v.updateSize()
 }
 func (v *mediaCanvas) SetZoom(zoom float64) {
+	v.panning = false
 	v.Zoom = math.Max(.25, math.Min(8, zoom))
 	v.updateSize()
 }
@@ -166,4 +184,8 @@ func (v *mediaCanvas) ZoomByScroll(dy float64) {
 	if dy != 0 {
 		v.SetZoom(v.Zoom * math.Pow(1.15, -dy))
 	}
+}
+
+func setPanAdjustment(adjustment *gtk.Adjustment, value float64) {
+	adjustment.SetValue(math.Max(adjustment.Lower(), math.Min(math.Max(adjustment.Lower(), adjustment.Upper()-adjustment.PageSize()), value)))
 }

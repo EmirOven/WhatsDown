@@ -123,9 +123,13 @@ func pumpSidebarEvents(duration time.Duration) {
 }
 
 func nativeSidebarActions(t *testing.T, actions []any) {
+	nativeWindowActions(t, "WhatsDown sidebar native test", actions)
+}
+
+func nativeWindowActions(t *testing.T, title string, actions []any) {
 	t.Helper()
 	encoded, _ := json.Marshal(actions)
-	cmd := exec.Command("python3", "-c", sidebarXTest, string(encoded))
+	cmd := exec.Command("python3", "-c", sidebarXTest, string(encoded), title)
 	var output bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &output, &output
 	if err := cmd.Start(); err != nil {
@@ -175,7 +179,7 @@ x.XFree.argtypes=[P]
 def find(w):
  name=C.c_char_p()
  if x.XFetchName(d,w,C.byref(name)) and name.value:
-  match=name.value==b'WhatsDown sidebar native test'; x.XFree(name)
+  match=name.value==sys.argv[2].encode(); x.XFree(name)
   if match: return w
  r=U(); p=U(); kids=C.POINTER(U)(); n=C.c_uint()
  if not x.XQueryTree(d,w,C.byref(r),C.byref(p),C.byref(kids),C.byref(n)): return 0

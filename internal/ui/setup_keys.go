@@ -5,6 +5,9 @@ import (
 )
 
 func (ctrl *MainController) handleEntryKeyPress(val uint, code uint, state gdk.ModifierType) bool {
+	if ctrl.handleAppShortcut(val, state) {
+		return true
+	}
 	if ctrl.isMentionPopupVisible() {
 		if val == gdk.KEY_Up {
 			ctrl.navigateMentionPopup(-1)
@@ -41,6 +44,10 @@ func (ctrl *MainController) handleEntryKeyPress(val uint, code uint, state gdk.M
 			ctrl.hideEmojiSuggestions()
 			return true
 		}
+	}
+
+	if val == gdk.KEY_Up && state&(gdk.ControlMask|gdk.ShiftMask|gdk.AltMask|gdk.SuperMask) == 0 && ctrl.editLastSentMessage() {
+		return true
 	}
 
 	if val == gdk.KEY_Escape {

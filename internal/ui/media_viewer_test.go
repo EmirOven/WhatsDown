@@ -93,7 +93,7 @@ func TestMediaViewerPhotoAndActions(t *testing.T) {
 	}
 	pumpSidebarEvents(30 * time.Millisecond)
 	var drag *gtk.GestureDrag
-	controllers = win.Canvas.Picture.ObserveControllers()
+	controllers = win.Canvas.Scroll.ObserveControllers()
 	for i := uint(0); i < controllers.NItems(); i++ {
 		if candidate, ok := controllers.Item(i).Cast().(*gtk.GestureDrag); ok {
 			drag = candidate

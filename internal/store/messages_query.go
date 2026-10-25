@@ -70,3 +70,16 @@ func (s *MessageStore) GetMessageByID(ctx context.Context, id string) (*StoredMe
 	}
 	return &msgs[0], nil
 }
+
+// LatestOutgoingText also finds the last editable message outside the loaded page.
+func (s *MessageStore) LatestOutgoingText(ctx context.Context, chat string) (*StoredMessage, error) {
+	rows, err := s.db.QueryContext(ctx, selectMessagesSQL+` WHERE m.chat_jid=? AND m.from_me=1 AND m.kind='text' ORDER BY m.timestamp DESC,m.rowid DESC LIMIT 1`, chat)
+	if err != nil {
+		return nil, err
+	}
+	messages, err := s.scanMessagesWithReactions(ctx, rows)
+	if err != nil || len(messages) == 0 {
+		return nil, err
+	}
+	return &messages[0], nil
+}
