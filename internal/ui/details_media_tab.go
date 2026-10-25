@@ -64,8 +64,7 @@ func (c *MainController) buildDetailsMediaTab(dialog *adw.Dialog, mediaMsgs []st
 		leftClick.SetButton(1)
 		leftClick.ConnectPressed(func(nPress int, x, y float64) {
 			if nPress == 1 {
-				dialog.Close()
-				c.openMediaViewer(mCopy)
+				c.openDetailsMediaViewer(dialog, mCopy)
 			}
 		})
 		overlay.AddController(leftClick)

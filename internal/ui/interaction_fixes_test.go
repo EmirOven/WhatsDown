@@ -80,3 +80,39 @@ func TestSettingsAboutRowOpensNativeAboutDialog(t *testing.T) {
 	}
 	dialog.Close()
 }
+
+func TestSettingsButtonOpensShortcutHelp(t *testing.T) {
+	c := dialogTestController(t)
+	xml, err := os.ReadFile("../../ui/components/SettingsMenu.ui")
+	if err != nil {
+		t.Fatal(err)
+	}
+	builder := gtk.NewBuilder()
+	if err := builder.AddFromString(string(xml)); err != nil {
+		t.Fatal(err)
+	}
+	button, ok := castObject[*gtk.Button](builder, "settings_shortcuts_btn")
+	if !ok {
+		t.Fatal("shortcut help button missing")
+	}
+	c.bindSettingsWidgets(builder)
+	c.window.Present()
+	button.Emit("clicked")
+	dialog := c.window.VisibleDialog()
+	if dialog == nil || dialog.Title() != "Keyboard Shortcuts" {
+		t.Fatal("Settings did not open shortcut help")
+	}
+	defer dialog.Close()
+	caps, legacy := 0, 0
+	walkDialog(dialog, func(w gtk.Widgetter) {
+		if label, ok := w.(*gtk.Label); ok && label.HasCSSClass("shortcut-keycap") {
+			caps++
+		}
+		if _, ok := w.(*gtk.ShortcutLabel); ok {
+			legacy++
+		}
+	})
+	if caps != 21 || legacy != 0 {
+		t.Fatalf("keycaps=%d,legacy shortcut labels=%d", caps, legacy)
+	}
+}

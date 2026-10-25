@@ -17,6 +17,7 @@ type mediaViewer struct {
 	actions map[string]*gio.SimpleAction
 	Close   func()
 	Canvas  *mediaCanvas
+	host    *adw.Dialog
 }
 
 func (c *MainController) openMediaViewer(msg store.StoredMessage) *mediaViewer {
@@ -25,6 +26,15 @@ func (c *MainController) openMediaViewer(msg store.StoredMessage) *mediaViewer {
 
 // Overlay the existing root content, retaining the conversation and its scroll position.
 func (c *MainController) buildMediaViewer(msg store.StoredMessage, load func(context.Context) (string, error)) *mediaViewer {
+	return c.buildMediaViewerWithParent(msg, load, nil)
+}
+
+// A native dialog layer keeps Details alive, including its tab and scroll adjustments.
+func (c *MainController) openDetailsMediaViewer(parent *adw.Dialog, msg store.StoredMessage) *mediaViewer {
+	return c.buildMediaViewerWithParent(msg, func(ctx context.Context) (string, error) { return media.DownloadMedia(ctx, c.client, msg) }, parent)
+}
+
+func (c *MainController) buildMediaViewerWithParent(msg store.StoredMessage, load func(context.Context) (string, error), parent *adw.Dialog) *mediaViewer {
 	if c.mediaViewer != nil {
 		c.mediaViewer.Close()
 	}
@@ -56,6 +66,9 @@ func (c *MainController) buildMediaViewer(msg store.StoredMessage, load func(con
 	header.SetTitleWidget(adw.NewWindowTitle(title, ""))
 	back := gtk.NewButtonFromIconName("go-previous-symbolic")
 	back.SetTooltipText("Back to conversation")
+	if parent != nil {
+		back.SetTooltipText("Back to details")
+	}
 	header.PackStart(back)
 	for _, button := range []struct{ icon, tip, action string }{
 		{"mail-reply-sender-symbolic", "Reply", "media.reply"},
@@ -82,6 +95,13 @@ func (c *MainController) buildMediaViewer(msg store.StoredMessage, load func(con
 	content.Append(body)
 	toolbar.SetContent(content)
 	view := &mediaViewer{widget: toolbar, actions: make(map[string]*gio.SimpleAction)}
+	if parent != nil {
+		view.host = adw.NewDialog()
+		view.host.SetTitle(title)
+		view.host.SetContentWidth(max(360, c.window.Width()-32))
+		view.host.SetContentHeight(max(300, c.window.Height()-32))
+		view.host.SetChild(toolbar)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	alive := true
 	var stream *gtk.MediaFile
@@ -101,7 +121,11 @@ func (c *MainController) buildMediaViewer(msg store.StoredMessage, load func(con
 			timer = 0
 		}
 		c.releaseMessageWidget(toolbar)
-		c.rootOverlay.RemoveOverlay(toolbar)
+		if view.host != nil {
+			view.host.Close()
+		} else {
+			c.rootOverlay.RemoveOverlay(toolbar)
+		}
 		if c.mediaViewer == view {
 			c.mediaViewer = nil
 		}
@@ -110,6 +134,9 @@ func (c *MainController) buildMediaViewer(msg store.StoredMessage, load func(con
 		}
 	}
 	c.trackWidgetSignal(toolbar, back, back.ConnectClicked(view.Close))
+	if view.host != nil {
+		c.trackWidgetSignal(toolbar, view.host, view.host.ConnectClosed(view.Close))
+	}
 	c.trackWidgetSignal(toolbar, c.window, c.window.ConnectDestroy(view.Close))
 	var path string
 	group := gio.NewSimpleActionGroup()
@@ -126,9 +153,15 @@ func (c *MainController) buildMediaViewer(msg store.StoredMessage, load func(con
 		view.actions[name] = action
 		return action
 	}
-	add(nil, "reply", "_Reply", func() { view.Close(); c.jumpToMessage(msg.ChatJID, msg.ID); c.startReply(msg) })
-	add(nil, "forward", "_Forward…", func() { view.Close(); c.showForwardMessages([]store.StoredMessage{msg}) })
-	add(messageMenu, "go-to-message", "_Go to Message", func() { view.Close(); c.jumpToMessage(msg.ChatJID, msg.ID) })
+	leave := func() {
+		view.Close()
+		if parent != nil {
+			parent.Close()
+		}
+	}
+	add(nil, "reply", "_Reply", func() { leave(); c.jumpToMessage(msg.ChatJID, msg.ID); c.startReply(msg) })
+	add(nil, "forward", "_Forward…", func() { leave(); c.showForwardMessages([]store.StoredMessage{msg}) })
+	add(messageMenu, "go-to-message", "_Go to Message", func() { leave(); c.jumpToMessage(msg.ChatJID, msg.ID) })
 	external := add(fileMenu, "open-external", "Open in _Default App", func() {
 		if err := media.OpenFile(path); err != nil {
 			status.SetText(err.Error())
@@ -156,7 +189,11 @@ func (c *MainController) buildMediaViewer(msg store.StoredMessage, load func(con
 	c.window.AddController(keys)
 	c.trackWidgetCleanup(toolbar, func() { c.window.RemoveController(keys) })
 	c.mediaViewer = view
-	c.rootOverlay.AddOverlay(toolbar)
+	if view.host != nil {
+		view.host.Present(c.window)
+	} else {
+		c.rootOverlay.AddOverlay(toolbar)
+	}
 	c.window.Present()
 	back.GrabFocus()
 	go func() {

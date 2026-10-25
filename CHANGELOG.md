@@ -1,6 +1,6 @@
 # Changelog
 
-## Release 3
+## Release 3 (Functional)
 
 ### Added
 
@@ -9,12 +9,13 @@
 - Added the last message sender to group chat previews.
 - Added in-window photo, video, and PDF viewers with zoom, rotation, page navigation, and actions to reply, forward, locate, or open media in another application.
 - Added voice-message seeking, pause/resume, and pitch-preserving playback at 0.5x, 1x, 1.5x, and 2x.
-- Added keyboard shortcuts for chat navigation, selected-text formatting, editing the last sent message, sending files, and viewing shortcut help.
-- Added a Read All button to Chats and a native About dialog in Settings.
+- Added keyboard shortcuts for chat navigation, selected-text formatting, editing the last sent message, sending files, and viewing shortcut help from the keyboard or Settings.
+- Added a Read All button to Chats and a About dialog in Settings.
 - Added clickable message links and day separators labelled Today, Yesterday, or the date.
 
 ### Fixed
 
+- Fixed emoji autocomplete leaving shortcode text behind when messages contained emoji or accented characters.
 - Fixed read and delivery status synchronization across linked devices and group participants.
 - Fixed excessive memory usage when opening chats, viewing media, and syncing with WhatsApp.
 - Fixed typing stalls when updating the message composer and loading mention suggestions.

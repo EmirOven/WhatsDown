@@ -1267,3 +1267,18 @@ tabbar:drop(active) {
 .chat-bubble-outgoing .poll-progress-bar progress {
  background-color: alpha(white, 0.8);
 }
+
+.shortcut-keycaps { margin: 7px 0; }
+.shortcut-keycap {
+  min-width: 20px;
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 1px solid alpha(currentColor, 0.2);
+  border-bottom: 3px solid alpha(currentColor, 0.3);
+  border-radius: 4px;
+  background-color: alpha(currentColor, 0.08);
+  box-shadow: 0 1px 1px alpha(black, 0.12);
+  font-size: 10pt;
+  font-weight: 600;
+}
+.shortcut-key-separator { opacity: 0.6; font-size: 9pt; }

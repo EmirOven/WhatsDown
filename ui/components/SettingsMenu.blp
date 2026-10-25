@@ -202,6 +202,30 @@ Adw.ToolbarView settings_page {
       }
 
       Adw.PreferencesGroup {
+        title: _("Help");
+
+        Adw.ActionRow settings_shortcuts_row {
+          activatable: true;
+          title: _("Keyboard Shortcuts");
+          subtitle: _("View navigation and message formatting shortcuts");
+          activatable-widget: settings_shortcuts_btn;
+
+          [prefix]
+          Gtk.Image {
+            icon-name: "input-keyboard-symbolic";
+          }
+
+          [suffix]
+          Gtk.Button settings_shortcuts_btn {
+            label: _("View");
+            tooltip-text: _("View keyboard shortcuts");
+            valign: center;
+            styles ["flat"]
+          }
+        }
+      }
+
+      Adw.PreferencesGroup {
         title: _("About");
 
         Adw.ActionRow settings_about_row {

@@ -1,9 +1,6 @@
 package ui
 
 import (
-	"strings"
-	"unicode"
-
 	"postbetasoftware.com/whatsdown/internal/emoji"
 )
 
@@ -22,29 +19,12 @@ func (c *MainController) checkEmojiSuggestion() {
 	startIter := buf.StartIter()
 	textBefore := buf.Text(startIter, cursorIter, false)
 
-	lastColon := strings.LastIndex(textBefore, ":")
-	if lastColon == -1 {
+	offset, query, ok := activeEmojiQuery(textBefore)
+	if !ok {
 		c.hideEmojiSuggestions()
 		return
 	}
-
-	query := textBefore[lastColon+1:]
-	for _, r := range query {
-		if unicode.IsSpace(r) {
-			c.hideEmojiSuggestions()
-			return
-		}
-	}
-
-	if lastColon > 0 {
-		prevChar := rune(textBefore[lastColon-1])
-		if !unicode.IsSpace(prevChar) && prevChar != '\n' && prevChar != '(' && prevChar != '[' {
-			c.hideEmojiSuggestions()
-			return
-		}
-	}
-
-	c.emojiColonStartPos = lastColon
+	c.emojiColonStartPos = offset
 	emojis := emoji.Search(query, 8)
 	if len(emojis) == 0 {
 		c.hideEmojiSuggestions()

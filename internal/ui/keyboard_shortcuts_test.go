@@ -140,14 +140,35 @@ func TestShortcutHelpIsNativeModal(t *testing.T) {
 	defer dialog.Close()
 	labels := 0
 	walkDialog(dialog, func(w gtk.Widgetter) {
-		if _, ok := w.(*gtk.ShortcutLabel); ok {
+		if label, ok := w.(*gtk.Label); ok && label.HasCSSClass("shortcut-keycap") {
 			labels++
 		}
 	})
-	if labels != 11 {
+	if labels != 21 {
 		t.Fatalf("shortcut labels=%d", labels)
 	}
 	if c.handleChatViewKeyPress(gdk.KEY_Tab, 0, gdk.ControlMask) {
 		t.Fatal("chat navigation intercepted modal dialog input")
+	}
+}
+
+func TestUpEditsWithoutComposerFocus(t *testing.T) {
+	c := shortcutComposer(t, "")
+	if err := c.store.SaveMessage(t.Context(), store.StoredMessage{ChatJID: c.currentChat.JID, ID: "last", FromMe: true, Kind: store.MessageKindText, Text: "edit me", Timestamp: time.Unix(100, 0)}); err != nil {
+		t.Fatal(err)
+	}
+	box := gtk.NewBox(gtk.OrientationVertical, 0)
+	c.rootOverlay.SetChild(nil)
+	box.Append(c.messageEntry)
+	button := gtk.NewButtonWithLabel("Other control")
+	box.Append(button)
+	c.rootOverlay.SetChild(box)
+	button.GrabFocus()
+	pumpSidebarEvents(20 * time.Millisecond)
+	if c.composerFocused() {
+		t.Fatal("test still has composer focus")
+	}
+	if !c.handleChatViewKeyPress(gdk.KEY_Up, 0, 0) || c.editingMessage == nil || c.getMessageText() != "edit me" {
+		t.Fatal("global Up did not edit last message")
 	}
 }

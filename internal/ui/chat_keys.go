@@ -43,6 +43,11 @@ func (ctrl *MainController) handleChatViewKeyPress(val uint, code uint, state gd
 	if ctrl.isAnySearchEntryFocused() {
 		return false
 	}
+	if val == gdk.KEY_Up && state&(gdk.ControlMask|gdk.ShiftMask|gdk.AltMask|gdk.SuperMask) == 0 && !ctrl.composerFocused() {
+		if ctrl.sidebarStack == nil || ctrl.sidebarStack.VisibleChildName() == "chats" || ctrl.sidebarStack.VisibleChildName() == "archived" {
+			return ctrl.editLastSentMessage()
+		}
+	}
 
 	if (state&gdk.ControlMask != 0 && (val == gdk.KEY_v || val == gdk.KEY_V)) ||
 		(state&gdk.ShiftMask != 0 && val == gdk.KEY_Insert) {

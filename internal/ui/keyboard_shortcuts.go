@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"strings"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
@@ -160,7 +161,7 @@ func (c *MainController) showKeyboardShortcuts() *adw.Dialog {
 			row := adw.NewActionRow()
 			row.SetTitle(shortcut[1])
 			row.SetUseMarkup(false)
-			row.AddSuffix(gtk.NewShortcutLabel(shortcut[0]))
+			row.AddSuffix(shortcutKeycaps(shortcut[0]))
 			list.Append(row)
 		}
 		group.Add(list)
@@ -175,4 +176,35 @@ func (c *MainController) showKeyboardShortcuts() *adw.Dialog {
 	dialog.SetChild(toolbar)
 	dialog.Present(c.window)
 	return dialog
+}
+
+func shortcutKeycaps(accelerator string) *gtk.Box {
+	chord := gtk.NewBox(gtk.OrientationHorizontal, 4)
+	chord.SetVAlign(gtk.AlignCenter)
+	chord.AddCSSClass("shortcut-keycaps")
+	var keys []string
+	for _, modifier := range []struct{ token, label string }{{"<Control>", "Ctrl"}, {"<Shift>", "Shift"}, {"<Alt>", "Alt"}, {"<Super>", "Super"}} {
+		if strings.Contains(accelerator, modifier.token) {
+			keys = append(keys, modifier.label)
+			accelerator = strings.ReplaceAll(accelerator, modifier.token, "")
+		}
+	}
+	key := map[string]string{"slash": "/", "Escape": "Esc", "Up": "Up", "Tab": "Tab"}[accelerator]
+	if key == "" {
+		key = strings.ToUpper(accelerator)
+	}
+	keys = append(keys, key)
+	for i, key := range keys {
+		if i > 0 {
+			plus := gtk.NewLabel("+")
+			plus.AddCSSClass("shortcut-key-separator")
+			chord.Append(plus)
+		}
+		cap := gtk.NewLabel(key)
+		cap.AddCSSClass("shortcut-keycap")
+		cap.SetVAlign(gtk.AlignCenter)
+		chord.Append(cap)
+	}
+	chord.SetTooltipText(strings.Join(keys, " + "))
+	return chord
 }

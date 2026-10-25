@@ -2,6 +2,8 @@ package ui
 
 import (
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
@@ -55,14 +57,34 @@ func (c *MainController) commitSelectedEmoji() {
 			startIter := buf.StartIter()
 			textBefore := buf.Text(startIter, cursorIter, false)
 
-			lastColon := strings.LastIndex(textBefore, ":")
-			if lastColon != -1 && lastColon <= int(cursorIter.Offset()) {
-				colonIter := buf.IterAtOffset(lastColon)
-				buf.Delete(colonIter, cursorIter)
-				buf.InsertAtCursor(selectedEmoji)
-			} else {
-				buf.InsertAtCursor(selectedEmoji)
+			offset, _, ok := activeEmojiQuery(textBefore)
+			if !ok {
+				c.hideEmojiSuggestions()
+				c.messageEntry.GrabFocus()
+				return
 			}
+			colonIter := buf.IterAtOffset(offset)
+			endOffset := cursorIter.Offset()
+			closed := strings.HasSuffix(textBefore, ":") && endOffset > offset+1
+			if !closed {
+				tail := buf.Text(cursorIter, buf.EndIter(), false)
+				for _, r := range tail {
+					if r == ':' {
+						endOffset++
+						break
+					}
+					if !unicode.IsLetter(r) && !unicode.IsDigit(r) && !unicode.IsMark(r) && r != '_' && r != '+' && r != '-' {
+						break
+					}
+					endOffset++
+				}
+			}
+			endIter := buf.IterAtOffset(endOffset)
+			buf.BeginUserAction()
+			buf.Delete(colonIter, endIter)
+			buf.Insert(colonIter, selectedEmoji)
+			buf.PlaceCursor(colonIter)
+			buf.EndUserAction()
 		}
 	}
 
@@ -70,4 +92,40 @@ func (c *MainController) commitSelectedEmoji() {
 	if c.messageEntry != nil {
 		c.messageEntry.GrabFocus()
 	}
+}
+
+// GTK iter offsets count Unicode characters rather than UTF-8 bytes.
+func activeEmojiQuery(text string) (int, string, bool) {
+	colon := strings.LastIndex(text, ":")
+	if colon < 0 {
+		return 0, "", false
+	}
+	boundary := func(index int) bool {
+		if index == 0 {
+			return true
+		}
+		previous, _ := utf8.DecodeLastRuneInString(text[:index])
+		return unicode.IsSpace(previous) || previous == '(' || previous == '['
+	}
+	valid := func(query string) bool {
+		for _, r := range query {
+			if unicode.IsSpace(r) || r == ':' {
+				return false
+			}
+		}
+		return true
+	}
+	query := text[colon+1:]
+	if colon == len(text)-1 {
+		if previous := strings.LastIndex(text[:colon], ":"); previous >= 0 {
+			candidate := text[previous+1 : colon]
+			if candidate != "" && boundary(previous) && valid(candidate) {
+				colon, query = previous, candidate
+			}
+		}
+	}
+	if !boundary(colon) || !valid(query) {
+		return 0, "", false
+	}
+	return utf8.RuneCountInString(text[:colon]), query, true
 }

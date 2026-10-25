@@ -54,8 +54,7 @@ func (c *MainController) buildDetailsDocsTab(dialog *adw.Dialog, docMsgs []store
 		mCopy := m
 		openBtn.ConnectClicked(func() {
 			if e2e != nil && (strings.Contains(e2e.GetDocumentMessage().GetMimetype(), "pdf") || strings.HasSuffix(strings.ToLower(e2e.GetDocumentMessage().GetFileName()), ".pdf")) {
-				dialog.Close()
-				c.openMediaViewer(mCopy)
+				c.openDetailsMediaViewer(dialog, mCopy)
 			} else {
 				media.OpenMedia(c.client, mCopy, nil)
 			}
@@ -64,8 +63,7 @@ func (c *MainController) buildDetailsDocsTab(dialog *adw.Dialog, docMsgs []store
 		row.SetActivatable(true)
 		row.ConnectActivated(func() {
 			if e2e != nil && (strings.Contains(e2e.GetDocumentMessage().GetMimetype(), "pdf") || strings.HasSuffix(strings.ToLower(e2e.GetDocumentMessage().GetFileName()), ".pdf")) {
-				dialog.Close()
-				c.openMediaViewer(mCopy)
+				c.openDetailsMediaViewer(dialog, mCopy)
 			} else {
 				media.OpenMedia(c.client, mCopy, nil)
 			}

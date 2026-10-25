@@ -18,6 +18,9 @@ var (
 )
 
 func (ctrl *MainController) bindSettingsWidgets(builder *gtk.Builder) {
+	if button, ok := castObject[*gtk.Button](builder, "settings_shortcuts_btn"); ok {
+		button.ConnectClicked(func() { ctrl.showKeyboardShortcuts() })
+	}
 	if row, ok := castObject[*adw.ActionRow](builder, "settings_about_row"); ok {
 		row.ConnectActivated(func() { ctrl.showAboutDialog() })
 	}
