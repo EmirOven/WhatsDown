@@ -3,10 +3,11 @@ package ui
 import (
 	"context"
 	"fmt"
+	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
-	"os"
 	"os/exec"
 	"postbetasoftware.com/whatsdown/internal/avatar"
+	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
@@ -38,9 +39,21 @@ func (c *MainController) dispatchDesktopNotification(chatJID, senderJID, title, 
 			notif.SetBody(body)
 			notif.SetDefaultActionAndTarget("app.open-notification-chat", glib.NewVariantString(chatJID))
 			notif.SetIcon(gio.NewThemedIcon("chat-message-new-symbolic"))
-			avatar.LoadTexture(c.client, senderJID, false, func(_ *gdk.Texture) {
-				if data, err := os.ReadFile(avatar.DiskPath(senderJID)); err == nil && len(data) > 0 {
-					notif.SetIcon(gio.NewBytesIcon(glib.NewBytesWithGo(data)))
+			avatarJID := notificationAvatarJID(chatJID, senderJID)
+			avatar.LoadTexture(c.client, avatarJID, false, func(texture *gdk.Texture) {
+				if texture != nil {
+					notif.SetIcon(gio.NewBytesIcon(texture.SaveToPNGBytes()))
+				} else if strings.HasSuffix(chatJID, "@g.us") {
+					name := c.resolveContactName(chatJID)
+					if name == "" || name == chatJID {
+						name = "Group"
+					}
+					placeholder := adw.NewAvatar(64, name, true)
+					c.rootOverlay.AddOverlay(placeholder)
+					placeholder.Allocate(64, 64, -1, nil)
+					texture := gdk.BaseTexture(placeholder.DrawToTexture(1))
+					c.rootOverlay.RemoveOverlay(placeholder)
+					notif.SetIcon(gio.NewBytesIcon(texture.SaveToPNGBytes()))
 				}
 				appInstance.SendNotification("", notif)
 			})
@@ -156,4 +169,11 @@ func openPendingNotificationChat() {
 	}
 	c.selectChat(chat)
 	c.window.Present()
+}
+
+func notificationAvatarJID(chatJID, senderJID string) string {
+	if strings.HasSuffix(chatJID, "@g.us") {
+		return chatJID
+	}
+	return senderJID
 }

@@ -4,7 +4,7 @@
 
 ### Added
 
-- Added sender avatars to desktop notifications.
+- Added sender avatars to direct-message notifications and group avatars to group notifications.
 - Added coloured chat folders with avatar clusters, multiple-chat selection, drag-and-drop organization, and an Add to Folder context-menu action.
 - Added message selection, forwarding to multiple recipients, deletion, and per-recipient Message Info.
 - Added the last message sender to group chat previews.
