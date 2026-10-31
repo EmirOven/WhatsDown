@@ -312,6 +312,10 @@ func (c *MainController) forwardMessage(msg store.StoredMessage, destination str
 		return err
 	}
 	sent := store.StoredMessage{ChatJID: destination, ID: id, FromMe: true, SenderName: "You", Timestamp: time.Now(), Kind: msg.Kind, Text: msg.Text, Raw: raw, Status: store.MessageStatusSent}
+	if c.store.IsDemo() {
+		sent.SenderJID = store.DemoSelfJID
+	}
+	copyCachedMedia(msg, sent)
 	if err := c.saveOutgoingMessage(context.Background(), sent); err != nil {
 		return err
 	}

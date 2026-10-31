@@ -7,6 +7,11 @@ import (
 )
 
 func (c *MainController) jumpToMessage(chatJID, msgID string) {
+	if msgID == "" {
+		return
+	}
+	c.autoScrollBottom = false
+	c.isAutoScrolling = false
 	if c.currentChat == nil || !c.isSameChat(c.currentChat.JID, chatJID) {
 		if c.store == nil {
 			return
@@ -20,16 +25,30 @@ func (c *MainController) jumpToMessage(chatJID, msgID string) {
 	}
 	if c.messageRowMap[msgID] == nil && c.store != nil {
 		msg, err := c.store.GetMessage(context.Background(), chatJID, msgID)
-		if err != nil || msg == nil {
-			return
+		if err == nil && msg == nil {
+			msg, _ = c.store.GetMessageByID(context.Background(), msgID)
 		}
-		c.loadMessagesBefore(chatJID, msg.Timestamp.Add(time.Second))
+		if msg != nil {
+			c.loadMessagesBefore(chatJID, msg.Timestamp.Add(time.Second))
+		}
 	}
-	// Let layout and the existing chat-load scroll animation finish first.
-	glib.TimeoutAdd(250, func() bool {
-		if c.currentChat != nil && c.isSameChat(c.currentChat.JID, chatJID) {
+	c.autoScrollBottom = false
+	attempts := 0
+	var tryScroll func() bool
+	tryScroll = func() bool {
+		if c.currentChat == nil || !c.isSameChat(c.currentChat.JID, chatJID) {
+			return false
+		}
+		c.autoScrollBottom = false
+		if _, ok := c.messageRowMap[msgID]; ok {
 			c.scrollToMessageID(msgID)
+			return false
+		}
+		attempts++
+		if attempts < 10 {
+			glib.TimeoutAdd(100, tryScroll)
 		}
 		return false
-	})
+	}
+	glib.TimeoutAdd(100, tryScroll)
 }

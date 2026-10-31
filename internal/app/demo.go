@@ -52,7 +52,9 @@ func openDemoStore() (*store.MessageStore, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	dsn := (&url.URL{Scheme: "file", Path: filepath.Join(dir, "whatsdown_demo.db"), RawQuery: "_foreign_keys=on&_journal_mode=WAL&_busy_timeout=30000&_synchronous=NORMAL&_txlock=immediate"}).String()
+	dbPath := filepath.Join(dir, "whatsdown_demo.db")
+	resetOutdatedDemoDatabase(dbPath)
+	dsn := (&url.URL{Scheme: "file", Path: dbPath, RawQuery: "_foreign_keys=on&_journal_mode=WAL&_busy_timeout=30000&_synchronous=NORMAL&_txlock=immediate"}).String()
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("opening demo database: %w", err)
@@ -63,6 +65,7 @@ func openDemoStore() (*store.MessageStore, error) {
 		return nil, fmt.Errorf("opening demo message store: %w", err)
 	}
 	_ = s.SeedDemoData(ctx)
+	installDemoMedia()
 	demoMsgStore = s
 	return s, nil
 }

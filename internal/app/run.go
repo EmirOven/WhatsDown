@@ -14,9 +14,6 @@ import (
 func Run() {
 	gtkArgs := parseCustomArgs(os.Args)
 	flags := gio.ApplicationDefaultFlags
-	if devMode {
-		flags = gio.ApplicationNonUnique
-	}
 	app := adw.NewApplication("com.postbetasoftware.WhatsDown", flags)
 	application = app
 	ui.SetAppInstance(&app.Application.Application)
@@ -43,6 +40,8 @@ func Run() {
 
 	app.ConnectActivate(func() {
 		if currentWindow != nil {
+			currentWindow.SetVisible(true)
+			currentWindow.Unminimize()
 			currentWindow.Present()
 			return
 		}

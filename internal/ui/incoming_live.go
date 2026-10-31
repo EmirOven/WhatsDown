@@ -70,7 +70,9 @@ func (c *MainController) HandleIncomingLiveMessage(evt *events.Message) {
 				c.updateSingleMessageRow(newMsg.ID)
 			}
 		}
-		c.markChatRead(chatStr)
+		if c.isWindowFocused() {
+			c.markChatRead(chatStr)
+		}
 	}
 
 	c.loadChats()
@@ -83,9 +85,9 @@ func (c *MainController) HandleIncomingLiveMessage(evt *events.Message) {
 				isMuted = ch.Muted
 			}
 		}
-		if !isMuted {
+		if !isMuted && !c.isCurrentChatAndFocused(chatStr) {
 			title, body := c.formatNotificationContent(evt)
-			c.dispatchDesktopNotification(chatStr, evt.Info.Sender.ToNonAD().String(), title, body)
+			c.dispatchDesktopNotification(chatStr, evt.Info.Sender.ToNonAD().String(), evt.Info.ID, title, body)
 		}
 	}
 }

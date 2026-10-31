@@ -24,6 +24,9 @@ func (s *MessageStore) SeedDemoData(ctx context.Context) error {
 	if err := s.seedDemoExtras(ctx, now); err != nil {
 		return err
 	}
+	if err := s.seedDemoRelease3(ctx, now); err != nil {
+		return err
+	}
 	return nil
 }
 

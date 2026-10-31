@@ -55,6 +55,12 @@ func SetupMainWindow(builder *gtk.Builder, client *whatsmeow.Client, s *store.Me
 	ctrl.loadArchivedChats()
 	ctrl.refreshSettingsInfo()
 
+	window.NotifyProperty("is-active", func() {
+		if window.IsActive() && ctrl.currentChat != nil {
+			ctrl.markChatRead(ctrl.currentChat.JID)
+		}
+	})
+
 	openPendingNotificationChat()
 	return window, nil
 }

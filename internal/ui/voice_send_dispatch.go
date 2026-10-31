@@ -18,10 +18,11 @@ import (
 
 func (c *MainController) dispatchVoiceSend(chatJIDStr string, data []byte, seconds uint32, waveform []byte, ctxInfo *waE2E.ContextInfo) {
 	ctx := context.Background()
-	var msgID string
+	var msgID, senderJID string
 	var rawProto []byte
+	initStatus := store.MessageStatusSent
 
-	if c.client != nil {
+	if c.client != nil && !c.isDemo() {
 		targetJID, err := types.ParseJID(chatJIDStr)
 		if err != nil {
 			log.Printf("parsing JID for voice send: %v", err)
@@ -42,6 +43,11 @@ func (c *MainController) dispatchVoiceSend(chatJIDStr string, data []byte, secon
 		rawProto, _ = proto.Marshal(waMsg)
 	} else {
 		msgID = fmt.Sprintf("dev_voice_%d", time.Now().UnixNano())
+		if c.isDemo() {
+			msgID = fmt.Sprintf("demo_voice_%d", time.Now().UnixNano())
+			senderJID = store.DemoSelfJID
+			initStatus = store.MessageStatusRead
+		}
 		waMsg := &waE2E.Message{
 			AudioMessage: &waE2E.AudioMessage{
 				Mimetype:    proto.String("audio/ogg; codecs=opus"),
@@ -54,13 +60,13 @@ func (c *MainController) dispatchVoiceSend(chatJIDStr string, data []byte, secon
 		rawProto, _ = proto.Marshal(waMsg)
 	}
 
-	initStatus := store.MessageStatusSent
 	if c.isSelfJID(chatJIDStr) {
 		initStatus = store.MessageStatusRead
 	}
 	sentMsg := store.StoredMessage{
 		ChatJID:     chatJIDStr,
 		ID:          msgID,
+		SenderJID:   senderJID,
 		SenderName:  "You",
 		FromMe:      true,
 		Timestamp:   time.Now(),

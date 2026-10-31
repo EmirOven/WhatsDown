@@ -8,3 +8,4 @@ Type=Application
 Categories=Network;InstantMessaging;Chat;
 Keywords=WhatsApp;Chat;Message;
 StartupWMClass=com.postbetasoftware.whatsdown
+DBusActivatable=true

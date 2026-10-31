@@ -20,8 +20,7 @@ func connectWhatsApp(client *whatsmeow.Client) {
 			go func() {
 				time.Sleep(500 * time.Millisecond)
 				for _, name := range appstate.AllPatchNames {
-					fullSync := name == appstate.WAPatchRegularLow
-					_ = client.FetchAppState(context.Background(), name, fullSync, false)
+					_ = client.FetchAppState(context.Background(), name, false, false)
 				}
 			}()
 		}

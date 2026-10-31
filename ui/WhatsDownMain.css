@@ -279,6 +279,15 @@ popover.mention-popover > contents,
   font-size: 11pt;
 }
 
+.chat-bubble-text.chat-bubble-single-emoji,
+.chat-bubble-single-emoji {
+  font-size: 64pt;
+}
+
+.chat-bubble-single-emoji-box {
+  padding: 4px 10px;
+}
+
 .chat-bubble-text a {
   color: #3584e4;
   text-decoration: none;

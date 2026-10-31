@@ -1,0 +1,93 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [6 0 R 8 0 R 10 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Length 1218 >>
+stream
+0.106 0.533 0.384 rg 0 772 612 20 re f
+BT /F2 28 Tf 0.12 0.12 0.14 rg 56 730 Td (WhatsDown Release 3) Tj ET
+0.106 0.533 0.384 rg 56 718 500 1.5 re f
+BT /F1 16 Tf 0.12 0.12 0.14 rg 56 674 Td (Functional - release notes) Tj ET
+BT /F2 12 Tf 0.12 0.12 0.14 rg 56 632 Td (Messaging) Tj ET
+BT /F1 11 Tf 0.12 0.12 0.14 rg 56 611 Td (- Select messages, forward them to several chats at once, or delete them.) Tj ET
+BT /F1 11 Tf 0.12 0.12 0.14 rg 56 591 Td (- Message Info shows delivery and read times for every recipient.) Tj ET
+BT /F1 11 Tf 0.12 0.12 0.14 rg 56 571 Td (- Links in messages are clickable and days are separated in the history.) Tj ET
+BT /F1 11 Tf 0.12 0.12 0.14 rg 56 551 Td (- Group chat previews show who sent the last message.) Tj ET
+BT /F2 12 Tf 0.12 0.12 0.14 rg 56 519 Td (Organisation) Tj ET
+BT /F1 11 Tf 0.12 0.12 0.14 rg 56 498 Td (- Coloured chat folders with avatar clusters and drag-and-drop.) Tj ET
+BT /F1 11 Tf 0.12 0.12 0.14 rg 56 478 Td (- Add to Folder from the chat context menu, or select several chats.) Tj ET
+BT /F1 11 Tf 0.12 0.12 0.14 rg 56 458 Td (- Read All marks every chat as read in one click.) Tj ET
+BT /F1 9 Tf 0.45 0.45 0.5 rg 56 40 Td (WhatsDown Release 3 - page 1 of 3) Tj ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 5 0 R >>
+endobj
+7 0 obj
+<< /Length 1008 >>
+stream
+0.106 0.533 0.384 rg 0 772 612 20 re f
+BT /F2 22 Tf 0.12 0.12 0.14 rg 56 730 Td (Media) Tj ET
+0.106 0.533 0.384 rg 56 718 500 1.5 re f
+BT /F1 11 Tf 0.12 0.12 0.14 rg 56 680 Td (- In-window photo, video and PDF viewers.) Tj ET
+BT /F1 11 Tf 0.12 0.12 0.14 rg 56 660 Td (- Zoom, rotate and pan photos; page through PDF documents.) Tj ET
+BT /F1 11 Tf 0.12 0.12 0.14 rg 56 640 Td (- Reply, forward, locate in chat, or open in another application.) Tj ET
+BT /F1 11 Tf 0.12 0.12 0.14 rg 56 620 Td (- Voice messages support seeking, pause and resume.) Tj ET
+BT /F1 11 Tf 0.12 0.12 0.14 rg 56 600 Td (- Pitch-preserving playback at 0.5x, 1x, 1.5x and 2x.) Tj ET
+BT /F2 22 Tf 0.12 0.12 0.14 rg 56 568 Td (Notifications) Tj ET
+BT /F1 11 Tf 0.12 0.12 0.14 rg 56 532 Td (- Sender avatars for direct messages, group avatars for groups.) Tj ET
+BT /F1 11 Tf 0.12 0.12 0.14 rg 56 512 Td (- Clicking a notification opens the relevant chat.) Tj ET
+BT /F1 9 Tf 0.45 0.45 0.5 rg 56 40 Td (WhatsDown Release 3 - page 2 of 3) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 7 0 R >>
+endobj
+9 0 obj
+<< /Length 923 >>
+stream
+0.106 0.533 0.384 rg 0 772 612 20 re f
+BT /F2 22 Tf 0.12 0.12 0.14 rg 56 730 Td (Keyboard shortcuts) Tj ET
+0.106 0.533 0.384 rg 56 718 500 1.5 re f
+BT /F1 11 Tf 0.12 0.12 0.14 rg 56 680 Td (- Navigate between chats without leaving the keyboard.) Tj ET
+BT /F1 11 Tf 0.12 0.12 0.14 rg 56 660 Td (- Format selected text as bold, italic, strikethrough or code.) Tj ET
+BT /F1 11 Tf 0.12 0.12 0.14 rg 56 640 Td (- Press Up to edit the last message you sent.) Tj ET
+BT /F1 11 Tf 0.12 0.12 0.14 rg 56 620 Td (- Send files straight from the composer.) Tj ET
+BT /F1 11 Tf 0.12 0.12 0.14 rg 56 600 Td (- Open the shortcut overview from the keyboard or from Settings.) Tj ET
+BT /F2 22 Tf 0.12 0.12 0.14 rg 56 568 Td (Thank you!) Tj ET
+BT /F1 11 Tf 0.12 0.12 0.14 rg 56 532 Td (Try all of this right here in Demo Mode - no WhatsApp account required.) Tj ET
+BT /F1 9 Tf 0.45 0.45 0.5 rg 56 40 Td (WhatsDown Release 3 - page 3 of 3) Tj ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 9 0 R >>
+endobj
+xref
+0 11
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000134 00000 n 
+0000000231 00000 n 
+0000000333 00000 n 
+0000001603 00000 n 
+0000001739 00000 n 
+0000002799 00000 n 
+0000002935 00000 n 
+0000003909 00000 n 
+trailer
+<< /Size 11 /Root 1 0 R >>
+startxref
+4046
+%%EOF

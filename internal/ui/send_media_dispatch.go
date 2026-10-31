@@ -23,10 +23,17 @@ func (c *MainController) dispatchMediaSend(
 	ctxInfo *waE2E.ContextInfo,
 ) {
 	ctx := context.Background()
-	var msgID string
+	var msgID, senderJID string
 	var rawProto []byte
+	initStatus := store.MessageStatusSent
 
-	if c.client != nil {
+	if c.isDemo() {
+		// Keep the real media payload so demo bubbles open in the media viewers.
+		msgID = fmt.Sprintf("demo_media_%d", time.Now().UnixNano())
+		senderJID = store.DemoSelfJID
+		initStatus = store.MessageStatusRead
+		rawProto, _ = proto.Marshal(buildMediaProto(kind, caption, filename, mimeType, &whatsmeow.UploadResponse{}, uint64(len(data)), ctxInfo))
+	} else if c.client != nil {
 		targetJID, err := types.ParseJID(chatJIDStr)
 		if err != nil {
 			log.Printf("parsing JID for media send: %v", err)
@@ -53,13 +60,13 @@ func (c *MainController) dispatchMediaSend(
 		rawProto, _ = proto.Marshal(waMsg)
 	}
 
-	initStatus := store.MessageStatusSent
 	if c.isSelfJID(chatJIDStr) {
 		initStatus = store.MessageStatusRead
 	}
 	sentMsg := store.StoredMessage{
 		ChatJID:     chatJIDStr,
 		ID:          msgID,
+		SenderJID:   senderJID,
 		SenderName:  "You",
 		FromMe:      true,
 		Timestamp:   time.Now(),

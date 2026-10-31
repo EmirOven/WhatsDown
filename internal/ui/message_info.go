@@ -21,10 +21,13 @@ func (c *MainController) saveOutgoingMessage(ctx context.Context, msg store.Stor
 	if err := c.store.SaveMessage(ctx, msg); err != nil {
 		return err
 	}
+	if c.isDemo() {
+		return c.saveDemoReceipts(ctx, msg)
+	}
 	if !strings.HasSuffix(msg.ChatJID, "@g.us") {
 		return c.store.SetMessageRecipients(ctx, msg.ChatJID, msg.ID, []string{msg.ChatJID})
 	}
-	if c.client == nil || c.store.IsDemo() {
+	if c.client == nil {
 		return nil
 	}
 	jid, err := types.ParseJID(msg.ChatJID)

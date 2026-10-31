@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
 )
 
@@ -26,12 +27,17 @@ func SendAppState(ctx context.Context, client AppStateClient, patch appstate.Pat
 	if err == nil {
 		return nil
 	}
-	if !errors.Is(err, appstate.ErrMismatchingLTHash) && !errors.Is(err, appstate.ErrMismatchingPatchMAC) {
+	if !errors.Is(err, appstate.ErrMismatchingLTHash) && !errors.Is(err, appstate.ErrMismatchingPatchMAC) && !errors.Is(err, whatsmeow.ErrAppStateUpdate) {
 		return err
 	}
 	fetcher, ok := client.(stateFetcher)
 	if !ok {
 		return err
+	}
+	if errors.Is(err, whatsmeow.ErrAppStateUpdate) {
+		if fetchErr := fetcher.FetchAppState(ctx, patch.Type, false, false); fetchErr == nil {
+			return client.SendAppState(ctx, patch)
+		}
 	}
 	// Rebuild only the invalid collection from WhatsApp's authenticated snapshot.
 	if recoveryErr := fetcher.FetchAppState(ctx, patch.Type, true, false); recoveryErr != nil {

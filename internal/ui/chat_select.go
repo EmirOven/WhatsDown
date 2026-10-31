@@ -16,11 +16,19 @@ func (c *MainController) selectChat(chat store.Chat) {
 	c.setTypingIndicator(false)
 
 	displayName := formatDisplayName(chat)
-	c.activeChatBtn.SetSensitive(true)
-	c.activeChatTitle.SetTitle(displayName)
+	if c.activeChatBtn != nil {
+		c.activeChatBtn.SetSensitive(true)
+	}
+	if c.activeChatTitle != nil {
+		c.activeChatTitle.SetTitle(displayName)
+	}
 	c.updateTopbarSubtitle()
-	avatar.LoadAvatar(c.client, chat.JID, displayName, c.activeChatAvatar)
-	c.contentStack.SetVisibleChildName("chat")
+	if c.activeChatAvatar != nil {
+		avatar.LoadAvatar(c.client, chat.JID, displayName, c.activeChatAvatar)
+	}
+	if c.contentStack != nil {
+		c.contentStack.SetVisibleChildName("chat")
+	}
 
 	if c.client != nil && !strings.HasSuffix(chat.JID, "@g.us") && !strings.HasSuffix(chat.JID, "@broadcast") && !strings.HasSuffix(chat.JID, "@newsletter") {
 		go func() {
@@ -30,16 +38,24 @@ func (c *MainController) selectChat(chat store.Chat) {
 		}()
 	}
 
-	c.chatSearchBtn.SetSensitive(true)
-	c.chatSearchBtn.SetActive(false)
-	c.chatSearchBar.SetSearchMode(false)
-	c.chatSearchEntry.SetText("")
+	if c.chatSearchBtn != nil {
+		c.chatSearchBtn.SetSensitive(true)
+		c.chatSearchBtn.SetActive(false)
+	}
+	if c.chatSearchBar != nil {
+		c.chatSearchBar.SetSearchMode(false)
+	}
+	if c.chatSearchEntry != nil {
+		c.chatSearchEntry.SetText("")
+	}
 	c.messagesSearchFilter = ""
 	c.searchMatchIndices = nil
 	c.currentSearchMatchIndex = 0
 	c.updateSearchUI()
 
-	c.splitView.SetShowContent(true)
+	if c.splitView != nil {
+		c.splitView.SetShowContent(true)
+	}
 	c.cancelReply()
 	c.hideMentionPopup()
 	activeMentionState.activeMembers = nil
@@ -53,13 +69,16 @@ func (c *MainController) selectChat(chat store.Chat) {
 		c.loadArchivedChats()
 	})
 
-	c.loadMessages(chat.JID)
+	if c.messagesList != nil {
+		c.loadMessages(chat.JID)
+	}
 }
 
 func (c *MainController) markChatRead(chatJIDStr string) {
 	if chatJIDStr == "" {
 		return
 	}
+	c.withdrawChatNotification(chatJIDStr)
 	targetJID, err := types.ParseJID(chatJIDStr)
 	if err != nil {
 		return

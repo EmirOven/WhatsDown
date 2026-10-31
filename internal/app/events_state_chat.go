@@ -57,9 +57,16 @@ func handleChatStateAction(evt any) {
 		}
 	case *events.MarkChatAsRead:
 		if e.Action != nil && e.Action.GetRead() {
+			ui.WithdrawChatNotification(e.JID.ToNonAD().String())
 			at := e.Timestamp
 			if ts := e.Action.GetMessageRange().GetLastMessageTimestamp(); ts > 0 {
-				at = time.Unix(ts, 0)
+				rangeAt := time.Unix(ts, 0)
+				if at.IsZero() || rangeAt.After(at) {
+					at = rangeAt
+				}
+			}
+			if at.IsZero() {
+				at = time.Now()
 			}
 			if err := msgStore.MarkChatReadAt(ctx, e.JID, at); err != nil {
 				log.Printf("syncing chat read state: %v", err)

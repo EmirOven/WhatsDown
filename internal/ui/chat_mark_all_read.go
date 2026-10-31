@@ -121,6 +121,7 @@ func (c *MainController) markAllChatsRead() {
 		err := markAllUnreadChats(ctx, c.store, client, at)
 		glib.IdleAdd(func() {
 			c.markingAllRead = false
+			c.withdrawAllNotifications()
 			c.loadChats()
 			c.loadArchivedChats()
 			c.updateMarkAllReadButton()

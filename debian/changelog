@@ -3,8 +3,14 @@ whatsdown (3-1) noble; urgency=medium
   * Release 3.
   * Reduce chat and sync memory usage and bound image caches.
   * Add clickable message URLs and day separators.
+  * Display single-emoji messages with 64pt jumbo emojis in chat bubbles.
+  * Fix Mark all as read failures by recovering from app-state snapshot LTHash mismatches and retrying on 409 conflict errors.
+  * Synchronize read receipts from primary phone and catch up offline reads.
+  * Play system notification sound on incoming messages.
+  * Focus window, unminimize, navigate to chat, and scroll to message on notification activation.
+  * Withdraw notifications when reading messages or marking chats as read.
 
- -- Emir Öven <emiroven@postbetasoftware.com>  Thu, 22 Oct 2026 16:00:00 +0200
+ -- Emir Öven <emiroven@postbetasoftware.com>  Sat, 31 Oct 2026 15:10:00 +0100
 
 whatsdown (0.2.0-1) noble; urgency=medium
 

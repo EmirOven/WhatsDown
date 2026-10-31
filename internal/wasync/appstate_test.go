@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
 )
 
@@ -57,5 +58,36 @@ func TestOrdinaryFailuresDoNotResetSyncState(t *testing.T) {
 	}
 	if c.calls != 1 || len(c.fetches) != 0 {
 		t.Fatal("ordinary failure reset app state")
+	}
+}
+
+type conflictClient struct {
+	calls        int
+	fetches      []bool
+	sendErr      error
+	errorOnFetch error
+}
+
+func (c *conflictClient) SendAppState(context.Context, appstate.PatchInfo) error {
+	c.calls++
+	if c.calls == 1 {
+		return c.sendErr
+	}
+	return nil
+}
+
+func (c *conflictClient) FetchAppState(_ context.Context, _ appstate.WAPatchName, full, _ bool) error {
+	c.fetches = append(c.fetches, full)
+	return c.errorOnFetch
+}
+
+func TestAppStateConflictRecoversWithIncrementalFetch(t *testing.T) {
+	c := &conflictClient{sendErr: fmt.Errorf("%w: conflict", whatsmeow.ErrAppStateUpdate)}
+	patch := appstate.PatchInfo{Type: appstate.WAPatchRegularLow}
+	if err := SendAppState(context.Background(), c, patch); err != nil {
+		t.Fatal(err)
+	}
+	if c.calls != 2 || len(c.fetches) != 1 || c.fetches[0] != false {
+		t.Fatalf("wrong conflict recovery: %+v", c)
 	}
 }

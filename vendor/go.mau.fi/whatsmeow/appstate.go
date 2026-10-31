@@ -162,6 +162,16 @@ func (cli *Client) applyAppStatePatches(
 ) (appstate.HashState, error) {
 	mutations, newState, err := cli.appStateProc.DecodePatches(ctx, patches, state, true)
 	if err != nil {
+		if errors.Is(err, appstate.ErrMismatchingLTHash) || errors.Is(err, appstate.ErrMismatchingPatchMAC) {
+			cli.Log.Warnf("Failed to verify MAC for %s patches (%v), falling back to unverified decode", name, err)
+			var fallbackErr error
+			mutations, newState, fallbackErr = cli.appStateProc.DecodePatches(ctx, patches, state, false)
+			if fallbackErr == nil {
+				err = nil
+			}
+		}
+	}
+	if err != nil {
 		if errors.Is(err, appstate.ErrKeyNotFound) {
 			go cli.requestMissingAppStateKeys(context.WithoutCancel(ctx), patches)
 		} else {

@@ -44,6 +44,8 @@ func (c *MainController) scrollToBottomAnimated() {
 }
 
 func (c *MainController) scrollToMessageID(id string) {
+	c.autoScrollBottom = false
+	c.isAutoScrolling = false
 	if row, ok := c.messageRowMap[id]; ok && row != nil {
 		row.GrabFocus()
 		if vp, ok := c.messagesScrolledWindow.Child().(*gtk.Viewport); ok {

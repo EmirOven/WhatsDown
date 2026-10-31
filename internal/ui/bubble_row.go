@@ -22,6 +22,9 @@ func (c *MainController) createMessageBubble(msg store.StoredMessage, sameMinute
 
 	box := gtk.NewBox(gtk.OrientationVertical, 4)
 	box.AddCSSClass("chat-bubble")
+	if c.isSingleEmojiMessage(msg) {
+		box.AddCSSClass("chat-bubble-single-emoji-box")
+	}
 
 	isOutgoing := msg.FromMe || c.isSelfJID(msg.ChatJID)
 	if isOutgoing {

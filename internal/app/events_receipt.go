@@ -7,6 +7,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	"postbetasoftware.com/whatsdown/internal/store"
+	"postbetasoftware.com/whatsdown/internal/ui"
 )
 
 func handleReceiptEvent(e *events.Receipt) {
@@ -14,8 +15,10 @@ func handleReceiptEvent(e *events.Receipt) {
 		return
 	}
 	// Our other devices reading a chat is separate from recipients reading our message.
-	if e.Type == types.ReceiptTypeReadSelf || e.Type == types.ReceiptTypePlayedSelf {
+	if (e.IsFromMe && (e.Type == types.ReceiptTypeRead || e.Type == types.ReceiptTypePlayed)) ||
+		e.Type == types.ReceiptTypeReadSelf || e.Type == types.ReceiptTypePlayedSelf {
 		go func() {
+			ui.WithdrawChatNotification(e.Chat.ToNonAD().String())
 			if err := msgStore.MarkChatReadAt(context.Background(), e.Chat, e.Timestamp); err != nil {
 				log.Printf("marking chat read: %v", err)
 				return

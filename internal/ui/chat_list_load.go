@@ -20,6 +20,11 @@ func (c *MainController) LoadChats() {
 		return
 	}
 	c.chats = chats
+	for _, ch := range chats {
+		if ch.UnreadCount == 0 {
+			c.withdrawChatNotification(ch.JID)
+		}
+	}
 	c.updateMarkAllReadButton()
 	c.renderChatList(chats, false)
 }
@@ -43,6 +48,11 @@ func (c *MainController) LoadArchivedChats() {
 		return
 	}
 	c.archivedChats = chats
+	for _, ch := range chats {
+		if ch.UnreadCount == 0 {
+			c.withdrawChatNotification(ch.JID)
+		}
+	}
 	c.updateMarkAllReadButton()
 	c.renderChatList(chats, true)
 }
