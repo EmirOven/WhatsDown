@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.0.0] - 2026-10-31
+## [3.0.0] (Functional) - 2026-10-31
 
 ### Added
 - Large 64pt single-emoji display in chat bubbles for messages containing only a single emoji.
@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed voice playback controls triggering replies and improved visibility of read ticks and outgoing poll results.
 - Fixed Markdown rendering crash when typing a number followed by a space and a letter in the message box.
 
-## [0.2.0] - 2026-10-22
+## [0.2.0] (Colourful) - 2026-10-22
 
 ### Added
 - Custom chat backgrounds: set any chat background independently to a solid colour or image wallpaper.

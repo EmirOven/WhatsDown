@@ -1,6 +1,6 @@
 whatsdown (3-1) noble; urgency=medium
 
-  * Release 3.
+  * Release 3 (Functional).
   * Reduce chat and sync memory usage and bound image caches.
   * Add clickable message URLs and day separators.
   * Display single-emoji messages with 64pt jumbo emojis in chat bubbles.
